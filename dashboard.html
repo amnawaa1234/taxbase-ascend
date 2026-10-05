@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --ink:#1C1E26; --muted:#6B7180; --line:#E2E4E9; --bg:#F7F7F5;
@@ -260,7 +259,24 @@
     background-color:var(--green-bg); color:var(--green);
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%232F9E44' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
+  .status-select.status-in_progress{
+    background-color:#FFD43B; color:#5C4300;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235C4300' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  .status-select.status-submitted{
+    background-color:#1B6B3A; color:#fff;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  .status-select option{background:#fff; color:var(--ink);}
   .status-date{font-size:11px; color:var(--muted); margin-top:5px;}
+
+  .report-opt{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line);
+    border-radius:8px; margin-bottom:8px; cursor:pointer; font-size:13px; font-weight:700;
+  }
+  .report-opt:hover{border-color:var(--navy);}
+  .report-opt input{width:auto; margin:0; padding:0; accent-color:var(--navy);}
+  .report-opt .rcount{margin-left:auto; color:var(--muted); font-weight:500;}
   .remarks-cell{min-width:260px;}
   .empty-state{padding:26px 6px; text-align:center; color:var(--muted); font-size:13px;}
 
@@ -290,7 +306,6 @@
   .list-table.show-sst-col .sst-col{display:table-cell;}
   .pcb-col{display:none;}
   .list-table.show-pcb-col .pcb-col{display:table-cell;}
-  .list-table.hide-status-col .status-cell{display:none;}
   .e-date-row{display:flex; align-items:center; gap:4px; margin-top:5px;}
   .e-date-input{
     font-size:11px; padding:3px 5px; border:1px solid var(--line); border-radius:5px;
@@ -406,7 +421,7 @@
           <option value="za">Sort: Name Z–A</option>
         </select>
         <button id="listArchiveBtn">🗂 Archive</button>
-        <button id="listExportBtn">⬇ Export Excel</button>
+        <button id="listReportBtn">🖨 Generate report</button>
         <button class="primary" id="listAddBtn">+ Add client</button>
       </div>
 
@@ -519,6 +534,20 @@
   </div>
 </div>
 
+<!-- Generate report modal -->
+<div class="modal-backdrop" id="reportBackdrop">
+  <div class="modal" style="max-width:420px;">
+    <h2 id="reportTitle">Generate report</h2>
+    <p class="modal-sub" style="margin-bottom:14px;">Choose which status lists to include. A printable report opens — use <b>Print / Save as PDF</b> to print it or download it as a PDF.</p>
+    <div id="reportStatusOptions"></div>
+    <div class="modal-error" id="reportError"></div>
+    <div class="modal-actions">
+      <button id="reportCancelBtn">Cancel</button>
+      <button class="primary" id="reportGenerateBtn">Generate</button>
+    </div>
+  </div>
+</div>
+
 <!-- Due-date reminder modal -->
 <div class="modal-backdrop" id="reminderBackdrop">
   <div class="modal" style="max-width:380px;">
@@ -568,6 +597,12 @@
   let pendingRemark = null; // { entryId, body }
 
   const isAdmin = () => currentProfile && currentProfile.role === 'head';
+
+  // Every form uses the same four statuses.
+  const STATUSES = ['pending', 'in_progress', 'completed', 'submitted'];
+  const STATUS_LABELS = { pending: 'PENDING', in_progress: 'IN PROGRESS', completed: 'COMPLETED', submitted: 'SUBMITTED' };
+  const normStatus = s => (STATUSES.includes(s) ? s : 'pending');
+  const isDone = s => s === 'completed' || s === 'submitted';
 
   function escapeHtml(str){
     const d = document.createElement('div');
@@ -709,7 +744,7 @@
   let listSortMode = 'newest';   // 'newest' | 'due' | 'az' | 'za'
   let listLetterFilter = null;   // 'A'..'Z' or null
   let listMonthFilter = null;    // 1-12 (due-date month) or null
-  let statusFilter = null;       // null | 'pending' | 'completed' (Form EA/BE tabs sidebar)
+  let statusFilter = null;       // null | 'pending' | 'in_progress' | 'completed' | 'submitted' (sidebar)
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
   // --- Config -------------------------------------------------------------
@@ -724,7 +759,7 @@
     if (!entry.due_date) return false;
     const dueYear = parseInt(entry.due_date.slice(0, 4), 10);
     if (dueYear >= new Date().getFullYear()) return false;
-    if (KEEP_PENDING_ON_NEW_YEAR && entry.status !== 'completed') return false;
+    if (KEEP_PENDING_ON_NEW_YEAR && !isDone(entry.status)) return false;
     return true;
   }
   const activeEntries = key => (formData[key] || []).filter(e => !isArchived(e));
@@ -735,8 +770,8 @@
     if (listSearchTerm) rows = rows.filter(e => e.company_name.toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
     if (listMonthFilter) rows = rows.filter(e => e.due_date && parseInt(e.due_date.slice(5, 7), 10) === listMonthFilter);
-    if (statusFilter && (formType === 'form_ea' || formType === 'form_be' || formType === 'form_sst')) {
-      rows = rows.filter(e => (e.status === 'completed' ? 'completed' : 'pending') === statusFilter);
+    if (statusFilter) {
+      rows = rows.filter(e => normStatus(e.status) === statusFilter);
     }
 
     rows = rows.slice();
@@ -782,10 +817,8 @@
       }));
     } else if (currentListFormType === 'form_be') {
       el.classList.add('show');
-      el.innerHTML = `
-        <button type="button" class="month-btn${statusFilter === null ? ' active' : ''}" data-status="">All</button>
-        <button type="button" class="month-btn${statusFilter === 'pending' ? ' active' : ''}" data-status="pending">PENDING</button>
-        <button type="button" class="month-btn${statusFilter === 'completed' ? ' active' : ''}" data-status="completed">COMPLETED</button>`;
+      el.innerHTML = `<button type="button" class="month-btn${statusFilter === null ? ' active' : ''}" data-status="">All</button>` +
+        STATUSES.map(st => `<button type="button" class="month-btn${statusFilter === st ? ' active' : ''}" data-status="${st}">${STATUS_LABELS[st]}</button>`).join('');
       el.querySelectorAll('.month-btn').forEach(btn => btn.addEventListener('click', () => {
         statusFilter = btn.dataset.status || null;
         renderSidebar();
@@ -797,10 +830,9 @@
         <div class="sidebar-section-label" style="margin-top:0;">Due Month</div>
         <button type="button" class="month-btn month-filter-btn${listMonthFilter === null ? ' active' : ''}" data-month="">All</button>` +
         MONTHS.map((m, i) => `<button type="button" class="month-btn month-filter-btn${listMonthFilter === i + 1 ? ' active' : ''}" data-month="${i + 1}">${m}</button>`).join('') +
-        `<div class="sidebar-section-label">Sales Summary</div>
-        <button type="button" class="month-btn status-filter-btn${statusFilter === null ? ' active' : ''}" data-status="">All</button>
-        <button type="button" class="month-btn status-filter-btn${statusFilter === 'pending' ? ' active' : ''}" data-status="pending">NOT RECEIVED</button>
-        <button type="button" class="month-btn status-filter-btn${statusFilter === 'completed' ? ' active' : ''}" data-status="completed">RECEIVED</button>`;
+        `<div class="sidebar-section-label">Status</div>
+        <button type="button" class="month-btn status-filter-btn${statusFilter === null ? ' active' : ''}" data-status="">All</button>` +
+        STATUSES.map(st => `<button type="button" class="month-btn status-filter-btn${statusFilter === st ? ' active' : ''}" data-status="${st}">${STATUS_LABELS[st]}</button>`).join('');
       el.querySelectorAll('.month-filter-btn').forEach(btn => btn.addEventListener('click', () => {
         listMonthFilter = btn.dataset.month ? parseInt(btn.dataset.month, 10) : null;
         renderSidebar();
@@ -871,7 +903,7 @@
     if (!key || !REMINDER_FORMS.includes(key) || remindedForms.has(key)) return;
     remindedForms.add(key);
 
-    const pending = activeEntries(key).filter(e => e.status !== 'completed' && e.due_date);
+    const pending = activeEntries(key).filter(e => !isDone(e.status) && e.due_date);
     if (!pending.length) return;
     const soonest = pending.reduce((a, b) => (a.due_date < b.due_date ? a : b));
 
@@ -928,7 +960,6 @@
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
     document.querySelector('.list-table').classList.toggle('show-pcb-col', PCB_STYLE_FORMS.includes(key));
-    document.querySelector('.list-table').classList.toggle('hide-status-col', PCB_STYLE_FORMS.includes(key));
     document.getElementById('listAddBtn').textContent =
       key === 'form_e' ? '+ Add Form E' : key === 'form_sst' ? '+ Add SST' : key === 'form_cp500' ? '+ Add CP500' : '+ Add client';
   }
@@ -988,28 +1019,37 @@
   }
 
   async function onStatusChange(entryId, newStatus){
+    const entry = findEntry(entryId);
+    const oldStatus = entry ? normStatus(entry.status) : null;
     const { error } = await sb.from('form_entries')
       .update({ status: newStatus, status_changed_at: new Date().toISOString() })
       .eq('id', entryId);
-    if (error) { showToast('Could not update status: ' + error.message); }
+    if (error) {
+      showToast('Could not update status: ' + error.message);
+    } else if (entry && oldStatus !== newStatus) {
+      await logActivity(`Changed status of "${entry.company_name}" (${formNameOf(entry.form_type)}) from ${STATUS_LABELS[oldStatus]} to ${STATUS_LABELS[newStatus]}`);
+    }
     await loadFormEntries();
   }
 
   async function onEFieldUpdate(entryId, field, value){
+    const entry = findEntry(entryId);
     const { error } = await sb.from('form_entries').update({ [field]: value }).eq('id', entryId);
-    if (error) { showToast('Could not update: ' + error.message); }
+    if (error) {
+      showToast('Could not update: ' + error.message);
+    } else if (entry && entry[field] !== value) {
+      const label = FIELD_LABELS[field] || field;
+      const shown = field === 'ea_received' || field === 'salary_received'
+        ? (value === 'received' ? 'RECEIVED' : 'NOT RECEIVED')
+        : (value ? formatDateDMY(value) : 'cleared');
+      await logActivity(`Set ${label} to ${shown} for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
+    }
     await loadFormEntries();
-  }
-
-  function statusLabels(formType){
-    if (formType === 'form_e') return { pending: 'PENDING', completed: 'SUBMITTED' };
-    if (formType === 'form_sst') return { pending: 'NOT RECEIVED', completed: 'RECEIVED' };
-    return { pending: 'PENDING', completed: 'COMPLETED' };
   }
 
   function entryRowHtml(entry){
     const due = formatDateDMY(entry.due_date);
-    const status = entry.status === 'completed' ? 'completed' : 'pending';
+    const status = normStatus(entry.status);
     const remarks = entry.form_remarks || [];
     let remarksHtml;
     if (!remarks.length) {
@@ -1036,7 +1076,6 @@
         : `<div class="ea-note" style="margin-top:4px; white-space:normal;">⚠ BE required for this client</div>`;
     }
 
-    const labels = statusLabels(entry.form_type);
     const simpleDateCell = (field, value) => `
       <div class="e-date-row">
         <input type="date" class="e-date-input" data-entry="${entry.id}" data-field="${field}" value="${value || ''}">
@@ -1064,8 +1103,7 @@
         <td class="e-col status-cell">${eCellHtml('salary_received', salaryReceived, 'salary_received_date', entry.salary_received_date)}</td>
         <td class="status-cell">
           <select class="status-select status-${status}" data-entry="${entry.id}">
-            <option value="pending" ${status === 'pending' ? 'selected' : ''}>${labels.pending}</option>
-            <option value="completed" ${status === 'completed' ? 'selected' : ''}>${labels.completed}</option>
+            ${STATUSES.map(st => `<option value="${st}" ${status === st ? 'selected' : ''}>${STATUS_LABELS[st]}</option>`).join('')}
           </select>
           <div class="status-date">Changed on ${formatDateDMY(entry.status_changed_at ? entry.status_changed_at.slice(0, 10) : entry.created_at.slice(0, 10))}</div>
         </td>
@@ -1133,6 +1171,7 @@
     if (!pendingDelete || !isAdmin()) return;
     const btn = document.getElementById('deleteConfirmBtn');
     btn.disabled = true; btn.textContent = 'Deleting...';
+    const deletedEntry = findEntry(pendingDelete.id);
     const { data, error } = await sb.from('form_entries').delete().eq('id', pendingDelete.id).select();
     btn.disabled = false; btn.textContent = 'Delete';
     document.getElementById('deleteConfirmBackdrop').classList.remove('open');
@@ -1140,6 +1179,7 @@
       showToast('Could not delete: ' + (error ? error.message : 'not allowed (admin only).'));
     } else {
       showToast(`${pendingDelete.name} deleted.`);
+      await logActivity(`Deleted "${pendingDelete.name}" from ${formNameOf(deletedEntry ? deletedEntry.form_type : currentDataKey())}`);
     }
     pendingDelete = null;
     await loadFormEntries();
@@ -1159,6 +1199,10 @@
     btn.disabled = false; btn.textContent = 'Confirm';
     document.getElementById('remarkConfirmBackdrop').classList.remove('open');
     if (error) { showToast('Could not add remark: ' + error.message); pendingRemark = null; return; }
+    const remarkedEntry = findEntry(pendingRemark.entryId);
+    if (remarkedEntry) {
+      await logActivity(`Added a remark on "${remarkedEntry.company_name}" (${formNameOf(remarkedEntry.form_type)}): "${shortText(pendingRemark.body)}"`);
+    }
     pendingRemark = null;
     await loadFormEntries();
   });
@@ -1243,6 +1287,7 @@
     btn.disabled = false; btn.textContent = 'Save';
     closeEntryForm();
     showToast(`${company_name} added.`);
+    await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${remark ? ' with a remark' : ''}`);
     await loadFormEntries();
   });
 
@@ -1252,35 +1297,134 @@
     renderListTable();
   });
 
-  /* ---------------- Export Excel (per form, respects current filter) ---------------- */
-  document.getElementById('listExportBtn').addEventListener('click', () => {
-    const key = currentDataKey();
-    const label = currentListFormType === 'form_be' ? (key === 'form_ea' ? 'Form EA' : 'Form BE')
-      : currentListFormType === 'form_pcb' ? (key === 'form_pcb' ? 'PCB' : 'CP205')
-      : FORMS.find(x => x.key === key).label;
-    const rows = getFilteredEntries(key);
-    const isPCBStyle = PCB_STYLE_FORMS.includes(key);
-    const data = rows.map(e => ({
-      [`${entityOf(key)} Name`]: e.company_name,
-      'Due Date': formatDateDMY(e.due_date),
-      ...(isPCBStyle
-        ? {
-            'Payment Received On': formatDateDMY(e.payment_received_on),
-            'Paid to LHDN': formatDateDMY(e.paid_to_lhdn)
-          }
-        : {
-            'Status': e.status === 'completed' ? 'COMPLETED' : 'PENDING',
-            'Status Changed': formatDateDMY(e.status_changed_at ? e.status_changed_at.slice(0, 10) : e.created_at.slice(0, 10))
-          }),
-      'Remarks': (e.form_remarks || []).map(r =>
-        `${r.body} — ${profilesMap[r.author_id] || 'Unknown'} (${formatTimeMeta(r.created_at)})`
-      ).join(' | ')
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, label);
-    XLSX.writeFile(wb, `${label.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  /* ---------------- Generate report (print / save as PDF) ---------------- */
+  const currentListLabel = () => formNameOf(currentDataKey());
+  // The report covers the whole list being viewed (current list, or Archive when that is open),
+  // regardless of the on-screen search / letter / month filters.
+  const reportScopeEntries = () => (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive);
+
+  document.getElementById('listReportBtn').addEventListener('click', () => {
+    const entries = reportScopeEntries();
+    document.getElementById('reportTitle').textContent =
+      `Generate report — ${currentListLabel()}${showArchive ? ' (Archive)' : ''}`;
+    document.getElementById('reportStatusOptions').innerHTML = STATUSES.map(st => {
+      const n = entries.filter(e => normStatus(e.status) === st).length;
+      return `<label class="report-opt"><input type="checkbox" value="${st}" checked> ${STATUS_LABELS[st]}<span class="rcount">${n}</span></label>`;
+    }).join('');
+    document.getElementById('reportError').textContent = '';
+    document.getElementById('reportBackdrop').classList.add('open');
   });
+  document.getElementById('reportCancelBtn').addEventListener('click', () => {
+    document.getElementById('reportBackdrop').classList.remove('open');
+  });
+  document.getElementById('reportBackdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'reportBackdrop') e.target.classList.remove('open');
+  });
+  document.getElementById('reportGenerateBtn').addEventListener('click', () => {
+    const chosen = [...document.querySelectorAll('#reportStatusOptions input:checked')].map(i => i.value);
+    if (!chosen.length) { document.getElementById('reportError').textContent = 'Select at least one status.'; return; }
+    const key = currentDataKey();
+    const label = currentListLabel() + (showArchive ? ' (Archive)' : '');
+    const entries = reportScopeEntries();
+    const total = entries.filter(e => chosen.includes(normStatus(e.status))).length;
+    document.getElementById('reportBackdrop').classList.remove('open');
+    openReportWindow(buildReportHtml(key, label, chosen, entries));   // must run straight from the click (popup rules)
+    logActivity(`Generated ${label} report (${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
+  });
+
+  function openReportWindow(html){
+    const w = window.open('', '_blank');
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); return; }
+    // Pop-up blocked: print through a hidden frame instead.
+    const old = document.getElementById('reportFrame');
+    if (old) old.remove();
+    const frame = document.createElement('iframe');
+    frame.id = 'reportFrame';
+    frame.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0;';
+    document.body.appendChild(frame);
+    frame.contentDocument.open(); frame.contentDocument.write(html); frame.contentDocument.close();
+    setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); }, 300);
+  }
+
+  function reportColumns(key){
+    const dateOf = f => e => formatDateDMY(e[f]);
+    const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
+    const cols = [
+      { h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' },
+      { h: 'Due Date', v: dateOf('due_date') }
+    ];
+    if (key === 'form_e') cols.push({ h: 'EA', v: recv('ea_received', 'ea_received_date') }, { h: 'Summary Salary', v: recv('salary_received', 'salary_received_date') });
+    if (key === 'form_sst') cols.push({ h: 'Process', v: dateOf('process_date') }, { h: 'Client Paid On', v: dateOf('client_paid_date') }, { h: 'Make Payment to Customs', v: dateOf('customs_payment_date') });
+    if (PCB_STYLE_FORMS.includes(key)) cols.push({ h: 'Payment Received On', v: dateOf('payment_received_on') }, { h: 'Paid to LHDN', v: dateOf('paid_to_lhdn') });
+    cols.push({ h: 'Status Changed', v: e => formatDateDMY((e.status_changed_at || e.created_at || '').slice(0, 10)) });
+    return cols;
+  }
+
+  function buildReportHtml(key, label, chosen, entries){
+    const cols = reportColumns(key);
+    const order = STATUSES.filter(st => chosen.includes(st));
+    const byDueThenName = (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.company_name.localeCompare(b.company_name);
+    const remarksHtml = e => (e.form_remarks || []).length
+      ? e.form_remarks.map(r => `<div class="rm"><i>${escapeHtml(r.body)}</i><div class="rmeta">Updated by: ${escapeHtml(profilesMap[r.author_id] || 'Unknown')} at ${escapeHtml(formatTimeMeta(r.created_at))}</div></div>`).join('')
+      : '<span class="none">—</span>';
+
+    let grandTotal = 0;
+    const sections = order.map(st => {
+      const rows = entries.filter(e => normStatus(e.status) === st).sort(byDueThenName);
+      grandTotal += rows.length;
+      const table = rows.length ? `
+        <table>
+          <thead><tr><th class="num">#</th>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th class="remcol">Remarks</th></tr></thead>
+          <tbody>${rows.map((e, i) => `<tr><td class="num">${i + 1}</td>${cols.map(c => `<td${c.cls ? ` class="${c.cls}"` : ''}>${escapeHtml(c.v(e))}</td>`).join('')}<td class="remcol">${remarksHtml(e)}</td></tr>`).join('')}</tbody>
+        </table>` : '<p class="empty">No entries.</p>';
+      return `<section><h2><span class="badge ${st}">${STATUS_LABELS[st]}</span><span class="cnt">(${rows.length})</span></h2>${table}</section>`;
+    }).join('');
+
+    const who = currentProfile ? currentProfile.full_name : '';
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(label)} Report — TaxBase</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', Arial, Helvetica, sans-serif; color: #1C1E26; margin: 0; padding: 0 0 24px; font-size: 12px; }
+  .toolbar { position: sticky; top: 0; background: #2B4C7E; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .toolbar button { background: #fff; color: #2B4C7E; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 13px; }
+  .page { padding: 18px 20px 0; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .org { color: #6B7180; font-size: 12px; margin-bottom: 10px; }
+  .meta { font-size: 11.5px; color: #4a4f5c; margin-bottom: 18px; line-height: 1.6; }
+  section { margin-bottom: 22px; }
+  h2 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .cnt { color: #6B7180; font-weight: 600; }
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; letter-spacing: .03em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .badge.pending { background: #EDF3FF; color: #2F6FED; }
+  .badge.in_progress { background: #FFD43B; color: #5C4300; }
+  .badge.completed { background: #EBFBEE; color: #2F9E44; }
+  .badge.submitted { background: #1B6B3A; color: #fff; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { display: table-header-group; }
+  th { text-align: left; background: #F1F2F5; font-size: 11px; padding: 7px 9px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  td { padding: 7px 9px; border: 1px solid #D9DCE3; vertical-align: top; }
+  tr { page-break-inside: avoid; }
+  td.name { font-weight: 700; }
+  .num { width: 28px; text-align: center; color: #6B7180; }
+  .remcol { width: 32%; }
+  .rm { margin-bottom: 6px; }
+  .rm i { font-size: 11.5px; line-height: 1.45; }
+  .rmeta { font-size: 10px; color: #6B7180; margin-top: 1px; }
+  .none, .empty { color: #6B7180; }
+  @media print { .toolbar { display: none; } .page { padding-top: 0; } }
+</style></head><body>
+<div class="toolbar"><span>Report preview</span><button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="page">
+  <h1>${escapeHtml(label)} Report</h1>
+  <div class="org">TaxBase — Ascend Advisory Group</div>
+  <div class="meta">
+    Generated by: <b>${escapeHtml(who)}</b> on ${escapeHtml(formatTimeMeta(new Date().toISOString()))}<br>
+    Statuses included: <b>${order.map(st => STATUS_LABELS[st]).join(', ')}</b> &nbsp;·&nbsp; Total entries: <b>${grandTotal}</b>
+  </div>
+  ${sections}
+</div></body></html>`;
+  }
 
   /* ---------------- Form EA -> BE workflow (inside the Form BE widget) ---------------- */
   function nextMarch2(){
@@ -1335,6 +1479,7 @@
       });
       if (error) { showToast(`Could not create the ${label} entry: ` + error.message); return; }
       showToast(`${ea.company_name} moved to ${label}.`);
+      await logActivity(`Created ${label} entry for "${ea.company_name}" from Form EA`);
       await loadFormEntries();
     }
 
@@ -1408,6 +1553,7 @@
 
     closeTripleForm();
     showToast(`${company_name} added.`);
+    await logActivity(`Added ${entityOf(cfg.formType).toLowerCase()} "${company_name}" to ${formNameOf(cfg.formType)}${tripleMode === 'both' ? ' (BE required)' : ''}`);
     if (tripleMode === 'ea' || tripleMode === 'both') activeSubForm = 'form_ea';
     if (tripleMode === 'pcb' || tripleMode === 'cp205') activeSubForm2 = cfg.formType;
     await loadFormEntries();
@@ -1449,10 +1595,42 @@
   });
 
   /* ---------------- Activity log ---------------- */
+  let activityWarned = false;
   async function logActivity(description){
     if (!currentUser) return;
-    try { await sb.from('activity_log').insert({ actor_id: currentUser.id, description }); }
-    catch (e) { /* non-fatal — never block the user's actual action over a logging failure */ }
+    try {
+      const { error } = await sb.from('activity_log').insert({ actor_id: currentUser.id, description });
+      if (error) throw error;
+    } catch (e) {
+      // Never block the user's real action over a logging failure — but say so once, so it isn't invisible.
+      console.warn('Activity log failed:', e.message || e);
+      if (!activityWarned) {
+        activityWarned = true;
+        showToast('Your action was saved, but it could not be recorded in My Activity: ' + (e.message || 'unknown error'));
+      }
+    }
+  }
+
+  const FIELD_LABELS = {
+    ea_received: 'EA', ea_received_date: 'EA received date',
+    salary_received: 'Summary Salary', salary_received_date: 'Summary Salary received date',
+    process_date: 'Process date', client_paid_date: 'Client Paid On', customs_payment_date: 'Make Payment to Customs',
+    payment_received_on: 'Payment Received On', paid_to_lhdn: 'Paid to LHDN'
+  };
+  function formNameOf(formType){
+    const fixed = { form_ea: 'Form EA', form_be: 'Form BE', form_pcb: 'PCB', form_cp205: 'CP205' };
+    return fixed[formType] || (FORMS.find(f => f.key === formType) || {}).label || formType;
+  }
+  function findEntry(id){
+    for (const k of Object.keys(formData)) {
+      const e = (formData[k] || []).find(x => x.id === id);
+      if (e) return e;
+    }
+    return null;
+  }
+  function shortText(str, max = 80){
+    const t = String(str || '').replace(/\s+/g, ' ').trim();
+    return t.length > max ? t.slice(0, max - 1) + '…' : t;
   }
 
   let activityTab = 'mine';          // 'mine' | 'staff' (admin only)
