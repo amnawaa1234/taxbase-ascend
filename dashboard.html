@@ -889,7 +889,7 @@
     const el = document.getElementById('monthSidebar');
     if (!currentListFormType) { el.classList.remove('show'); el.innerHTML = ''; return; }
     const key = currentDataKey();
-    const hasMonths = currentListFormType === 'form_c' || currentListFormType === 'form_sst';
+    const hasMonths = ['form_c', 'form_sst', 'form_pcb'].includes(currentListFormType);   // form_pcb = the CP205 / PCB widget
     const hasPeriods = currentListFormType === 'form_cp500';
 
     // Status counts follow the other filters (search / letter / month), but not the status filter itself.
@@ -899,6 +899,19 @@
     statusFilter = savedStatus;
     const counts = { all: rows.length };
     STATUSES.forEach(st => { counts[st] = rows.filter(e => normStatus(e.status) === st).length; });
+
+    // Month counts follow the other filters (incl. status) but not the month filter itself.
+    const monthCounts = { all: 0 };
+    if (hasMonths) {
+      const savedMonth = listMonthFilter;
+      listMonthFilter = null;
+      const mRows = getFilteredEntries(key);
+      listMonthFilter = savedMonth;
+      monthCounts.all = mRows.length;
+      for (let m = 1; m <= 12; m++) {
+        monthCounts[m] = mRows.filter(e => e.due_date && parseInt(e.due_date.slice(5, 7), 10) === m).length;
+      }
+    }
 
     // Period counts follow the other filters (incl. status) but not the period filter itself.
     const periodCounts = { all: 0 };
@@ -921,8 +934,8 @@
       STATUSES.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
     if (hasMonths) {
       html += `<div class="sidebar-section-label">Due Month</div>` +
-        btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null) +
-        MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1)).join('');
+        btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null, monthCounts.all) +
+        MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1, monthCounts[i + 1])).join('');
     }
     if (hasPeriods) {
       html += `<div class="sidebar-section-label">Period</div>` +
@@ -1031,6 +1044,7 @@
       listSortMode = 'newest';
       document.getElementById('listSortSelect').value = 'newest';
       listLetterFilter = null;
+      listMonthFilter = null;
       listPeriodFilter = null;
       statusFilter = null;
       showArchive = false;
