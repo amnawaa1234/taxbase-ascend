@@ -70,14 +70,14 @@
   .notif-footer{background:#E4E5E8; padding:10px 14px; font-size:14px; cursor:pointer;}
   .notif-footer:hover{background:#D9DADF;}
   .list-panel{scroll-margin-top:calc(var(--header-h) + 12px);}
-  @keyframes rowFlash{0%{background-color:#FFE24D} 50%{background-color:#FFF0A0} 100%{background-color:transparent}}
+  @keyframes rowFlash{0%{background-color:#FFE24D} 50%{background-color:#FFF0A0} 100%{background-color:#fff}}
   .list-table tbody tr.flash-highlight > td{animation:rowFlash 5s ease-out;}
   @media (max-width: 600px){
     .notif-panel{position:fixed; left:10px; right:10px; top:calc(var(--header-h) + 8px); width:auto; max-width:none;}
   }
 
   .app-body{flex:1; display:flex; align-items:stretch; min-height:0;}
-  main{flex:1; min-width:0; padding:28px;}
+  main{flex:1; min-width:0; padding:28px 22px;}
 
   /* ---- Nav sidebar ---- */
   .nav-sidebar{
@@ -175,7 +175,7 @@
   /* ---- Inline list panel (appears under the widget grid when a card is clicked) ---- */
   .list-panel{
     display:none; background:#fff; border:1px solid var(--line); border-radius:10px;
-    padding:22px 24px; margin-top:18px;
+    padding:22px 18px; margin-top:18px;
   }
   .list-panel.open{display:block;}
   .list-panel-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
@@ -196,6 +196,7 @@
     font-size:12px; font-weight:600; font-family:inherit; cursor:pointer;
   }
   .finish-btn:disabled{background:#fff; color:var(--muted); border-color:var(--line); cursor:not-allowed;}
+  .next-btn{white-space:nowrap;}
   .ea-action-group{display:flex; flex-direction:column; gap:5px; align-items:stretch;}
   .ea-action-group .finish-btn{padding:5px 10px; white-space:nowrap;}
   .ea-note{color:var(--red); font-style:italic; font-size:12px; line-height:1.5; margin:8px 0 0;}
@@ -300,11 +301,22 @@
   }
   .list-table{width:100%; border-collapse:collapse; font-size:13px;}
   .list-table thead th{
-    text-align:left; font-size:12px; color:var(--muted); font-weight:600; padding:10px 14px;
+    text-align:left; font-size:12px; color:var(--muted); font-weight:600; padding:10px 10px;
     box-shadow:inset 0 -1px 0 var(--line); background:#FAFAF8; white-space:nowrap;
     position:sticky; top:0; z-index:2;
   }
-  .list-table tbody td{padding:12px 14px; border-bottom:1px solid #F0F0EE; vertical-align:top;}
+  .list-table tbody td{padding:12px 10px; border-bottom:1px solid #F0F0EE; vertical-align:top;}
+
+  /* Frozen columns: the name stays on the left and the action buttons stay on the right,
+     so they are always reachable even when a list is wider than the screen. */
+  .list-table thead th:first-child, .list-table tbody td.company-cell{position:sticky; left:0;}
+  .list-table tbody td.company-cell{background:#fff; z-index:1;}
+  .list-table thead th:first-child{z-index:3;}
+  .list-table th.finish-col, .list-table td.finish-col{position:sticky; right:48px; z-index:1; padding-left:6px; padding-right:6px;}
+  .list-table th.admin-col, .list-table td.admin-col{position:sticky; right:0; z-index:1; width:48px; min-width:48px; padding-left:6px; padding-right:6px;}
+  .list-table td.finish-col, .list-table td.admin-col{background:#fff;}
+  .list-table th.finish-col, .list-table th.admin-col{z-index:3;}
+  body.staff-view .list-table .finish-col{right:0;}
   .list-table tbody tr:last-child td{border-bottom:none;}
   .company-cell{font-weight:600; white-space:nowrap;}
   .due-cell{color:var(--muted); white-space:nowrap;}
@@ -341,7 +353,7 @@
   .report-opt:hover{border-color:var(--navy);}
   .report-opt input{width:auto; margin:0; padding:0; accent-color:var(--navy);}
   .report-opt .rcount{margin-left:auto; color:var(--muted); font-weight:500;}
-  .remarks-cell{min-width:260px;}
+  .remarks-cell{min-width:190px;}
   .empty-state{padding:26px 6px; text-align:center; color:var(--muted); font-size:13px;}
 
   .remarks-list{display:flex; flex-direction:column; gap:8px; margin-bottom:8px;}
@@ -371,6 +383,7 @@
   .pcb-col{display:none;}
   .list-table.show-pcb-col .pcb-col{display:table-cell;}
   .e-date-row{display:flex; align-items:center; gap:4px; margin-top:5px;}
+  .pcb-col .e-date-row, .sst-col .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:0;}
   .e-date-input{
     font-size:11px; padding:3px 5px; border:1px solid var(--line); border-radius:5px;
     font-family:inherit; width:112px; color:var(--ink);
@@ -521,6 +534,7 @@
             <div class="due-preview" id="eDuePreview" style="margin-top:8px;"></div>
           </div>
         </div>
+        <div class="ea-note" id="eFormNote" style="display:none; margin:12px 0 12px;"></div>
         <label for="eRemark">Remarks (optional)</label>
         <textarea id="eRemark" rows="2" placeholder="Optional remark..."></textarea>
         <div class="modal-error" id="entryModalError"></div>
@@ -713,11 +727,22 @@
   }
 
   /* ---------------- Sidebar collapse ---------------- */
+  function setNavCollapsed(collapsed){
+    document.getElementById('navSidebar').classList.toggle('collapsed', collapsed);
+    document.getElementById('navToggle').textContent = collapsed ? '»' : '«';
+  }
   document.getElementById('navToggle').addEventListener('click', () => {
-    const sidebar = document.getElementById('navSidebar');
-    sidebar.classList.toggle('collapsed');
-    document.getElementById('navToggle').textContent = sidebar.classList.contains('collapsed') ? '»' : '«';
+    const collapsed = !document.getElementById('navSidebar').classList.contains('collapsed');
+    setNavCollapsed(collapsed);
+    try { localStorage.setItem('taxbase_nav_collapsed', collapsed ? '1' : '0'); } catch (e) {}
   });
+  (function initNavSidebar(){
+    // Your own choice wins. Otherwise: laptop-width screens (861–1499px) start collapsed so the lists get the room.
+    let saved = null;
+    try { saved = localStorage.getItem('taxbase_nav_collapsed'); } catch (e) {}
+    const w = window.innerWidth;
+    setNavCollapsed(saved !== null ? saved === '1' : (w > 860 && w < 1500));
+  })();
 
   /* ---------------- Dashboard / My Activity switch ---------------- */
   document.getElementById('navDashboard').addEventListener('click', () => {
@@ -1070,7 +1095,7 @@
     document.getElementById('listSearchInput').placeholder = `Search ${ent.toLowerCase()} name...`;
     document.getElementById('thStatus').textContent =
       key === 'form_ea' ? 'Finalize' : key === 'form_e' ? 'Submit to LHDN' : key === 'form_sst' ? 'Sales Summary' : 'Status';
-    document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea');
+    document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea' || PCB_STYLE_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
     document.querySelector('.list-table').classList.toggle('show-pcb-col', PCB_STYLE_FORMS.includes(key));
@@ -1124,7 +1149,8 @@
       document.getElementById('deleteConfirmBackdrop').classList.add('open');
     }));
     body.querySelectorAll('.status-select:not(.e-field-select)').forEach(sel => sel.addEventListener('change', () => onStatusChange(sel.dataset.entry, sel.value)));
-    body.querySelectorAll('.finish-btn').forEach(btn => btn.addEventListener('click', () => onFinishClick(btn.dataset.entry, btn.dataset.target)));
+    body.querySelectorAll('.finish-btn:not(.next-btn)').forEach(btn => btn.addEventListener('click', () => onFinishClick(btn.dataset.entry, btn.dataset.target)));
+    body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     body.querySelectorAll('.e-today-btn').forEach(btn => btn.addEventListener('click', () => {
@@ -1241,7 +1267,10 @@
             ${entry.requires_be ? `<button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_be" ${entry.status === 'completed' ? '' : 'disabled'}>Create BE</button>` : ''}
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_b" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create B</button>
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_e" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create E</button>
-          </div>` : ''}</td>
+          </div>`
+          : PCB_STYLE_FORMS.includes(entry.form_type)
+          ? `<button type="button" class="finish-btn next-btn" data-entry="${entry.id}" ${isDone(status) ? '' : 'disabled'} title="${isDone(status) ? 'Create the next period for this client' : 'Set the status to COMPLETED or SUBMITTED first'}">Next period</button>`
+          : ''}</td>
         <td class="admin-col">
           <button type="button" class="delete-btn" data-entry="${entry.id}" data-name="${escapeHtml(entry.company_name)}" title="Delete ${entityOf(entry.form_type).toLowerCase()}">
             <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
@@ -1338,6 +1367,10 @@
       (currentListFormType === 'form_be' || currentListFormType === 'form_cp500') ? 'e.g. Ahmad bin Ismail' : 'e.g. Meridian Holdings Sdn Bhd';
     document.getElementById('eRemark').value = '';
     document.getElementById('entryModalError').textContent = '';
+    const noteFn = ADD_FORM_NOTES[currentListFormType];
+    const noteEl = document.getElementById('eFormNote');
+    noteEl.textContent = noteFn ? noteFn() : '';
+    noteEl.style.display = noteFn ? 'block' : 'none';
     addEntryForm.classList.add('open');
     document.getElementById('eCompanyName').focus();
   });
@@ -1373,7 +1406,7 @@
       : currentListFormType === 'form_e'
       ? nextMarch2()
       : currentListFormType === 'form_cp500'
-      ? nextMonthlyDue()
+      ? nextCP500Due()
       : (document.getElementById('eDueDate').value || null);
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
@@ -1558,14 +1591,64 @@
     return `${year}-02-14`;
   }
   function nextMonthlyDue(){
-    // PCB / CP500: due date is set to the 1st of the (upcoming) month — two weeks
-    // ahead of LHDN's 15th-of-the-month PCB remittance deadline, for early progress.
+    // PCB / CP205: paid every month. Due date is the 1st of the (upcoming) month — two weeks
+    // ahead of the government's 15th-of-the-month deadline, for early progress.
     const now = new Date();
     let year = now.getFullYear(), month = now.getMonth(); // 0-indexed
     if (now > new Date(year, month, 1)) { month += 1; if (month > 11) { month = 0; year += 1; } }
     return `${year}-${String(month + 1).padStart(2, '0')}-01`;
   }
+
+  // CP500: six instalments a year — Jan, Mar, May, Jul, Sep, Nov. Government due is the 31st
+  // (30th for Sep and Nov); ours is the 16th of the same month, two weeks earlier.
+  const CP500_DAY = 16;
+  const pad2 = n => String(n).padStart(2, '0');
+  function nextCP500Due(){
+    // the closest upcoming 16th of an instalment month
+    const now = new Date();
+    let ord = now.getFullYear() * 12 + now.getMonth();               // month counter: year*12 + monthIndex
+    for (let i = 0; i < 26; i++, ord++) {
+      if ((ord % 12) % 2 !== 0) continue;                             // monthIndex 0,2,4,… = Jan, Mar, May…
+      const y = Math.floor(ord / 12), m = ord % 12;
+      if (now <= new Date(y, m, CP500_DAY)) return `${y}-${pad2(m + 1)}-${CP500_DAY}`;
+    }
+  }
+  function nextCP500After(isoDate){
+    // the instalment that follows the month of isoDate (works for old 1st-of-month rows too)
+    const [y, m] = isoDate.split('-').map(Number);
+    let ord = y * 12 + (m - 1) + 1;
+    while ((ord % 12) % 2 !== 0) ord++;
+    return `${Math.floor(ord / 12)}-${pad2(ord % 12 + 1)}-${CP500_DAY}`;
+  }
+  function nextMonthAfter(isoDate){
+    const [y, m] = isoDate.split('-').map(Number);
+    const ord = y * 12 + (m - 1) + 1;
+    return `${Math.floor(ord / 12)}-${pad2(ord % 12 + 1)}-01`;
+  }
   const EA_TARGET_LABELS = { form_be: 'Form BE', form_b: 'Form B', form_e: 'Form E' };
+
+  // PCB / CP205 / CP500 are paid again and again. When a period is done, the client "jumps" to the
+  // next one: a new row with the next due date. The finished row stays behind as the payment history.
+  async function onNextPeriodClick(entryId){
+    const entry = findEntry(entryId);
+    if (!entry || !entry.due_date || !isDone(entry.status) || !PCB_STYLE_FORMS.includes(entry.form_type)) return;
+    const nextDue = entry.form_type === 'form_cp500' ? nextCP500After(entry.due_date) : nextMonthAfter(entry.due_date);
+    const nameLower = entry.company_name.trim().toLowerCase();
+    const existing = (formData[entry.form_type] || []).find(e => e.due_date === nextDue && e.company_name.trim().toLowerCase() === nameLower);
+    if (existing) {
+      showToast(`${entry.company_name} already has the next period (${formatDateDMY(nextDue)}).`);
+      goToForm(entry.form_type, existing.id);
+      return;
+    }
+    const { data, error } = await sb.from('form_entries')
+      .insert({ form_type: entry.form_type, company_name: entry.company_name, due_date: nextDue, created_by: currentUser.id })
+      .select().single();
+    if (error) { showToast('Could not create the next period: ' + error.message); return; }
+    showToast(`${entry.company_name} moved to the next period (${formatDateDMY(nextDue)}).`);
+    await logActivity(`Created next period (${formatDateDMY(nextDue)}) for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
+    await loadFormEntries();
+    goToForm(entry.form_type, data.id);
+  }
 
   async function onFinishClick(eaId, target){
     const ea = (formData.form_ea || []).find(e => e.id === eaId);
@@ -1617,8 +1700,12 @@
   const TRIPLE_NOTES = {
     ea: 'Deadline is set to 14 February for early finalization as Form EA must be given to employees by 28 February.',
     both: 'Deadline is set to 14 February (Form EA) and 20 April (Form BE) for early progress.',
-    pcb: 'Due date is set to the 1st of the month — two weeks ahead of LHDN\u2019s 15th-of-the-month PCB remittance deadline.',
-    cp205: 'Due date is set to the 1st of the month for early progress.'
+    pcb: () => `Deadline is set to the 1st of every month as an early progress as Form PCB government due is on the 15th of every month. Next deadline: ${formatDateDMY(nextMonthlyDue())}.`,
+    cp205: () => `Deadline is set to the 1st of every month as an early progress as Form CP205 government due is on the 15th of every month. Next deadline: ${formatDateDMY(nextMonthlyDue())}.`
+  };
+  // Notes for the generic "add" form (shown in red italic, like the ones above)
+  const ADD_FORM_NOTES = {
+    form_cp500: () => `Deadline is set to the 16th of every two months (January, March, May, July, September and November) as an early progress as Form CP500 government due is on the 31st of the same month (30th for September and November). Next deadline: ${formatDateDMY(nextCP500Due())}.`
   };
   const TRIPLE_LABELS = { ea: 'Client name', both: 'Client name', pcb: 'Client name', cp205: 'Company name' };
   const TRIPLE_PLACEHOLDERS = { ea: 'e.g. Ahmad bin Ismail', both: 'e.g. Ahmad bin Ismail', pcb: 'e.g. Ahmad bin Ismail', cp205: 'e.g. Meridian Holdings Sdn Bhd' };
@@ -1639,7 +1726,7 @@
       document.getElementById('tripleClientName').value = '';
       document.getElementById('tripleFormError').textContent = '';
       document.getElementById('tripleAddTitle').textContent = TRIPLE_TITLES[mode];
-      document.getElementById('tripleNote').textContent = TRIPLE_NOTES[mode];
+      document.getElementById('tripleNote').textContent = typeof TRIPLE_NOTES[mode] === 'function' ? TRIPLE_NOTES[mode]() : TRIPLE_NOTES[mode];
       document.querySelector('label[for="tripleClientName"]').textContent = TRIPLE_LABELS[mode];
       document.getElementById('tripleClientName').placeholder = TRIPLE_PLACEHOLDERS[mode];
       tripleAddForm.classList.add('open');
