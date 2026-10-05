@@ -70,6 +70,8 @@
   .notif-footer{background:#E4E5E8; padding:10px 14px; font-size:14px; cursor:pointer;}
   .notif-footer:hover{background:#D9DADF;}
   .list-panel{scroll-margin-top:calc(var(--header-h) + 12px);}
+  @keyframes rowFlash{0%{background-color:#FFE24D} 50%{background-color:#FFF0A0} 100%{background-color:transparent}}
+  .list-table tbody tr.flash-highlight > td{animation:rowFlash 5s ease-out;}
   @media (max-width: 600px){
     .notif-panel{position:fixed; left:10px; right:10px; top:calc(var(--header-h) + 8px); width:auto; max-width:none;}
   }
@@ -206,7 +208,7 @@
   .triple-btn.primary{background:var(--navy); color:#fff; border-color:var(--navy);}
   .triple-btn.primary:hover{background:var(--navy-dark); color:#fff;}
   .list-body-row{display:flex; gap:20px; align-items:flex-start;}
-  .month-sidebar{display:none; flex-direction:column; gap:4px; flex-shrink:0; width:150px;}
+  .month-sidebar{display:none; flex-direction:column; gap:4px; flex-shrink:0; width:150px; max-height:max(320px, calc(100vh - var(--header-h) - 250px)); overflow-y:auto; overscroll-behavior:contain;}
   .month-sidebar.show{display:flex;}
   .month-btn{
     padding:7px 10px; border:1px solid var(--line); background:#fff; border-radius:6px;
@@ -291,11 +293,16 @@
   .add-entry-actions button{padding:8px 14px; border-radius:6px; border:1px solid var(--line); background:#fff; font-size:13px; cursor:pointer; font-family:inherit;}
   .add-entry-actions button.primary{background:var(--navy); color:#fff; border-color:var(--navy);}
 
-  .list-table-wrap{border:1px solid var(--line); border-radius:8px; overflow-x:auto;}
+  .list-table-wrap{
+    border:1px solid var(--line); border-radius:8px; overflow:auto;
+    max-height:max(320px, calc(100vh - var(--header-h) - 250px));
+    overscroll-behavior:contain;   /* wheel stops at the end of the list instead of scrolling the page */
+  }
   .list-table{width:100%; border-collapse:collapse; font-size:13px;}
   .list-table thead th{
     text-align:left; font-size:12px; color:var(--muted); font-weight:600; padding:10px 14px;
-    border-bottom:1px solid var(--line); background:#FAFAF8; white-space:nowrap;
+    box-shadow:inset 0 -1px 0 var(--line); background:#FAFAF8; white-space:nowrap;
+    position:sticky; top:0; z-index:2;
   }
   .list-table tbody td{padding:12px 14px; border-bottom:1px solid #F0F0EE; vertical-align:top;}
   .list-table tbody tr:last-child td{border-bottom:none;}
@@ -561,9 +568,9 @@
         <button type="button" class="group-tab" data-atab="staff">Staff Activity</button>
       </div>
 
-      <div id="activityUserPicker" style="display:none; max-width:360px; margin-bottom:16px;" class="dash-search-wrap">
-        <input type="text" id="activityUserSearch" placeholder="Search staff name...">
-        <div class="dash-search-results" id="activityUserResults"></div>
+      <div id="activityUserPicker" style="display:none; max-width:360px; margin-bottom:12px;">
+        <input type="text" id="activityUserSearch" placeholder="Search staff name..."
+               style="width:100%; padding:10px 14px; border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit;">
       </div>
       <div id="activityViewingLabel" style="display:none; font-size:13px; color:var(--muted); margin-bottom:12px;"></div>
 
@@ -815,6 +822,8 @@
   let listSortMode = 'newest';   // 'newest' | 'due' | 'az' | 'za'
   let listLetterFilter = null;   // 'A'..'Z' or null
   let listMonthFilter = null;    // 1-12 (due-date month) or null
+  let listPeriodFilter = null;   // 0-5 = Jan–Feb … Nov–Dec (CP500) or null
+  const PERIODS = ['Jan–Feb', 'Mar–Apr', 'May–Jun', 'Jul–Aug', 'Sep–Oct', 'Nov–Dec'];
   let statusFilter = null;       // null | 'pending' | 'in_progress' | 'completed' | 'submitted' (sidebar)
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -841,6 +850,7 @@
     if (listSearchTerm) rows = rows.filter(e => e.company_name.toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
     if (listMonthFilter) rows = rows.filter(e => e.due_date && parseInt(e.due_date.slice(5, 7), 10) === listMonthFilter);
+    if (listPeriodFilter !== null) rows = rows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === listPeriodFilter);
     if (statusFilter) {
       rows = rows.filter(e => normStatus(e.status) === statusFilter);
     }
@@ -880,6 +890,7 @@
     if (!currentListFormType) { el.classList.remove('show'); el.innerHTML = ''; return; }
     const key = currentDataKey();
     const hasMonths = currentListFormType === 'form_c' || currentListFormType === 'form_sst';
+    const hasPeriods = currentListFormType === 'form_cp500';
 
     // Status counts follow the other filters (search / letter / month), but not the status filter itself.
     const savedStatus = statusFilter;
@@ -889,23 +900,44 @@
     const counts = { all: rows.length };
     STATUSES.forEach(st => { counts[st] = rows.filter(e => normStatus(e.status) === st).length; });
 
+    // Period counts follow the other filters (incl. status) but not the period filter itself.
+    const periodCounts = { all: 0 };
+    if (hasPeriods) {
+      const savedPeriod = listPeriodFilter;
+      listPeriodFilter = null;
+      const pRows = getFilteredEntries(key);
+      listPeriodFilter = savedPeriod;
+      periodCounts.all = pRows.length;
+      PERIODS.forEach((_, i) => { periodCounts[i] = pRows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === i).length; });
+    }
+
     const btn = (cls, attr, val, label, active, count) =>
       `<button type="button" class="month-btn ${cls}${active ? ' active' : ''}" data-${attr}="${val}"><span>${label}</span>${count == null ? '' : `<span class="mb-count">(${count})</span>`}</button>`;
 
-    let html = '';
+    // Status buttons come first on every form so they are always in view;
+    // Due Month (Form C / SST) or Period (CP500) sit underneath and scroll if needed.
+    let html = `<div class="sidebar-section-label" style="margin-top:0;">Status</div>` +
+      btn('status-filter-btn', 'status', '', 'All', statusFilter === null, counts.all) +
+      STATUSES.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
     if (hasMonths) {
-      html += `<div class="sidebar-section-label" style="margin-top:0;">Due Month</div>` +
+      html += `<div class="sidebar-section-label">Due Month</div>` +
         btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null) +
         MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1)).join('');
     }
-    html += `<div class="sidebar-section-label"${hasMonths ? '' : ' style="margin-top:0;"'}>Status</div>` +
-      btn('status-filter-btn', 'status', '', 'All', statusFilter === null, counts.all) +
-      STATUSES.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
+    if (hasPeriods) {
+      html += `<div class="sidebar-section-label">Period</div>` +
+        btn('period-filter-btn', 'period', '', 'All', listPeriodFilter === null, periodCounts.all) +
+        PERIODS.map((label, i) => btn('period-filter-btn', 'period', i, label, listPeriodFilter === i, periodCounts[i])).join('');
+    }
 
     el.classList.add('show');
     el.innerHTML = html;
     el.querySelectorAll('.month-filter-btn').forEach(b => b.addEventListener('click', () => {
       listMonthFilter = b.dataset.month ? parseInt(b.dataset.month, 10) : null;
+      renderListTable();
+    }));
+    el.querySelectorAll('.period-filter-btn').forEach(b => b.addEventListener('click', () => {
+      listPeriodFilter = b.dataset.period === '' ? null : parseInt(b.dataset.period, 10);
       renderListTable();
     }));
     el.querySelectorAll('.status-filter-btn').forEach(b => b.addEventListener('click', () => {
@@ -928,6 +960,7 @@
     document.getElementById('listSortSelect').value = 'newest';
     listLetterFilter = null;
     listMonthFilter = null;
+    listPeriodFilter = null;
     statusFilter = null;
     closeEntryForm();
     closeTripleForm();
@@ -987,6 +1020,7 @@
   }
   document.getElementById('reminderGotItBtn').addEventListener('click', () => {
     document.getElementById('reminderBackdrop').classList.remove('open');
+    if (pendingHighlight) { const id = pendingHighlight; pendingHighlight = null; setTimeout(() => highlightEntryRow(id), 100); }
   });
   document.querySelectorAll('.group-tab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -997,6 +1031,7 @@
       listSortMode = 'newest';
       document.getElementById('listSortSelect').value = 'newest';
       listLetterFilter = null;
+      listPeriodFilter = null;
       statusFilter = null;
       showArchive = false;
       closeEntryForm();
@@ -1160,7 +1195,7 @@
       </div>`;
 
     return `
-      <tr>
+      <tr data-row="${entry.id}">
         <td class="company-cell">${escapeHtml(entry.company_name)}${beTag}</td>
         <td class="due-cell">${due}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
@@ -1699,78 +1734,63 @@
     return t.length > max ? t.slice(0, max - 1) + '…' : t;
   }
 
-  let activityTab = 'mine';          // 'mine' | 'staff' (admin only)
-  let activityViewingUserId = null;  // which user's log is showing
+  let activityTab = 'mine';          // 'mine' | 'staff'  (staff tab = everyone's activity, visible to staff AND admin)
   let activityRows = [];
+  let activityEmptyMsg = 'No activity yet.';
+  let activityReq = 0;               // ignore answers that arrive after a newer request
+  let activitySearchTimer = null;
+  const activitySearchEl = document.getElementById('activityUserSearch');
 
+  function setActivityTab(tab){
+    activityTab = tab;
+    document.querySelectorAll('#activityTabs .group-tab').forEach(b => b.classList.toggle('active', b.dataset.atab === tab));
+    document.getElementById('activityHeading').textContent = tab === 'mine' ? 'My Activity' : 'Staff Activity';
+    document.getElementById('activityUserPicker').style.display = tab === 'staff' ? 'block' : 'none';
+    activitySearchEl.value = '';
+  }
   function openActivityView(){
-    document.getElementById('activityTabs').style.display = isAdmin() ? 'flex' : 'none';
-    document.getElementById('activityUserPicker').style.display = 'none';
-    document.getElementById('activityViewingLabel').style.display = 'none';
-    activityTab = 'mine';
-    activityViewingUserId = currentUser.id;
-    document.querySelectorAll('#activityTabs .group-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.atab === 'mine'));
-    document.getElementById('activityHeading').textContent = 'My Activity';
+    document.getElementById('activityTabs').style.display = 'flex';
+    setActivityTab('mine');
     loadActivity();
   }
-
   document.querySelectorAll('#activityTabs .group-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      activityTab = btn.dataset.atab;
-      document.querySelectorAll('#activityTabs .group-tab').forEach(b => b.classList.toggle('active', b === btn));
-      if (activityTab === 'mine') {
-        activityViewingUserId = currentUser.id;
-        document.getElementById('activityUserPicker').style.display = 'none';
-        document.getElementById('activityViewingLabel').style.display = 'none';
-        document.getElementById('activityHeading').textContent = 'My Activity';
-        loadActivity();
-      } else {
-        activityViewingUserId = null;
-        document.getElementById('activityUserPicker').style.display = 'block';
-        document.getElementById('activityViewingLabel').style.display = 'none';
-        document.getElementById('activityHeading').textContent = 'Staff Activity';
-        document.getElementById('activityUserSearch').value = '';
-        document.getElementById('activityUserResults').classList.remove('open');
-        activityRows = [];
-        renderActivityTable();
-      }
-    });
+    btn.addEventListener('click', () => { setActivityTab(btn.dataset.atab); loadActivity(); });
   });
-
-  const activityUserSearch = document.getElementById('activityUserSearch');
-  const activityUserResults = document.getElementById('activityUserResults');
-  activityUserSearch.addEventListener('input', () => {
-    const term = activityUserSearch.value.trim().toLowerCase();
-    if (!term) { activityUserResults.classList.remove('open'); activityUserResults.innerHTML = ''; return; }
-    const matches = profilesList.filter(p => p.full_name.toLowerCase().includes(term));
-    activityUserResults.innerHTML = matches.length
-      ? matches.map(p => `
-          <div class="dash-search-item" data-id="${p.id}">
-            <span class="sname">${escapeHtml(p.full_name)}</span>
-            <span class="sform">${p.role === 'head' ? 'Admin' : 'Staff'}</span>
-          </div>`).join('')
-      : `<div class="dash-search-empty">No staff match "${escapeHtml(activityUserSearch.value.trim())}".</div>`;
-    activityUserResults.querySelectorAll('.dash-search-item').forEach(el => {
-      el.addEventListener('click', () => {
-        activityViewingUserId = el.dataset.id;
-        document.getElementById('activityViewingLabel').style.display = 'block';
-        document.getElementById('activityViewingLabel').textContent = `Viewing: ${profilesMap[activityViewingUserId] || 'Unknown'}`;
-        activityUserResults.classList.remove('open');
-        activityUserSearch.value = profilesMap[activityViewingUserId] || '';
-        loadActivity();
-      });
-    });
-    activityUserResults.classList.add('open');
-  });
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('#activityUserPicker')) activityUserResults.classList.remove('open');
+  // Typing a name narrows the list to that staff member only; empty box = everyone.
+  activitySearchEl.addEventListener('input', () => {
+    clearTimeout(activitySearchTimer);
+    activitySearchTimer = setTimeout(loadActivity, 250);
   });
 
   async function loadActivity(){
-    if (!activityViewingUserId) { activityRows = []; renderActivityTable(); return; }
-    const { data, error } = await sb.from('activity_log')
-      .select('*').eq('actor_id', activityViewingUserId)
-      .order('created_at', { ascending: false }).limit(300);
+    const req = ++activityReq;
+    const label = document.getElementById('activityViewingLabel');
+    let query = sb.from('activity_log').select('*');
+    activityEmptyMsg = 'No activity yet.';
+    label.style.display = 'none';
+
+    if (activityTab === 'mine') {
+      query = query.eq('actor_id', currentUser.id);
+    } else {
+      const term = activitySearchEl.value.trim();
+      if (term) {
+        const ids = profilesList.filter(p => p.full_name.toLowerCase().includes(term.toLowerCase())).map(p => p.id);
+        if (!ids.length) {
+          activityRows = [];
+          activityEmptyMsg = `No staff match "${term}".`;
+          renderActivityTable();
+          return;
+        }
+        query = query.in('actor_id', ids);
+        label.textContent = `Showing: ${ids.map(id => profilesMap[id]).join(', ')}`;
+      } else {
+        label.textContent = 'Showing everyone\u2019s latest activity';
+      }
+      label.style.display = 'block';
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(300);
+    if (req !== activityReq) return;     // a newer request is already on its way
     if (error) {
       document.getElementById('activityBody').innerHTML = `<tr><td colspan="3" class="empty-state">Could not load activity: ${escapeHtml(error.message)}</td></tr>`;
       return;
@@ -1781,9 +1801,7 @@
   function renderActivityTable(){
     const body = document.getElementById('activityBody');
     if (!activityRows.length) {
-      body.innerHTML = `<tr><td colspan="3" class="empty-state">${
-        activityTab === 'staff' && !activityViewingUserId ? 'Search and pick a staff member above to see their activity.' : 'No activity yet.'
-      }</td></tr>`;
+      body.innerHTML = `<tr><td colspan="3" class="empty-state">${escapeHtml(activityEmptyMsg)}</td></tr>`;
       return;
     }
     body.innerHTML = activityRows.map(r => `
@@ -1801,7 +1819,7 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'form_remarks' }, () => loadFormEntries())
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'form_entries' }, (payload) => onEntryInserted(payload.new))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, () => {
-        if (document.getElementById('activityView').style.display !== 'none' && activityViewingUserId) loadActivity();
+        if (document.getElementById('activityView').style.display !== 'none') loadActivity();
       })
       .subscribe();
   }
@@ -1914,7 +1932,7 @@
     const cutoff = new Date(notifSnapshot !== null ? notifSnapshot : notifSeenAt);
     const rows = shown.length
       ? shown.map(e => `
-          <div class="notif-item${new Date(e.created_at) > cutoff ? ' unread' : ''}" data-type="${e.form_type}">
+          <div class="notif-item${new Date(e.created_at) > cutoff ? ' unread' : ''}" data-type="${e.form_type}" data-id="${e.id}">
             <span class="notif-dot"></span>
             <div>
               <div><b>${escapeHtml(profilesMap[e.created_by] || 'Someone')}</b> added ${entityOf(e.form_type).toLowerCase()}
@@ -1946,13 +1964,13 @@
     e.stopPropagation();
     if (e.target.closest('#notifViewAll')) { notifExpanded = !notifExpanded; renderNotifPanel(); return; }
     const item = e.target.closest('.notif-item');
-    if (item) goToForm(item.dataset.type);
+    if (item) goToForm(item.dataset.type, item.dataset.id);
   });
   document.addEventListener('click', () => { if (notifIsOpen()) closeNotifPanel(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && notifIsOpen()) closeNotifPanel(); });
 
   // Clicking a notification jumps to the list it belongs to.
-  function goToForm(formType){
+  function goToForm(formType, entryId){
     closeNotifPanel();
     document.getElementById('navDashboard').click();
     const widget = { form_ea: 'form_be', form_be: 'form_be', form_pcb: 'form_pcb', form_cp205: 'form_pcb' }[formType] || formType;
@@ -1961,9 +1979,24 @@
     if (widget === 'form_be') activeSubForm = formType;
     if (widget === 'form_pcb') activeSubForm2 = formType;
     listSearchTerm = ''; document.getElementById('listSearchInput').value = '';
-    statusFilter = null; listLetterFilter = null; listMonthFilter = null; showArchive = false;
+    statusFilter = null; listLetterFilter = null; listMonthFilter = null; listPeriodFilter = null;
+    const target = entryId ? findEntry(entryId) : null;
+    showArchive = target ? isArchived(target) : false;     // an old, finished entry lives in the Archive
     renderCurrentPanel();
     listPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (entryId) setTimeout(() => highlightEntryRow(entryId), 120);
+  }
+
+  // Scroll to the client inside the list and flash it yellow (fades out slowly).
+  // If the "Reminder!" pop-up is covering the page, wait until it is closed so the flash isn't wasted.
+  let pendingHighlight = null;
+  function highlightEntryRow(id){
+    if (document.getElementById('reminderBackdrop').classList.contains('open')) { pendingHighlight = id; return; }
+    const tr = document.querySelector(`#listTableBody tr[data-row="${id}"]`);
+    if (!tr) return;
+    tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    tr.classList.remove('flash-highlight'); void tr.offsetWidth; tr.classList.add('flash-highlight');
+    setTimeout(() => tr.classList.remove('flash-highlight'), 5200);
   }
 
   // Live: somebody else just added a client / company -> ring the bell.
