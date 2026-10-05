@@ -260,14 +260,6 @@
     background-color:var(--green-bg); color:var(--green);
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%232F9E44' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
-  .status-select.status-in_progress{
-    background-color:#FFF4E0; color:#E8730C;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23E8730C' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  }
-  .status-select.status-submitted{
-    background-color:#F2EDFC; color:#7048E8;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237048E8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  }
   .status-date{font-size:11px; color:var(--muted); margin-top:5px;}
   .remarks-cell{min-width:260px;}
   .empty-state{padding:26px 6px; text-align:center; color:var(--muted); font-size:13px;}
@@ -298,7 +290,7 @@
   .list-table.show-sst-col .sst-col{display:table-cell;}
   .pcb-col{display:none;}
   .list-table.show-pcb-col .pcb-col{display:table-cell;}
-  .list-table.hide-status-col .status-maybe-col{display:none;}
+  .list-table.hide-status-col .status-cell{display:none;}
   .e-date-row{display:flex; align-items:center; gap:4px; margin-top:5px;}
   .e-date-input{
     font-size:11px; padding:3px 5px; border:1px solid var(--line); border-radius:5px;
@@ -376,10 +368,18 @@
         <button type="button" class="group-tab" data-view="form_ea">EA</button>
         <button type="button" class="group-tab" data-view="form_be">BE</button>
       </div>
+      <div class="group-tabs" id="groupTabsPCB">
+        <button type="button" class="group-tab" data-view="form_pcb">Client</button>
+        <button type="button" class="group-tab" data-view="form_cp205">Company</button>
+      </div>
 
       <div class="add-triple-row" id="addTripleRow">
         <button type="button" class="triple-btn" data-mode="ea">+ Add EA</button>
         <button type="button" class="triple-btn primary" data-mode="both">+ Add EA+BE</button>
+      </div>
+      <div class="add-triple-row" id="addTripleRowPCB" style="display:none;">
+        <button type="button" class="triple-btn" data-mode="pcb">+ Create PCB</button>
+        <button type="button" class="triple-btn primary" data-mode="cp205">+ Create CP205</button>
       </div>
       <div class="add-entry-form" id="tripleAddForm">
         <h3 id="tripleAddTitle">New client</h3>
@@ -390,27 +390,6 @@
         <div class="add-entry-actions">
           <button id="tripleCancelBtn">Cancel</button>
           <button class="primary" id="tripleSaveBtn">Save</button>
-        </div>
-      </div>
-
-      <div class="group-tabs" id="pcbGroupTabs">
-        <button type="button" class="pcb-group-tab group-tab" data-view="form_pcb">Client</button>
-        <button type="button" class="pcb-group-tab group-tab" data-view="form_cp205">Company</button>
-      </div>
-
-      <div class="add-triple-row" id="pcbAddRow">
-        <button type="button" class="triple-btn pcb-triple-btn primary" data-pcbmode="pcb">+ Create PCB</button>
-        <button type="button" class="triple-btn pcb-triple-btn primary" data-pcbmode="cp205">+ Create CP205</button>
-      </div>
-      <div class="add-entry-form" id="pcbAddForm">
-        <h3 id="pcbAddTitle">New client</h3>
-        <label for="pcbEntryName" id="pcbEntryNameLabel">Client name</label>
-        <input type="text" id="pcbEntryName" placeholder="e.g. Ahmad bin Ismail">
-        <div class="ea-note" id="pcbNote"></div>
-        <div class="modal-error" id="pcbFormError"></div>
-        <div class="add-entry-actions">
-          <button id="pcbCancelBtn">Cancel</button>
-          <button class="primary" id="pcbSaveBtn">Save</button>
         </div>
       </div>
 
@@ -465,14 +444,14 @@
             <tr>
               <th style="width:16%;" id="thName">Company Name</th>
               <th style="width:10%;">Due Date</th>
+              <th class="pcb-col" style="width:14%;">Payment Received On</th>
+              <th class="pcb-col" style="width:14%;">Paid to LHDN</th>
               <th class="e-col" style="width:13%;">EA</th>
               <th class="e-col" style="width:15%;">Summary Salary</th>
-              <th class="status-maybe-col" style="width:13%;" id="thStatus">Status</th>
+              <th style="width:13%;" id="thStatus">Status</th>
               <th class="sst-col" style="width:12%;">Process</th>
               <th class="sst-col" style="width:12%;">Client Paid On</th>
               <th class="sst-col" style="width:14%;">Make Payment to Customs</th>
-              <th class="pcb-col" style="width:15%;">Payment Received On</th>
-              <th class="pcb-col" style="width:15%;">Paid to LHDN</th>
               <th>Remarks</th>
               <th class="finish-col" id="thFinish" style="width:110px;"></th>
               <th class="admin-col" style="width:44px;"></th>
@@ -561,33 +540,31 @@
   let profilesMap = {};
 
   const FORMS = [
-    { key: 'form_c',     label: 'Form C',            entity: 'Company' },
-    { key: 'form_be',    label: 'Form EA / BE',      entity: 'Client' },
-    { key: 'form_e',     label: 'Form E',            entity: 'Company' },
-    { key: 'form_sst',   label: 'Form SST',          entity: 'Company' },
-    { key: 'form_b',     label: 'Form B',            entity: 'Company' },
-    { key: 'form_pcb',   label: 'Form CP205 / PCB',  entity: 'Client' },
-    { key: 'form_cp500', label: 'Form CP500',        entity: 'Client' }
+    { key: 'form_c',     label: 'Form C',        entity: 'Company' },
+    { key: 'form_be',    label: 'Form EA / BE',  entity: 'Client' },
+    { key: 'form_e',     label: 'Form E',        entity: 'Company' },
+    { key: 'form_sst',   label: 'Form SST',      entity: 'Company' },
+    { key: 'form_b',     label: 'Form B',        entity: 'Company' },
+    { key: 'form_pcb',   label: 'CP205 / PCB',   entity: 'Client' },
+    { key: 'form_cp500', label: 'Form CP500',    entity: 'Client' }
   ];
-  let formData = {
-    form_c: [], form_be: [], form_e: [], form_ea: [], form_sst: [], form_b: [],
-    form_pcb: [], form_cp205: [], form_cp500: []
-  };
-  let activeSubForm = 'form_ea'; // 'form_ea' | 'form_be' — which tab is showing inside the Form EA/BE widget
-  let pcbSubForm = 'form_pcb';   // 'form_pcb' | 'form_cp205' — which tab inside the Form CP205/PCB widget
+  let formData = { form_c: [], form_be: [], form_e: [], form_ea: [], form_sst: [], form_b: [], form_pcb: [], form_cp205: [], form_cp500: [] };
+  let activeSubForm = 'form_ea';  // 'form_ea' | 'form_be' — which tab is showing inside the Form EA/BE widget
+  let activeSubForm2 = 'form_pcb'; // 'form_pcb' | 'form_cp205' — which tab inside the CP205/PCB widget
   let currentListFormType = null;
   const entityOf = key => {
-    if (key === 'form_ea') return 'Client';
+    if (key === 'form_ea' || key === 'form_pcb') return 'Client';
     if (key === 'form_cp205') return 'Company';
     return (FORMS.find(f => f.key === key) || {}).entity || 'Company';
   };
   // Which underlying dataset the generic list is currently showing: the sub-tab when inside
-  // the Form BE or Form CP205/PCB widget group, or the widget's own key otherwise.
+  // the Form BE or CP205/PCB widget group, or the widget's own key otherwise.
   const currentDataKey = () => {
     if (currentListFormType === 'form_be') return activeSubForm;
-    if (currentListFormType === 'form_pcb') return pcbSubForm;
+    if (currentListFormType === 'form_pcb') return activeSubForm2;
     return currentListFormType;
   };
+  const PCB_STYLE_FORMS = ['form_pcb', 'form_cp205', 'form_cp500'];
   let pendingRemark = null; // { entryId, body }
 
   const isAdmin = () => currentProfile && currentProfile.role === 'head';
@@ -858,6 +835,7 @@
     closeEntryForm();
     closeTripleForm();
     activeSubForm = 'form_ea';
+    activeSubForm2 = 'form_pcb';
     showArchive = false;
     renderCurrentPanel();
     listPanel.classList.add('open');
@@ -867,16 +845,16 @@
   function renderCurrentPanel(){
     if (!currentListFormType) return;
     const isGroup = currentListFormType === 'form_be';
-    const isPcbGroup = currentListFormType === 'form_pcb';
+    const isGroup2 = currentListFormType === 'form_pcb';
     document.getElementById('groupTabs').style.display = isGroup ? 'flex' : 'none';
     document.getElementById('addTripleRow').style.display = isGroup ? 'flex' : 'none';
+    document.getElementById('groupTabsPCB').style.display = isGroup2 ? 'flex' : 'none';
+    document.getElementById('addTripleRowPCB').style.display = isGroup2 ? 'flex' : 'none';
     if (isGroup) {
-      document.querySelectorAll('.group-tab:not(.pcb-group-tab)').forEach(btn => btn.classList.toggle('active', btn.dataset.view === activeSubForm));
+      document.querySelectorAll('#groupTabs .group-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.view === activeSubForm));
     }
-    document.getElementById('pcbGroupTabs').style.display = isPcbGroup ? 'flex' : 'none';
-    document.getElementById('pcbAddRow').style.display = isPcbGroup ? 'flex' : 'none';
-    if (isPcbGroup) {
-      document.querySelectorAll('.pcb-group-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.view === pcbSubForm));
+    if (isGroup2) {
+      document.querySelectorAll('#groupTabsPCB .group-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.view === activeSubForm2));
     }
     updateListChrome();
     renderSidebar();
@@ -915,7 +893,8 @@
   });
   document.querySelectorAll('.group-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      activeSubForm = btn.dataset.view;
+      if (currentListFormType === 'form_pcb') activeSubForm2 = btn.dataset.view;
+      else activeSubForm = btn.dataset.view;
       listSearchTerm = '';
       document.getElementById('listSearchInput').value = '';
       listSortMode = 'newest';
@@ -932,10 +911,14 @@
     const key = currentDataKey();
     if (!key) return;
     const isGroup = currentListFormType === 'form_be';
-    const label = isGroup ? (activeSubForm === 'form_ea' ? 'Form EA' : 'Form BE') : FORMS.find(x => x.key === key).label;
+    const isGroup2 = currentListFormType === 'form_pcb';
+    let label;
+    if (isGroup) label = activeSubForm === 'form_ea' ? 'Form EA' : 'Form BE';
+    else if (isGroup2) label = activeSubForm2 === 'form_pcb' ? 'PCB' : 'CP205';
+    else label = FORMS.find(x => x.key === key).label;
     document.getElementById('listPanelTitle').textContent = label + (showArchive ? ' — Archive' : '');
     document.getElementById('listArchiveBtn').textContent = showArchive ? '← Current list' : '🗂 Archive';
-    document.getElementById('listAddBtn').style.display = (showArchive || isGroup) ? 'none' : '';
+    document.getElementById('listAddBtn').style.display = (showArchive || isGroup || isGroup2) ? 'none' : '';
     const ent = entityOf(key);
     document.getElementById('thName').textContent = `${ent} Name`;
     document.getElementById('listSearchInput').placeholder = `Search ${ent.toLowerCase()} name...`;
@@ -944,8 +927,10 @@
     document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea');
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
+    document.querySelector('.list-table').classList.toggle('show-pcb-col', PCB_STYLE_FORMS.includes(key));
+    document.querySelector('.list-table').classList.toggle('hide-status-col', PCB_STYLE_FORMS.includes(key));
     document.getElementById('listAddBtn').textContent =
-      key === 'form_e' ? '+ Add Form E' : key === 'form_sst' ? '+ Add SST' : '+ Add client';
+      key === 'form_e' ? '+ Add Form E' : key === 'form_sst' ? '+ Add SST' : key === 'form_cp500' ? '+ Add CP500' : '+ Add client';
   }
   document.getElementById('listArchiveBtn').addEventListener('click', () => {
     showArchive = !showArchive;
@@ -959,6 +944,7 @@
     closeEntryForm();
     closeTripleForm();
     activeSubForm = 'form_ea';
+    activeSubForm2 = 'form_pcb';
     markActiveWidget();
   }
   function markActiveWidget(){
@@ -1072,9 +1058,11 @@
       <tr>
         <td class="company-cell">${escapeHtml(entry.company_name)}${beTag}</td>
         <td class="due-cell">${due}</td>
+        <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
+        <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
         <td class="e-col status-cell">${eCellHtml('ea_received', eaReceived, 'ea_received_date', entry.ea_received_date)}</td>
         <td class="e-col status-cell">${eCellHtml('salary_received', salaryReceived, 'salary_received_date', entry.salary_received_date)}</td>
-        <td class="status-cell status-maybe-col">
+        <td class="status-cell">
           <select class="status-select status-${status}" data-entry="${entry.id}">
             <option value="pending" ${status === 'pending' ? 'selected' : ''}>${labels.pending}</option>
             <option value="completed" ${status === 'completed' ? 'selected' : ''}>${labels.completed}</option>
@@ -1084,8 +1072,6 @@
         <td class="sst-col">${simpleDateCell('process_date', entry.process_date)}</td>
         <td class="sst-col">${simpleDateCell('client_paid_date', entry.client_paid_date)}</td>
         <td class="sst-col">${simpleDateCell('customs_payment_date', entry.customs_payment_date)}</td>
-        <td class="pcb-col">${simpleDateCell('payment_received_date', entry.payment_received_date)}</td>
-        <td class="pcb-col">${simpleDateCell('paid_lhdn_date', entry.paid_lhdn_date)}</td>
         <td class="remarks-cell">
           <div class="remarks-list">${remarksHtml}</div>
           <button type="button" class="add-remark-btn" data-entry="${entry.id}" title="Add remark">+</button>
@@ -1189,7 +1175,8 @@
     setupDueFields(currentListFormType);
     const entName = entityOf(currentListFormType);
     document.getElementById('eCompanyLabel').textContent = `${entName} name`;
-    document.getElementById('eCompanyName').placeholder = currentListFormType === 'form_be' ? 'e.g. Ahmad bin Ismail' : 'e.g. Meridian Holdings Sdn Bhd';
+    document.getElementById('eCompanyName').placeholder =
+      (currentListFormType === 'form_be' || currentListFormType === 'form_cp500') ? 'e.g. Ahmad bin Ismail' : 'e.g. Meridian Holdings Sdn Bhd';
     document.getElementById('eRemark').value = '';
     document.getElementById('entryModalError').textContent = '';
     addEntryForm.classList.add('open');
@@ -1203,7 +1190,8 @@
   function setupDueFields(formType){
     const isBE = formType === 'form_be';
     const isE = formType === 'form_e';
-    document.getElementById('eDueWrap').style.display = (isBE || isE) ? 'none' : '';
+    const isCP500 = formType === 'form_cp500';
+    document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500) ? 'none' : '';
     document.getElementById('eYAWrap').style.display = isBE ? '' : 'none';
     if (!isBE) return;
     const d = defaultYA();
@@ -1225,6 +1213,8 @@
       ? beDueDate(parseInt(document.getElementById('eYA').value, 10))
       : currentListFormType === 'form_e'
       ? nextMarch2()
+      : currentListFormType === 'form_cp500'
+      ? nextMonthlyDue()
       : (document.getElementById('eDueDate').value || null);
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
@@ -1265,13 +1255,23 @@
   /* ---------------- Export Excel (per form, respects current filter) ---------------- */
   document.getElementById('listExportBtn').addEventListener('click', () => {
     const key = currentDataKey();
-    const label = currentListFormType === 'form_be' ? (key === 'form_ea' ? 'Form EA' : 'Form BE') : FORMS.find(x => x.key === key).label;
+    const label = currentListFormType === 'form_be' ? (key === 'form_ea' ? 'Form EA' : 'Form BE')
+      : currentListFormType === 'form_pcb' ? (key === 'form_pcb' ? 'PCB' : 'CP205')
+      : FORMS.find(x => x.key === key).label;
     const rows = getFilteredEntries(key);
+    const isPCBStyle = PCB_STYLE_FORMS.includes(key);
     const data = rows.map(e => ({
       [`${entityOf(key)} Name`]: e.company_name,
       'Due Date': formatDateDMY(e.due_date),
-      'Status': e.status === 'completed' ? 'COMPLETED' : 'PENDING',
-      'Status Changed': formatDateDMY(e.status_changed_at ? e.status_changed_at.slice(0, 10) : e.created_at.slice(0, 10)),
+      ...(isPCBStyle
+        ? {
+            'Payment Received On': formatDateDMY(e.payment_received_on),
+            'Paid to LHDN': formatDateDMY(e.paid_to_lhdn)
+          }
+        : {
+            'Status': e.status === 'completed' ? 'COMPLETED' : 'PENDING',
+            'Status Changed': formatDateDMY(e.status_changed_at ? e.status_changed_at.slice(0, 10) : e.created_at.slice(0, 10))
+          }),
       'Remarks': (e.form_remarks || []).map(r =>
         `${r.body} — ${profilesMap[r.author_id] || 'Unknown'} (${formatTimeMeta(r.created_at)})`
       ).join(' | ')
@@ -1297,6 +1297,14 @@
     let year = now.getFullYear();
     if (now > new Date(year, 1, 14)) year += 1; // month 1 = February
     return `${year}-02-14`;
+  }
+  function nextMonthlyDue(){
+    // PCB / CP500: due date is set to the 1st of the (upcoming) month — two weeks
+    // ahead of LHDN's 15th-of-the-month PCB remittance deadline, for early progress.
+    const now = new Date();
+    let year = now.getFullYear(), month = now.getMonth(); // 0-indexed
+    if (now > new Date(year, month, 1)) { month += 1; if (month > 11) { month = 0; year += 1; } }
+    return `${year}-${String(month + 1).padStart(2, '0')}-01`;
   }
   const EA_TARGET_LABELS = { form_be: 'Form BE', form_b: 'Form B', form_e: 'Form E' };
 
@@ -1342,10 +1350,25 @@
   /* ---------------- Inline add-client form (Add EA / Add BE / Add EA+BE) ---------------- */
   let tripleMode = 'ea';
   const tripleAddForm = document.getElementById('tripleAddForm');
-  const TRIPLE_TITLES = { ea: 'New client — Form EA', both: 'New client — Form EA + BE' };
+  const TRIPLE_TITLES = {
+    ea: 'New client — Form EA', both: 'New client — Form EA + BE',
+    pcb: 'New client — PCB', cp205: 'New company — CP205'
+  };
   const TRIPLE_NOTES = {
     ea: 'Deadline is set to 14 February for early finalization as Form EA must be given to employees by 28 February.',
-    both: 'Deadline is set to 14 February (Form EA) and 20 April (Form BE) for early progress.'
+    both: 'Deadline is set to 14 February (Form EA) and 20 April (Form BE) for early progress.',
+    pcb: 'Due date is set to the 1st of the month — two weeks ahead of LHDN\u2019s 15th-of-the-month PCB remittance deadline.',
+    cp205: 'Due date is set to the 1st of the month for early progress.'
+  };
+  const TRIPLE_LABELS = { ea: 'Client name', both: 'Client name', pcb: 'Client name', cp205: 'Company name' };
+  const TRIPLE_PLACEHOLDERS = { ea: 'e.g. Ahmad bin Ismail', both: 'e.g. Ahmad bin Ismail', pcb: 'e.g. Ahmad bin Ismail', cp205: 'e.g. Meridian Holdings Sdn Bhd' };
+  // Config for the generic save handler: which form_type each mode writes to,
+  // how its due date is computed, and any extra fields (e.g. requires_be).
+  const TRIPLE_SAVE_CONFIG = {
+    ea:    { formType: 'form_ea',  due: nextFeb14,      extra: () => ({ requires_be: false }) },
+    both:  { formType: 'form_ea',  due: nextFeb14,      extra: () => ({ requires_be: true }) },
+    pcb:   { formType: 'form_pcb', due: nextMonthlyDue, extra: () => ({}) },
+    cp205: { formType: 'form_cp205', due: nextMonthlyDue, extra: () => ({}) }
   };
   function closeTripleForm(){ tripleAddForm.classList.remove('open'); }
   document.querySelectorAll('.triple-btn').forEach(btn => {
@@ -1357,6 +1380,8 @@
       document.getElementById('tripleFormError').textContent = '';
       document.getElementById('tripleAddTitle').textContent = TRIPLE_TITLES[mode];
       document.getElementById('tripleNote').textContent = TRIPLE_NOTES[mode];
+      document.querySelector('label[for="tripleClientName"]').textContent = TRIPLE_LABELS[mode];
+      document.getElementById('tripleClientName').placeholder = TRIPLE_PLACEHOLDERS[mode];
       tripleAddForm.classList.add('open');
       document.getElementById('tripleClientName').focus();
     });
@@ -1365,7 +1390,7 @@
   document.getElementById('tripleSaveBtn').addEventListener('click', async () => {
     const company_name = document.getElementById('tripleClientName').value.trim();
     const errEl = document.getElementById('tripleFormError');
-    if (!company_name) { errEl.textContent = 'Enter a client name.'; return; }
+    if (!company_name) { errEl.textContent = `Enter a ${TRIPLE_LABELS[tripleMode].toLowerCase()}.`; return; }
 
     const btn = document.getElementById('tripleSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -1373,9 +1398,9 @@
     // 'ea' and 'both' both create only the Form EA entry — "both" still requires
     // Finalize -> Create BE before its Form BE entry is created, same as any other EA client.
     // requires_be flags it so the EA list shows the "BE required" tag and the Create BE button.
+    const cfg = TRIPLE_SAVE_CONFIG[tripleMode];
     const { error } = await sb.from('form_entries').insert({
-      form_type: 'form_ea', company_name, due_date: nextFeb14(), created_by: currentUser.id,
-      requires_be: tripleMode === 'both'
+      form_type: cfg.formType, company_name, due_date: cfg.due(), created_by: currentUser.id, ...cfg.extra()
     });
 
     btn.disabled = false; btn.textContent = 'Save';
@@ -1383,7 +1408,8 @@
 
     closeTripleForm();
     showToast(`${company_name} added.`);
-    activeSubForm = 'form_ea';
+    if (tripleMode === 'ea' || tripleMode === 'both') activeSubForm = 'form_ea';
+    if (tripleMode === 'pcb' || tripleMode === 'cp205') activeSubForm2 = cfg.formType;
     await loadFormEntries();
   });
 
