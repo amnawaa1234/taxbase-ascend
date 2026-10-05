@@ -1242,7 +1242,7 @@
     btn.disabled = false; btn.textContent = 'Delete';
     document.getElementById('deleteConfirmBackdrop').classList.remove('open');
     if (error || !data || !data.length) {
-      showToast('Could not delete: ' + (error ? error.message : 'not allowed (admin only).'));
+      showToast('Could not delete: ' + (error ? error.message : 'the database refused it. Run taxbase-allow-delete.sql in Supabase to give Admin delete permission.'));
     } else {
       showToast(`${pendingDelete.name} deleted.`);
       await logActivity(`Deleted "${pendingDelete.name}" from ${formNameOf(deletedEntry ? deletedEntry.form_type : currentDataKey())}`);
