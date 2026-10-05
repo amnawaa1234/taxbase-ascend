@@ -19,10 +19,11 @@
     --grey-bg:#EDEFF3;
   }
   *{box-sizing:border-box;}
-  html, body{height:100%;}
+  :root{--header-h:61px;}
   body{margin:0; font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; min-height:100vh;}
   header{
     background:var(--navy); color:#fff; padding:16px 28px; flex-shrink:0;
+    position:sticky; top:0; z-index:30;
     display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
   }
   header h1{font-size:16px; font-weight:600; margin:0;}
@@ -34,14 +35,53 @@
   }
   .logout:hover{background:rgba(255,255,255,.2);}
 
+  /* ---- Notification bell ---- */
+  .bell-wrap{position:relative;}
+  .bell-btn{
+    background:none; border:none; color:#fff; cursor:pointer; padding:6px; border-radius:8px;
+    display:flex; align-items:center; position:relative;
+  }
+  .bell-btn:hover{background:rgba(255,255,255,.12);}
+  .bell-btn svg{width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; transform-origin:50% 12%;}
+  .bell-badge{
+    position:absolute; top:-3px; right:-4px; min-width:20px; height:20px; padding:0 5px;
+    border-radius:10px; background:#E03131; color:#fff; font-size:11px; font-weight:700;
+    display:none; align-items:center; justify-content:center; border:2px solid var(--navy); line-height:1;
+  }
+  @keyframes bellRing{0%,100%{transform:rotate(0)} 15%{transform:rotate(16deg)} 30%{transform:rotate(-13deg)} 45%{transform:rotate(10deg)} 60%{transform:rotate(-7deg)} 75%{transform:rotate(3deg)}}
+  .bell-btn.ring svg{animation:bellRing 1s ease;}
+  .notif-panel{
+    display:none; position:absolute; right:0; top:calc(100% + 12px); width:340px; max-width:92vw;
+    background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px;
+    box-shadow:0 12px 32px rgba(0,0,0,.2); overflow:hidden; z-index:60; text-align:left;
+  }
+  .notif-panel.open{display:block;}
+  .notif-head{background:var(--navy); color:#fff; font-weight:700; font-size:14px; padding:11px 14px;}
+  .notif-list{max-height:300px; overflow-y:auto;}
+  .notif-list.expanded{max-height:440px;}
+  .notif-item{display:flex; gap:10px; padding:10px 14px; border-bottom:1px solid #F0F0EE; cursor:pointer; font-size:13px; line-height:1.4;}
+  .notif-item:hover{background:#F6F7F9;}
+  .notif-item.unread{background:#EDF3FF;}
+  .notif-dot{flex-shrink:0; width:8px; height:8px; border-radius:50%; margin-top:5px; background:transparent;}
+  .notif-item.unread .notif-dot{background:#2F6FED;}
+  .notif-time{font-size:11px; color:var(--muted); margin-top:2px;}
+  .notif-empty{display:flex; align-items:center; gap:8px; padding:12px 14px; font-size:14px; font-style:italic;}
+  .notif-empty svg{width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; flex-shrink:0;}
+  .notif-footer{background:#E4E5E8; padding:10px 14px; font-size:14px; cursor:pointer;}
+  .notif-footer:hover{background:#D9DADF;}
+  .list-panel{scroll-margin-top:calc(var(--header-h) + 12px);}
+  @media (max-width: 600px){
+    .notif-panel{position:fixed; left:10px; right:10px; top:calc(var(--header-h) + 8px); width:auto; max-width:none;}
+  }
+
   .app-body{flex:1; display:flex; align-items:stretch; min-height:0;}
   main{flex:1; min-width:0; padding:28px;}
 
   /* ---- Nav sidebar ---- */
   .nav-sidebar{
     width:190px; flex-shrink:0; background:var(--navy-dark); padding:18px 10px;
-    display:flex; flex-direction:column; position:sticky; top:0; align-self:flex-start;
-    height:100vh; transition:width .15s ease;
+    display:flex; flex-direction:column; position:sticky; top:var(--header-h); align-self:flex-start;
+    height:calc(100vh - var(--header-h)); transition:width .15s ease;
   }
   .nav-sidebar.collapsed{width:60px; padding:18px 8px;}
   .nav-toggle{
@@ -61,6 +101,18 @@
   .nav-sidebar.collapsed .nav-label{display:none;}
   .nav-item .nav-icon{font-size:15px; flex-shrink:0;}
 
+  .nav-date{
+    margin-top:auto; padding:12px 8px 2px; border-top:1px solid rgba(255,255,255,.14);
+    color:rgba(255,255,255,.7); font-size:12px; line-height:1.45;
+  }
+  .nav-date .nd-day{color:#fff; font-size:14px; font-weight:700;}
+  .nav-date .nd-compact{display:none; text-align:center; line-height:1.15;}
+  .nav-date .nd-compact b{display:block; color:#fff; font-size:17px;}
+  .nav-date .nd-compact span{font-size:10px; letter-spacing:.05em;}
+  .nav-sidebar.collapsed .nav-date{padding:12px 0 2px;}
+  .nav-sidebar.collapsed .nd-day, .nav-sidebar.collapsed .nd-full{display:none;}
+  .nav-sidebar.collapsed .nd-compact{display:block;}
+
   @media (max-width: 860px){
     .app-body{flex-direction:column;}
     .nav-sidebar{
@@ -70,6 +122,9 @@
     .nav-sidebar.collapsed{width:100%;}
     .nav-toggle{display:none;}
     .nav-item{width:auto; margin-bottom:0; margin-right:4px;}
+    .nav-date{margin:0 0 0 auto; border-top:none; padding:0 4px; white-space:nowrap;}
+    .nav-date .nd-day{display:inline; font-size:12px;}
+    .nav-date .nd-full{display:inline;}
     main{order:2; width:100%; padding:18px;}
   }
 
@@ -151,12 +206,14 @@
   .triple-btn.primary{background:var(--navy); color:#fff; border-color:var(--navy);}
   .triple-btn.primary:hover{background:var(--navy-dark); color:#fff;}
   .list-body-row{display:flex; gap:20px; align-items:flex-start;}
-  .month-sidebar{display:none; flex-direction:column; gap:4px; flex-shrink:0; width:100px;}
+  .month-sidebar{display:none; flex-direction:column; gap:4px; flex-shrink:0; width:150px;}
   .month-sidebar.show{display:flex;}
   .month-btn{
     padding:7px 10px; border:1px solid var(--line); background:#fff; border-radius:6px;
     font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; text-align:left; font-family:inherit;
+    display:flex; justify-content:space-between; align-items:center; gap:6px;
   }
+  .month-btn .mb-count{font-weight:500; opacity:.8;}
   .month-btn:hover{border-color:var(--navy); color:var(--navy);}
   .month-btn.active{background:var(--navy); color:#fff; border-color:var(--navy);}
   .sidebar-section-label{font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:10px 0 2px;}
@@ -337,7 +394,7 @@
   .remark-compose-actions button{padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:#fff; font-size:12px; cursor:pointer; font-family:inherit;}
   .remark-compose-actions button.primary{background:var(--navy); color:#fff; border-color:var(--navy);}
 
-  .toast-stack{position:fixed; top:16px; right:16px; z-index:50; display:flex; flex-direction:column; gap:8px; max-width:320px;}
+  .toast-stack{position:fixed; top:calc(var(--header-h) + 12px); right:16px; z-index:50; display:flex; flex-direction:column; gap:8px; max-width:320px;}
   .toast{background:var(--ink); color:#fff; padding:11px 14px; border-radius:7px; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.18); animation:slideIn .18s ease-out;}
   @keyframes slideIn{from{transform:translateX(16px); opacity:0;} to{transform:translateX(0); opacity:1;}}
 </style>
@@ -349,6 +406,13 @@
 <header>
   <h1>TaxBase <span style="opacity:.65; font-weight:400;">— Ascend Advisory Group</span></h1>
   <div class="who">
+    <div class="bell-wrap" id="bellWrap">
+      <button class="bell-btn" id="bellBtn" type="button" aria-label="Notifications" title="Notifications">
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span class="bell-badge" id="bellBadge">0</span>
+      </button>
+      <div class="notif-panel" id="notifPanel"></div>
+    </div>
     <span id="userName">—</span>
     <span class="role" id="userRole"></span>
     <button class="logout" id="logoutBtn">Log out</button>
@@ -361,6 +425,12 @@
     <button class="nav-toggle" id="navToggle" title="Collapse sidebar">«</button>
     <button class="nav-item active" id="navDashboard"><span class="nav-icon">📋</span><span class="nav-label">Dashboard</span></button>
     <button class="nav-item" id="navActivity"><span class="nav-icon">🕒</span><span class="nav-label">My Activity</span></button>
+
+    <div class="nav-date" id="navDate">
+      <div class="nd-day" id="ndDay"></div>
+      <div class="nd-full" id="ndFull"></div>
+      <div class="nd-compact"><span id="ndShort"></span><b id="ndNum"></b></div>
+    </div>
   </aside>
 
   <main>
@@ -689,6 +759,7 @@
 
     renderWidgets();
     if (currentListFormType) renderCurrentPanel();
+    renderBell();
   }
 
   /* ---------------- Widget cards (sortable drag & drop) ---------------- */
@@ -806,47 +877,41 @@
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function renderSidebar(){
     const el = document.getElementById('monthSidebar');
-    if (currentListFormType === 'form_c') {
-      el.classList.add('show');
-      el.innerHTML = `<button type="button" class="month-btn${listMonthFilter === null ? ' active' : ''}" data-month="">All</button>` +
-        MONTHS.map((m, i) => `<button type="button" class="month-btn${listMonthFilter === i + 1 ? ' active' : ''}" data-month="${i + 1}">${m}</button>`).join('');
-      el.querySelectorAll('.month-btn').forEach(btn => btn.addEventListener('click', () => {
-        listMonthFilter = btn.dataset.month ? parseInt(btn.dataset.month, 10) : null;
-        renderSidebar();
-        renderListTable();
-      }));
-    } else if (currentListFormType === 'form_be') {
-      el.classList.add('show');
-      el.innerHTML = `<button type="button" class="month-btn${statusFilter === null ? ' active' : ''}" data-status="">All</button>` +
-        STATUSES.map(st => `<button type="button" class="month-btn${statusFilter === st ? ' active' : ''}" data-status="${st}">${STATUS_LABELS[st]}</button>`).join('');
-      el.querySelectorAll('.month-btn').forEach(btn => btn.addEventListener('click', () => {
-        statusFilter = btn.dataset.status || null;
-        renderSidebar();
-        renderListTable();
-      }));
-    } else if (currentListFormType === 'form_sst') {
-      el.classList.add('show');
-      el.innerHTML = `
-        <div class="sidebar-section-label" style="margin-top:0;">Due Month</div>
-        <button type="button" class="month-btn month-filter-btn${listMonthFilter === null ? ' active' : ''}" data-month="">All</button>` +
-        MONTHS.map((m, i) => `<button type="button" class="month-btn month-filter-btn${listMonthFilter === i + 1 ? ' active' : ''}" data-month="${i + 1}">${m}</button>`).join('') +
-        `<div class="sidebar-section-label">Status</div>
-        <button type="button" class="month-btn status-filter-btn${statusFilter === null ? ' active' : ''}" data-status="">All</button>` +
-        STATUSES.map(st => `<button type="button" class="month-btn status-filter-btn${statusFilter === st ? ' active' : ''}" data-status="${st}">${STATUS_LABELS[st]}</button>`).join('');
-      el.querySelectorAll('.month-filter-btn').forEach(btn => btn.addEventListener('click', () => {
-        listMonthFilter = btn.dataset.month ? parseInt(btn.dataset.month, 10) : null;
-        renderSidebar();
-        renderListTable();
-      }));
-      el.querySelectorAll('.status-filter-btn').forEach(btn => btn.addEventListener('click', () => {
-        statusFilter = btn.dataset.status || null;
-        renderSidebar();
-        renderListTable();
-      }));
-    } else {
-      el.classList.remove('show');
-      el.innerHTML = '';
+    if (!currentListFormType) { el.classList.remove('show'); el.innerHTML = ''; return; }
+    const key = currentDataKey();
+    const hasMonths = currentListFormType === 'form_c' || currentListFormType === 'form_sst';
+
+    // Status counts follow the other filters (search / letter / month), but not the status filter itself.
+    const savedStatus = statusFilter;
+    statusFilter = null;
+    const rows = getFilteredEntries(key);
+    statusFilter = savedStatus;
+    const counts = { all: rows.length };
+    STATUSES.forEach(st => { counts[st] = rows.filter(e => normStatus(e.status) === st).length; });
+
+    const btn = (cls, attr, val, label, active, count) =>
+      `<button type="button" class="month-btn ${cls}${active ? ' active' : ''}" data-${attr}="${val}"><span>${label}</span>${count == null ? '' : `<span class="mb-count">(${count})</span>`}</button>`;
+
+    let html = '';
+    if (hasMonths) {
+      html += `<div class="sidebar-section-label" style="margin-top:0;">Due Month</div>` +
+        btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null) +
+        MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1)).join('');
     }
+    html += `<div class="sidebar-section-label"${hasMonths ? '' : ' style="margin-top:0;"'}>Status</div>` +
+      btn('status-filter-btn', 'status', '', 'All', statusFilter === null, counts.all) +
+      STATUSES.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
+
+    el.classList.add('show');
+    el.innerHTML = html;
+    el.querySelectorAll('.month-filter-btn').forEach(b => b.addEventListener('click', () => {
+      listMonthFilter = b.dataset.month ? parseInt(b.dataset.month, 10) : null;
+      renderListTable();
+    }));
+    el.querySelectorAll('.status-filter-btn').forEach(b => b.addEventListener('click', () => {
+      statusFilter = b.dataset.status || null;
+      renderListTable();
+    }));
   }
   document.getElementById('listSortSelect').addEventListener('change', (e) => {
     listSortMode = e.target.value;
@@ -986,6 +1051,7 @@
   document.getElementById('closeListPanel').addEventListener('click', closeListPanel);
 
   function renderListTable(){
+    renderSidebar();
     const body = document.getElementById('listTableBody');
     const rows = getFilteredEntries(currentDataKey());
     body.innerHTML = rows.length
@@ -1419,7 +1485,7 @@
   <h1>${escapeHtml(label)} Report</h1>
   <div class="org">TaxBase — Ascend Advisory Group</div>
   <div class="meta">
-    Generated by: <b>${escapeHtml(who)}</b> on ${escapeHtml(formatTimeMeta(new Date().toISOString()))}<br>
+    Generated by: <b>${escapeHtml(who)}</b> &nbsp;·&nbsp; ${escapeHtml(formatTimeMeta(new Date().toISOString()))}<br>
     Statuses included: <b>${order.map(st => STATUS_LABELS[st]).join(', ')}</b> &nbsp;·&nbsp; Total entries: <b>${grandTotal}</b>
   </div>
   ${sections}
@@ -1733,10 +1799,180 @@
     sb.channel('forms-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'form_entries' }, () => loadFormEntries())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'form_remarks' }, () => loadFormEntries())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'form_entries' }, (payload) => onEntryInserted(payload.new))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, () => {
         if (document.getElementById('activityView').style.display !== 'none' && activityViewingUserId) loadActivity();
       })
       .subscribe();
+  }
+
+  /* ---------------- Sidebar date (day + date, bottom of the sidebar) ---------------- */
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function renderNavDate(){
+    const d = new Date();
+    document.getElementById('ndDay').textContent = DAY_NAMES[d.getDay()];
+    document.getElementById('ndFull').textContent = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    document.getElementById('ndShort').textContent = DAY_NAMES[d.getDay()].slice(0, 3).toUpperCase();
+    document.getElementById('ndNum').textContent = d.getDate();
+  }
+
+  // Keep the sidebar exactly as tall as the space under the (sticky) header.
+  function syncHeaderHeight(){
+    document.documentElement.style.setProperty('--header-h', document.querySelector('header').offsetHeight + 'px');
+  }
+
+  /* ---------------- Notification ringtone (synthesised — no audio file needed) ---------------- */
+  let audioCtx = null;
+  function getAudio(){
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    return audioCtx;
+  }
+  // Browsers only allow sound after the person has interacted with the page once.
+  document.addEventListener('click', () => { const c = getAudio(); if (c && c.state === 'suspended') c.resume(); });
+  function playRingtone(){
+    try {
+      const ctx = getAudio();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      const t0 = ctx.currentTime + 0.02;
+      [[784, 0], [1047, 0.16], [1319, 0.32]].forEach(([freq, off]) => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, t0 + off);
+        gain.gain.exponentialRampToValueAtTime(0.22, t0 + off + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.24);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0 + off); osc.stop(t0 + off + 0.26);
+      });
+    } catch (e) { /* no sound available — the red badge still shows */ }
+  }
+
+  /* ---------------- Notification bell ----------------
+     A notification = a client / company that SOMEONE ELSE added. They are read straight from the
+     loaded form entries, so nothing extra is stored in the database. "Seen" is remembered per person
+     (in this browser) as the time of the newest notification they have already looked at. */
+  const NOTIF_PREVIEW = 5, NOTIF_MAX = 50;
+  let notifSeenAt = null;       // ISO time of the newest notification already seen
+  let notifSnapshot = null;     // seen-time when the panel was opened (keeps new ones highlighted)
+  let notifExpanded = false;    // "View All"
+  const notifSeenKey = () => `taxbase_notif_seen_${currentUser.id}`;
+
+  function allNotifications(){
+    const me = currentUser.id, list = [];
+    Object.keys(formData).forEach(k => (formData[k] || []).forEach(e => {
+      if (e.created_by && e.created_by !== me) list.push(e);
+    }));
+    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return list.slice(0, NOTIF_MAX);
+  }
+  function timeAgo(iso){
+    const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min} min ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+    return formatTimeMeta(iso);
+  }
+  function initNotifications(){
+    let saved = null;
+    try { saved = localStorage.getItem(notifSeenKey()); } catch (e) {}
+    if (!saved) {
+      // First time on this browser: what is already in the system counts as seen.
+      const list = allNotifications();
+      saved = list.length ? list[0].created_at : '1970-01-01T00:00:00.000Z';
+      try { localStorage.setItem(notifSeenKey(), saved); } catch (e) {}
+    }
+    notifSeenAt = saved;
+    renderBell();
+  }
+  function markNotificationsSeen(){
+    const list = allNotifications();
+    if (list.length && new Date(list[0].created_at) > new Date(notifSeenAt)) {
+      notifSeenAt = list[0].created_at;
+      try { localStorage.setItem(notifSeenKey(), notifSeenAt); } catch (e) {}
+    }
+  }
+  const notifPanel = document.getElementById('notifPanel');
+  const notifIsOpen = () => notifPanel.classList.contains('open');
+
+  function renderBell(){
+    if (!currentUser || notifSeenAt === null) return;
+    if (notifIsOpen()) markNotificationsSeen();          // looking at it = seen
+    const unread = allNotifications().filter(e => new Date(e.created_at) > new Date(notifSeenAt)).length;
+    const badge = document.getElementById('bellBadge');
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.style.display = unread ? 'flex' : 'none';
+    if (notifIsOpen()) renderNotifPanel();
+  }
+  function renderNotifPanel(){
+    const list = allNotifications();
+    const shown = notifExpanded ? list : list.slice(0, NOTIF_PREVIEW);
+    const cutoff = new Date(notifSnapshot !== null ? notifSnapshot : notifSeenAt);
+    const rows = shown.length
+      ? shown.map(e => `
+          <div class="notif-item${new Date(e.created_at) > cutoff ? ' unread' : ''}" data-type="${e.form_type}">
+            <span class="notif-dot"></span>
+            <div>
+              <div><b>${escapeHtml(profilesMap[e.created_by] || 'Someone')}</b> added ${entityOf(e.form_type).toLowerCase()}
+                <b>${escapeHtml(e.company_name)}</b> to ${escapeHtml(formNameOf(e.form_type))}</div>
+              <div class="notif-time">${escapeHtml(timeAgo(e.created_at))}</div>
+            </div>
+          </div>`).join('')
+      : `<div class="notif-empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg><span>No notification</span></div>`;
+    const footer = list.length > NOTIF_PREVIEW
+      ? `<div class="notif-footer" id="notifViewAll">${notifExpanded ? 'Show less' : 'View All'}</div>` : '';
+    notifPanel.innerHTML = `<div class="notif-head">New Client / Company</div><div class="notif-list${notifExpanded ? ' expanded' : ''}">${rows}</div>${footer}`;
+  }
+  function openNotifPanel(){
+    notifSnapshot = notifSeenAt;
+    notifExpanded = false;
+    notifPanel.classList.add('open');
+    markNotificationsSeen();
+    renderBell();
+  }
+  function closeNotifPanel(){
+    notifPanel.classList.remove('open');
+    notifSnapshot = null;
+  }
+  document.getElementById('bellBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (notifIsOpen()) closeNotifPanel(); else openNotifPanel();
+  });
+  notifPanel.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.target.closest('#notifViewAll')) { notifExpanded = !notifExpanded; renderNotifPanel(); return; }
+    const item = e.target.closest('.notif-item');
+    if (item) goToForm(item.dataset.type);
+  });
+  document.addEventListener('click', () => { if (notifIsOpen()) closeNotifPanel(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && notifIsOpen()) closeNotifPanel(); });
+
+  // Clicking a notification jumps to the list it belongs to.
+  function goToForm(formType){
+    closeNotifPanel();
+    document.getElementById('navDashboard').click();
+    const widget = { form_ea: 'form_be', form_be: 'form_be', form_pcb: 'form_pcb', form_cp205: 'form_pcb' }[formType] || formType;
+    if (!FORMS.some(f => f.key === widget)) return;
+    if (currentListFormType !== widget) openFormList(widget);
+    if (widget === 'form_be') activeSubForm = formType;
+    if (widget === 'form_pcb') activeSubForm2 = formType;
+    listSearchTerm = ''; document.getElementById('listSearchInput').value = '';
+    statusFilter = null; listLetterFilter = null; listMonthFilter = null; showArchive = false;
+    renderCurrentPanel();
+    listPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Live: somebody else just added a client / company -> ring the bell.
+  function onEntryInserted(row){
+    if (!currentUser || !row || !row.created_by || row.created_by === currentUser.id) return;
+    playRingtone();
+    const bell = document.getElementById('bellBtn');
+    bell.classList.remove('ring'); void bell.offsetWidth; bell.classList.add('ring');
+    setTimeout(() => bell.classList.remove('ring'), 1200);
   }
 
   /* ---------------- Auth / init ---------------- */
@@ -1764,8 +2000,14 @@
     showToast(`Welcome, ${profile.full_name}! 👋`);
     setupRealtime();
 
+    syncHeaderHeight();
+    if ('ResizeObserver' in window) new ResizeObserver(syncHeaderHeight).observe(document.querySelector('header'));
+    renderNavDate();
+    setInterval(renderNavDate, 60000);
+
     await loadProfiles();
     await loadFormEntries();
+    initNotifications();
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   })();
