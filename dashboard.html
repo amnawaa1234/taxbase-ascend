@@ -1261,7 +1261,7 @@
     else if (entry.revision === 2) next = 3;
     if (!next) return `<span class="final-step">Final step</span>`;
     const ok = status === 'submitted';
-    return `<button type="button" class="finish-btn jump-btn" data-entry="${entry.id}" ${ok ? '' : 'disabled'} title="${ok ? 'Jump to ' + CP204_REV_LABELS[next] : 'Set the status to SUBMITTED first'}">Jump to ${CP204_REV_LABELS[next]}</button>`;
+    return `<button type="button" class="finish-btn jump-btn" data-entry="${entry.id}" ${ok ? '' : 'disabled'} title="${ok ? 'Start ' + CP204_REV_LABELS[next] : 'Set the status to SUBMITTED first'}">Start ${CP204_REV_LABELS[next]}</button>`;
   }
 
   function entryRowHtml(entry){
