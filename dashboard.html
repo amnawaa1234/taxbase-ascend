@@ -387,6 +387,8 @@
   .list-table.hide-due-col .due-col{display:none;}
   /* long date-column headings may wrap onto two lines, so the column is only as wide as its date box */
   .list-table thead th.pcb-col, .list-table thead th.sst-col, .list-table thead th.cp204-col{white-space:normal; line-height:1.3;}
+  .client-sub{font-size:12px; color:var(--muted); font-weight:500; margin-top:3px; white-space:normal;}
+  .client-sub b{color:var(--ink); font-weight:600;}
   .stage-tag{display:inline-block; margin-top:4px; padding:2px 9px; border-radius:10px; background:#EDF3FF; color:var(--navy); font-size:11px; font-weight:700; white-space:nowrap;}
   .jump-btn{white-space:normal; line-height:1.25; max-width:118px;}
   .final-step{font-size:11px; color:var(--muted); font-style:italic;}
@@ -920,7 +922,7 @@
 
   function getFilteredEntries(formType){
     let rows = (formData[formType] || []).filter(e => isArchived(e) === showArchive);
-    if (listSearchTerm) rows = rows.filter(e => e.company_name.toLowerCase().includes(listSearchTerm.toLowerCase()));
+    if (listSearchTerm) rows = rows.filter(e => (e.company_name + ' ' + (e.client_name || '')).toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
     if (listMonthFilter) rows = rows.filter(e => monthOf(e, formType) === listMonthFilter);
     if (listPeriodFilter !== null) rows = rows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === listPeriodFilter);
@@ -1291,6 +1293,10 @@
         : `<div class="ea-note" style="margin-top:4px; white-space:normal;">⚠ BE required for this client</div>`;
     }
 
+    // Form B rows made from an EA client keep that client's name, shown under the company name
+    const clientTag = (entry.form_type === 'form_b' && entry.client_name)
+      ? `<div class="client-sub">Client: <b>${escapeHtml(entry.client_name)}</b></div>` : '';
+
     let stageTag = '';
     if (CP204_FORMS.includes(entry.form_type)) {
       if (entry.form_type === 'form_cp204a') stageTag += `<div><span class="stage-tag">${CP204_REV_LABELS[entry.revision] || 'Revised'}</span></div>`;
@@ -1317,7 +1323,7 @@
 
     return `
       <tr data-row="${entry.id}">
-        <td class="company-cell">${escapeHtml(entry.company_name)}${beTag}${stageTag}</td>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
@@ -1588,6 +1594,7 @@
     const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
     if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
+    if (key === 'form_b') cols.push({ h: 'Client', v: e => e.client_name || '' });
     if (key === 'form_cp204a') cols.push({ h: 'Revision', v: e => CP204_REV_LABELS[e.revision] || '' });
     if (CP204_FORMS.includes(key)) cols.push({ h: 'Proposal Sent to Client', v: dateOf('proposal_sent_at') }, { h: 'Proposal Signed', v: dateOf('proposal_signed_at') }, { h: 'Submitted to LHDN', v: dateOf('lhdn_submitted_at') });
     if (key === 'form_e') cols.push({ h: 'EA', v: recv('ea_received', 'ea_received_date') }, { h: 'Summary Salary', v: recv('salary_received', 'salary_received_date') });
@@ -1774,14 +1781,22 @@
     const btn = document.getElementById('formBSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
     // Form B has no due-date rule of its own yet — it keeps the EA entry's due date, as before.
-    const { data, error } = await sb.from('form_entries')
-      .insert({ form_type: 'form_b', company_name: company, due_date: ea.due_date, created_by: currentUser.id })
-      .select().single();
+    const row = { form_type: 'form_b', company_name: company, client_name: ea.company_name, due_date: ea.due_date, created_by: currentUser.id };
+    let { data, error } = await sb.from('form_entries').insert(row).select().single();
+    let clientNameMissing = false;
+    if (error && /client_name/i.test(error.message)) {
+      // The new column isn't in the database yet: still create the Form B entry, and say what to run.
+      clientNameMissing = true;
+      delete row.client_name;
+      ({ data, error } = await sb.from('form_entries').insert(row).select().single());
+    }
     btn.disabled = false; btn.textContent = 'Save';
     if (error) { errEl.textContent = 'Could not save: ' + error.message; return; }
 
     closeFormBModal();
-    showToast(`${company} added to Form B.`);
+    showToast(clientNameMissing
+      ? `${company} added to Form B, but the client name could not be stored yet — run taxbase-add-client-name.sql in Supabase.`
+      : `${company} added to Form B.`);
     await logActivity(`Created Form B entry for company "${company}" from Form EA client "${ea.company_name}"`);
     await loadFormEntries();
     goToForm('form_b', data.id);
@@ -1938,7 +1953,7 @@
     const matches = [];
     FORMS.forEach(f => {
       activeEntries(f.key).forEach(entry => {
-        if (entry.company_name.toLowerCase().includes(term)) matches.push({ entry, form: f });
+        if ((entry.company_name + ' ' + (entry.client_name || '')).toLowerCase().includes(term)) matches.push({ entry, form: f });
       });
     });
     if (!matches.length) {
