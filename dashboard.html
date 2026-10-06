@@ -387,6 +387,9 @@
   .list-table.hide-due-col .due-col{display:none;}
   /* long date-column headings may wrap onto two lines, so the column is only as wide as its date box */
   .list-table thead th.pcb-col, .list-table thead th.sst-col, .list-table thead th.cp204-col{white-space:normal; line-height:1.3;}
+  /* long company names wrap onto a second line instead of stretching the whole table */
+  .list-table tbody td.company-cell{white-space:normal; max-width:240px; min-width:190px;}
+  .inst-tag{display:inline-block; margin-left:7px; padding:1px 8px; border-radius:10px; background:#EDF3FF; color:var(--navy); font-size:11px; font-weight:700; vertical-align:middle;}
   .client-sub{font-size:12px; color:var(--muted); font-weight:500; margin-top:3px; white-space:normal;}
   .client-sub b{color:var(--ink); font-weight:600;}
   .stage-tag{display:inline-block; margin-top:4px; padding:2px 9px; border-radius:10px; background:#EDF3FF; color:var(--navy); font-size:11px; font-weight:700; white-space:nowrap;}
@@ -1297,6 +1300,9 @@
     const clientTag = (entry.form_type === 'form_b' && entry.client_name)
       ? `<div class="client-sub">Client: <b>${escapeHtml(entry.client_name)}</b></div>` : '';
 
+    const badge = paymentBadge(entry);
+    const instTag = badge ? `<span class="inst-tag" title="${badge.noun} ${badge.no} of ${badge.total}">${badge.no}/${badge.total}</span>` : '';
+
     let stageTag = '';
     if (CP204_FORMS.includes(entry.form_type)) {
       if (entry.form_type === 'form_cp204a') stageTag += `<div><span class="stage-tag">${CP204_REV_LABELS[entry.revision] || 'Revised'}</span></div>`;
@@ -1323,7 +1329,7 @@
 
     return `
       <tr data-row="${entry.id}">
-        <td class="company-cell">${escapeHtml(entry.company_name)}${clientTag}${beTag}${stageTag}</td>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${instTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
@@ -1595,6 +1601,7 @@
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
     if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
     if (key === 'form_b') cols.push({ h: 'Client', v: e => e.client_name || '' });
+    if (['form_cp500', 'form_pcb', 'form_cp205'].includes(key)) cols.push({ h: key === 'form_cp500' ? 'Instalment' : 'Payment', v: e => { const b = paymentBadge(e); return b ? `${b.no}/${b.total}` : ''; } });
     if (key === 'form_cp204a') cols.push({ h: 'Revision', v: e => CP204_REV_LABELS[e.revision] || '' });
     if (CP204_FORMS.includes(key)) cols.push({ h: 'Proposal Sent to Client', v: dateOf('proposal_sent_at') }, { h: 'Proposal Signed', v: dateOf('proposal_signed_at') }, { h: 'Submitted to LHDN', v: dateOf('lhdn_submitted_at') });
     if (key === 'form_e') cols.push({ h: 'EA', v: recv('ea_received', 'ea_received_date') }, { h: 'Summary Salary', v: recv('salary_received', 'salary_received_date') });
@@ -1708,6 +1715,23 @@
       const y = Math.floor(ord / 12), m = ord % 12;
       if (now <= new Date(y, m, CP500_DAY)) return `${y}-${pad2(m + 1)}-${CP500_DAY}`;
     }
+  }
+  // CP500 has 6 instalments a year: Mar = 1st, May = 2nd, Jul = 3rd, Sep = 4th, Nov = 5th, Jan = 6th.
+  // The two-month period of the due date decides it (Mar–Apr = 1, May–Jun = 2 … Nov–Dec = 5, Jan–Feb = 6).
+  const CP500_INSTALMENTS = 6;
+  function cp500Instalment(entry){
+    if (!entry.due_date) return null;
+    const m = parseInt(entry.due_date.slice(5, 7), 10);
+    return ((Math.floor((m - 1) / 2) + 5) % CP500_INSTALMENTS) + 1;
+  }
+  // PCB and CP205 are paid every month: January = 1/12 … December = 12/12 (by the due-date month).
+  const PAYMENTS_PER_YEAR = 12;
+  // n/total shown beside the client name: CP500 -> n/6 instalments, PCB / CP205 -> n/12 monthly payments.
+  function paymentBadge(entry){
+    if (!entry.due_date) return null;
+    if (entry.form_type === 'form_cp500') return { no: cp500Instalment(entry), total: CP500_INSTALMENTS, noun: 'Instalment' };
+    if (entry.form_type === 'form_pcb' || entry.form_type === 'form_cp205') return { no: parseInt(entry.due_date.slice(5, 7), 10), total: PAYMENTS_PER_YEAR, noun: 'Payment' };
+    return null;
   }
   function nextCP500After(isoDate){
     // the instalment that follows the month of isoDate (works for old 1st-of-month rows too)
