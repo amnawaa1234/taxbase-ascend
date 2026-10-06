@@ -382,8 +382,16 @@
   .list-table.show-sst-col .sst-col{display:table-cell;}
   .pcb-col{display:none;}
   .list-table.show-pcb-col .pcb-col{display:table-cell;}
+  .cp204-col{display:none;}
+  .list-table.show-cp204-col .cp204-col{display:table-cell;}
+  .list-table.hide-due-col .due-col{display:none;}
+  /* long date-column headings may wrap onto two lines, so the column is only as wide as its date box */
+  .list-table thead th.pcb-col, .list-table thead th.sst-col, .list-table thead th.cp204-col{white-space:normal; line-height:1.3;}
+  .stage-tag{display:inline-block; margin-top:4px; padding:2px 9px; border-radius:10px; background:#EDF3FF; color:var(--navy); font-size:11px; font-weight:700; white-space:nowrap;}
+  .jump-btn{white-space:normal; line-height:1.25; max-width:118px;}
+  .final-step{font-size:11px; color:var(--muted); font-style:italic;}
   .e-date-row{display:flex; align-items:center; gap:4px; margin-top:5px;}
-  .pcb-col .e-date-row, .sst-col .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:0;}
+  .pcb-col .e-date-row, .sst-col .e-date-row, .cp204-col .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:0;}
   .e-date-input{
     font-size:11px; padding:3px 5px; border:1px solid var(--line); border-radius:5px;
     font-family:inherit; width:112px; color:var(--ink);
@@ -477,6 +485,10 @@
         <button type="button" class="group-tab" data-view="form_pcb">Client</button>
         <button type="button" class="group-tab" data-view="form_cp205">Company</button>
       </div>
+      <div class="group-tabs" id="groupTabsCP204">
+        <button type="button" class="group-tab" data-view="form_cp204">CP204</button>
+        <button type="button" class="group-tab" data-view="form_cp204a">CP204A</button>
+      </div>
 
       <div class="add-triple-row" id="addTripleRow">
         <button type="button" class="triple-btn" data-mode="ea">+ Add EA</button>
@@ -549,9 +561,12 @@
           <thead>
             <tr>
               <th style="width:16%;" id="thName">Company Name</th>
-              <th style="width:10%;">Due Date</th>
+              <th class="due-col" style="width:10%;">Due Date</th>
               <th class="pcb-col" style="width:14%;">Payment Received On</th>
               <th class="pcb-col" style="width:14%;">Paid to LHDN</th>
+              <th class="cp204-col" style="width:14%;">Proposal Sent to Client</th>
+              <th class="cp204-col" style="width:14%;">Proposal Signed</th>
+              <th class="cp204-col" style="width:14%;">Submitted to LHDN</th>
               <th class="e-col" style="width:13%;">EA</th>
               <th class="e-col" style="width:15%;">Summary Salary</th>
               <th style="width:13%;" id="thStatus">Status</th>
@@ -563,7 +578,7 @@
               <th class="admin-col" style="width:44px;"></th>
             </tr>
           </thead>
-          <tbody id="listTableBody"><tr><td colspan="13" class="empty-state">Loading...</td></tr></tbody>
+          <tbody id="listTableBody"><tr><td colspan="16" class="empty-state">Loading...</td></tr></tbody>
         </table>
       </div>
 
@@ -625,6 +640,21 @@
   </div>
 </div>
 
+<!-- Form B: Form B belongs to a company, so ask for its name when creating it from an EA client -->
+<div class="modal-backdrop" id="formBBackdrop">
+  <div class="modal" style="max-width:410px;">
+    <h2>Create Form B</h2>
+    <p class="modal-sub" id="formBSub" style="margin-bottom:14px;"></p>
+    <label for="formBCompany">Company name</label>
+    <input type="text" id="formBCompany" placeholder="e.g. Meridian Holdings Sdn Bhd">
+    <div class="modal-error" id="formBError"></div>
+    <div class="modal-actions">
+      <button id="formBCancelBtn">Cancel</button>
+      <button class="primary" id="formBSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Generate report modal -->
 <div class="modal-backdrop" id="reportBackdrop">
   <div class="modal" style="max-width:420px;">
@@ -666,11 +696,13 @@
     { key: 'form_sst',   label: 'Form SST',      entity: 'Company' },
     { key: 'form_b',     label: 'Form B',        entity: 'Company' },
     { key: 'form_pcb',   label: 'CP205 / PCB',   entity: 'Client' },
-    { key: 'form_cp500', label: 'Form CP500',    entity: 'Client' }
+    { key: 'form_cp500', label: 'Form CP500',    entity: 'Client' },
+    { key: 'form_cp204', label: 'Form CP204',    entity: 'Company' }
   ];
-  let formData = { form_c: [], form_be: [], form_e: [], form_ea: [], form_sst: [], form_b: [], form_pcb: [], form_cp205: [], form_cp500: [] };
+  let formData = { form_c: [], form_be: [], form_e: [], form_ea: [], form_sst: [], form_b: [], form_pcb: [], form_cp205: [], form_cp500: [], form_cp204: [], form_cp204a: [] };
   let activeSubForm = 'form_ea';  // 'form_ea' | 'form_be' — which tab is showing inside the Form EA/BE widget
   let activeSubForm2 = 'form_pcb'; // 'form_pcb' | 'form_cp205' — which tab inside the CP205/PCB widget
+  let activeSubForm3 = 'form_cp204'; // 'form_cp204' | 'form_cp204a' — which tab inside the CP204 widget
   let currentListFormType = null;
   const entityOf = key => {
     if (key === 'form_ea' || key === 'form_pcb') return 'Client';
@@ -682,9 +714,14 @@
   const currentDataKey = () => {
     if (currentListFormType === 'form_be') return activeSubForm;
     if (currentListFormType === 'form_pcb') return activeSubForm2;
+    if (currentListFormType === 'form_cp204') return activeSubForm3;
     return currentListFormType;
   };
   const PCB_STYLE_FORMS = ['form_pcb', 'form_cp205', 'form_cp500'];
+  // CP204 = tax estimate. 4 steps: CP204 (original) -> 1st Revised -> 2nd Revised -> Final Revised.
+  // The original lives in the CP204 tab; the three revisions live in the CP204A tab (revision 1, 2, 3).
+  const CP204_FORMS = ['form_cp204', 'form_cp204a'];
+  const CP204_REV_LABELS = { 1: '1st Revised', 2: '2nd Revised', 3: 'Final Revised' };
   let pendingRemark = null; // { entryId, body }
 
   const isAdmin = () => currentProfile && currentProfile.role === 'head';
@@ -788,6 +825,7 @@
     for (const f of FORMS) formData[f.key] = await loadOneFormType(f.key);
     formData.form_ea = await loadOneFormType('form_ea');
     formData.form_cp205 = await loadOneFormType('form_cp205');
+    formData.form_cp204a = await loadOneFormType('form_cp204a');
 
     renderWidgets();
     if (currentListFormType) renderCurrentPanel();
@@ -870,11 +908,21 @@
   const activeEntries = key => (formData[key] || []).filter(e => !isArchived(e));
   const expandedEarlier = new Set(); // entry ids whose earlier remarks are expanded
 
+  // Which month an entry belongs to for the month buttons: its due-date month; for CP204 (no fixed
+  // due date — it depends on each company's financial year) the month the step was added.
+  function monthOf(e, formType){
+    if (CP204_FORMS.includes(formType)) {
+      const d = new Date(e.created_at);
+      return isNaN(d) ? null : d.getMonth() + 1;
+    }
+    return e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : null;
+  }
+
   function getFilteredEntries(formType){
     let rows = (formData[formType] || []).filter(e => isArchived(e) === showArchive);
     if (listSearchTerm) rows = rows.filter(e => e.company_name.toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
-    if (listMonthFilter) rows = rows.filter(e => e.due_date && parseInt(e.due_date.slice(5, 7), 10) === listMonthFilter);
+    if (listMonthFilter) rows = rows.filter(e => monthOf(e, formType) === listMonthFilter);
     if (listPeriodFilter !== null) rows = rows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === listPeriodFilter);
     if (statusFilter) {
       rows = rows.filter(e => normStatus(e.status) === statusFilter);
@@ -914,7 +962,7 @@
     const el = document.getElementById('monthSidebar');
     if (!currentListFormType) { el.classList.remove('show'); el.innerHTML = ''; return; }
     const key = currentDataKey();
-    const hasMonths = ['form_c', 'form_sst', 'form_pcb'].includes(currentListFormType);   // form_pcb = the CP205 / PCB widget
+    const hasMonths = ['form_c', 'form_sst', 'form_pcb', 'form_cp204'].includes(currentListFormType);   // form_pcb = the CP205 / PCB widget
     const hasPeriods = currentListFormType === 'form_cp500';
 
     // Status counts follow the other filters (search / letter / month), but not the status filter itself.
@@ -934,7 +982,7 @@
       listMonthFilter = savedMonth;
       monthCounts.all = mRows.length;
       for (let m = 1; m <= 12; m++) {
-        monthCounts[m] = mRows.filter(e => e.due_date && parseInt(e.due_date.slice(5, 7), 10) === m).length;
+        monthCounts[m] = mRows.filter(e => monthOf(e, key) === m).length;
       }
     }
 
@@ -958,7 +1006,7 @@
       btn('status-filter-btn', 'status', '', 'All', statusFilter === null, counts.all) +
       STATUSES.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
     if (hasMonths) {
-      html += `<div class="sidebar-section-label">Due Month</div>` +
+      html += `<div class="sidebar-section-label">${currentListFormType === 'form_cp204' ? 'Month Added' : 'Due Month'}</div>` +
         btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null, monthCounts.all) +
         MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1, monthCounts[i + 1])).join('');
     }
@@ -1004,6 +1052,7 @@
     closeTripleForm();
     activeSubForm = 'form_ea';
     activeSubForm2 = 'form_pcb';
+    activeSubForm3 = 'form_cp204';
     showArchive = false;
     renderCurrentPanel();
     listPanel.classList.add('open');
@@ -1014,6 +1063,8 @@
     if (!currentListFormType) return;
     const isGroup = currentListFormType === 'form_be';
     const isGroup2 = currentListFormType === 'form_pcb';
+    const isGroup3 = currentListFormType === 'form_cp204';
+    document.getElementById('groupTabsCP204').style.display = isGroup3 ? 'flex' : 'none';
     document.getElementById('groupTabs').style.display = isGroup ? 'flex' : 'none';
     document.getElementById('addTripleRow').style.display = isGroup ? 'flex' : 'none';
     document.getElementById('groupTabsPCB').style.display = isGroup2 ? 'flex' : 'none';
@@ -1023,6 +1074,9 @@
     }
     if (isGroup2) {
       document.querySelectorAll('#groupTabsPCB .group-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.view === activeSubForm2));
+    }
+    if (isGroup3) {
+      document.querySelectorAll('#groupTabsCP204 .group-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.view === activeSubForm3));
     }
     updateListChrome();
     renderSidebar();
@@ -1060,9 +1114,10 @@
     document.getElementById('reminderBackdrop').classList.remove('open');
     if (pendingHighlight) { const id = pendingHighlight; pendingHighlight = null; setTimeout(() => highlightEntryRow(id), 100); }
   });
-  document.querySelectorAll('.group-tab').forEach(btn => {
+  document.querySelectorAll('.group-tab[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
       if (currentListFormType === 'form_pcb') activeSubForm2 = btn.dataset.view;
+      else if (currentListFormType === 'form_cp204') activeSubForm3 = btn.dataset.view;
       else activeSubForm = btn.dataset.view;
       listSearchTerm = '';
       document.getElementById('listSearchInput').value = '';
@@ -1083,24 +1138,30 @@
     if (!key) return;
     const isGroup = currentListFormType === 'form_be';
     const isGroup2 = currentListFormType === 'form_pcb';
+    const isGroup3 = currentListFormType === 'form_cp204';
     let label;
     if (isGroup) label = activeSubForm === 'form_ea' ? 'Form EA' : 'Form BE';
     else if (isGroup2) label = activeSubForm2 === 'form_pcb' ? 'PCB' : 'CP205';
+    else if (isGroup3) label = activeSubForm3 === 'form_cp204' ? 'CP204' : 'CP204A';
     else label = FORMS.find(x => x.key === key).label;
     document.getElementById('listPanelTitle').textContent = label + (showArchive ? ' — Archive' : '');
     document.getElementById('listArchiveBtn').textContent = showArchive ? '← Current list' : '🗂 Archive';
-    document.getElementById('listAddBtn').style.display = (showArchive || isGroup || isGroup2) ? 'none' : '';
+    // Companies only enter CP204 at the first step; the CP204A tab is filled by "Jump" buttons.
+    const hideAdd = showArchive || isGroup || isGroup2 || (isGroup3 && activeSubForm3 !== 'form_cp204');
+    document.getElementById('listAddBtn').style.display = hideAdd ? 'none' : '';
     const ent = entityOf(key);
     document.getElementById('thName').textContent = `${ent} Name`;
     document.getElementById('listSearchInput').placeholder = `Search ${ent.toLowerCase()} name...`;
     document.getElementById('thStatus').textContent =
       key === 'form_ea' ? 'Finalize' : key === 'form_e' ? 'Submit to LHDN' : key === 'form_sst' ? 'Sales Summary' : 'Status';
-    document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea' || PCB_STYLE_FORMS.includes(key));
+    document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea' || PCB_STYLE_FORMS.includes(key) || CP204_FORMS.includes(key));
+    document.querySelector('.list-table').classList.toggle('show-cp204-col', CP204_FORMS.includes(key));
+    document.querySelector('.list-table').classList.toggle('hide-due-col', CP204_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
     document.querySelector('.list-table').classList.toggle('show-pcb-col', PCB_STYLE_FORMS.includes(key));
     document.getElementById('listAddBtn').textContent =
-      key === 'form_e' ? '+ Add Form E' : key === 'form_sst' ? '+ Add SST' : key === 'form_cp500' ? '+ Add CP500' : '+ Add client';
+      key === 'form_e' ? '+ Add Form E' : key === 'form_sst' ? '+ Add SST' : key === 'form_cp500' ? '+ Add CP500' : key === 'form_cp204' ? '+ Add company' : '+ Add client';
   }
   document.getElementById('listArchiveBtn').addEventListener('click', () => {
     showArchive = !showArchive;
@@ -1115,6 +1176,7 @@
     closeTripleForm();
     activeSubForm = 'form_ea';
     activeSubForm2 = 'form_pcb';
+    activeSubForm3 = 'form_cp204';
     markActiveWidget();
   }
   function markActiveWidget(){
@@ -1130,7 +1192,7 @@
     const rows = getFilteredEntries(currentDataKey());
     body.innerHTML = rows.length
       ? rows.map(entryRowHtml).join('')
-      : `<tr><td colspan="13" class="empty-state">${showArchive ? 'Nothing archived yet.' : 'No entries yet. Click "+ Add client" to add one.'}</td></tr>`;
+      : `<tr><td colspan="16" class="empty-state">${showArchive ? 'Nothing archived yet.' : 'No entries yet. Click "+ Add client" to add one.'}</td></tr>`;
 
     body.querySelectorAll('.add-remark-btn').forEach(btn => btn.addEventListener('click', () => toggleCompose(btn.dataset.entry)));
     body.querySelectorAll('.cancel-remark-btn').forEach(btn => btn.addEventListener('click', () => toggleCompose(btn.dataset.entry, true)));
@@ -1149,7 +1211,8 @@
       document.getElementById('deleteConfirmBackdrop').classList.add('open');
     }));
     body.querySelectorAll('.status-select:not(.e-field-select)').forEach(sel => sel.addEventListener('change', () => onStatusChange(sel.dataset.entry, sel.value)));
-    body.querySelectorAll('.finish-btn:not(.next-btn)').forEach(btn => btn.addEventListener('click', () => onFinishClick(btn.dataset.entry, btn.dataset.target)));
+    body.querySelectorAll('.finish-btn:not(.next-btn):not(.jump-btn)').forEach(btn => btn.addEventListener('click', () => onFinishClick(btn.dataset.entry, btn.dataset.target)));
+    body.querySelectorAll('.jump-btn').forEach(btn => btn.addEventListener('click', () => onCp204JumpClick(btn.dataset.entry)));
     body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
@@ -1188,6 +1251,17 @@
     await loadFormEntries();
   }
 
+  // The button that moves a company on to its next CP204 step. Only works once this step is SUBMITTED.
+  function cp204JumpCell(entry, status){
+    let next = null;
+    if (entry.form_type === 'form_cp204') next = 1;
+    else if (entry.revision === 1) next = 2;
+    else if (entry.revision === 2) next = 3;
+    if (!next) return `<span class="final-step">Final step</span>`;
+    const ok = status === 'submitted';
+    return `<button type="button" class="finish-btn jump-btn" data-entry="${entry.id}" ${ok ? '' : 'disabled'} title="${ok ? 'Jump to ' + CP204_REV_LABELS[next] : 'Set the status to SUBMITTED first'}">Jump to ${CP204_REV_LABELS[next]}</button>`;
+  }
+
   function entryRowHtml(entry){
     const due = formatDateDMY(entry.due_date);
     const status = normStatus(entry.status);
@@ -1217,6 +1291,13 @@
         : `<div class="ea-note" style="margin-top:4px; white-space:normal;">⚠ BE required for this client</div>`;
     }
 
+    let stageTag = '';
+    if (CP204_FORMS.includes(entry.form_type)) {
+      if (entry.form_type === 'form_cp204a') stageTag += `<div><span class="stage-tag">${CP204_REV_LABELS[entry.revision] || 'Revised'}</span></div>`;
+      const child = (formData.form_cp204a || []).find(c => c.parent_id === entry.id);
+      if (child) stageTag += `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ Jumped to ${CP204_REV_LABELS[child.revision] || 'next step'}</div>`;
+    }
+
     const simpleDateCell = (field, value) => `
       <div class="e-date-row">
         <input type="date" class="e-date-input" data-entry="${entry.id}" data-field="${field}" value="${value || ''}">
@@ -1236,10 +1317,13 @@
 
     return `
       <tr data-row="${entry.id}">
-        <td class="company-cell">${escapeHtml(entry.company_name)}${beTag}</td>
-        <td class="due-cell">${due}</td>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${beTag}${stageTag}</td>
+        <td class="due-cell due-col">${due}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
+        <td class="cp204-col">${simpleDateCell('proposal_sent_at', entry.proposal_sent_at)}</td>
+        <td class="cp204-col">${simpleDateCell('proposal_signed_at', entry.proposal_signed_at)}</td>
+        <td class="cp204-col">${simpleDateCell('lhdn_submitted_at', entry.lhdn_submitted_at)}</td>
         <td class="e-col status-cell">${eCellHtml('ea_received', eaReceived, 'ea_received_date', entry.ea_received_date)}</td>
         <td class="e-col status-cell">${eCellHtml('salary_received', salaryReceived, 'salary_received_date', entry.salary_received_date)}</td>
         <td class="status-cell">
@@ -1270,6 +1354,8 @@
           </div>`
           : PCB_STYLE_FORMS.includes(entry.form_type)
           ? `<button type="button" class="finish-btn next-btn" data-entry="${entry.id}" ${isDone(status) ? '' : 'disabled'} title="${isDone(status) ? 'Create the next period for this client' : 'Set the status to COMPLETED or SUBMITTED first'}">Next period</button>`
+          : CP204_FORMS.includes(entry.form_type)
+          ? cp204JumpCell(entry, status)
           : ''}</td>
         <td class="admin-col">
           <button type="button" class="delete-btn" data-entry="${entry.id}" data-name="${escapeHtml(entry.company_name)}" title="Delete ${entityOf(entry.form_type).toLowerCase()}">
@@ -1357,7 +1443,7 @@
     const isOpen = addEntryForm.classList.contains('open');
     if (isOpen) { closeEntryForm(); return; }
     const f = FORMS.find(x => x.key === currentListFormType);
-    document.getElementById('addEntryTitle').textContent = `New client — ${f.label}`;
+    document.getElementById('addEntryTitle').textContent = `New ${currentListFormType === 'form_cp204' ? 'company' : 'client'} — ${f.label}`;
     document.getElementById('eCompanyName').value = '';
     document.getElementById('eDueDate').value = '';
     setupDueFields(currentListFormType);
@@ -1383,7 +1469,8 @@
     const isBE = formType === 'form_be';
     const isE = formType === 'form_e';
     const isCP500 = formType === 'form_cp500';
-    document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500) ? 'none' : '';
+    const isCP204 = formType === 'form_cp204';
+    document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500 || isCP204) ? 'none' : '';
     document.getElementById('eYAWrap').style.display = isBE ? '' : 'none';
     if (!isBE) return;
     const d = defaultYA();
@@ -1407,11 +1494,13 @@
       ? nextMarch2()
       : currentListFormType === 'form_cp500'
       ? nextCP500Due()
+      : currentListFormType === 'form_cp204'
+      ? null                                     // CP204 has no fixed due date — just the company name
       : (document.getElementById('eDueDate').value || null);
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
     if (!company_name) { errEl.textContent = 'Enter a company name.'; return; }
-    if (!due_date) { errEl.textContent = 'Choose a due date.'; return; }
+    if (!due_date && currentListFormType !== 'form_cp204') { errEl.textContent = 'Choose a due date.'; return; }
 
     const btn = document.getElementById('saveEntryBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -1497,10 +1586,10 @@
   function reportColumns(key){
     const dateOf = f => e => formatDateDMY(e[f]);
     const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
-    const cols = [
-      { h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' },
-      { h: 'Due Date', v: dateOf('due_date') }
-    ];
+    const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
+    if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
+    if (key === 'form_cp204a') cols.push({ h: 'Revision', v: e => CP204_REV_LABELS[e.revision] || '' });
+    if (CP204_FORMS.includes(key)) cols.push({ h: 'Proposal Sent to Client', v: dateOf('proposal_sent_at') }, { h: 'Proposal Signed', v: dateOf('proposal_signed_at') }, { h: 'Submitted to LHDN', v: dateOf('lhdn_submitted_at') });
     if (key === 'form_e') cols.push({ h: 'EA', v: recv('ea_received', 'ea_received_date') }, { h: 'Summary Salary', v: recv('salary_received', 'salary_received_date') });
     if (key === 'form_sst') cols.push({ h: 'Process', v: dateOf('process_date') }, { h: 'Client Paid On', v: dateOf('client_paid_date') }, { h: 'Make Payment to Customs', v: dateOf('customs_payment_date') });
     if (PCB_STYLE_FORMS.includes(key)) cols.push({ h: 'Payment Received On', v: dateOf('payment_received_on') }, { h: 'Paid to LHDN', v: dateOf('paid_to_lhdn') });
@@ -1650,9 +1739,88 @@
     goToForm(entry.form_type, data.id);
   }
 
+  /* ---------------- Form B: company name prompt ---------------- */
+  let pendingFormBEa = null;
+  const formBBackdrop = document.getElementById('formBBackdrop');
+  function openFormBModal(ea){
+    pendingFormBEa = ea.id;
+    document.getElementById('formBSub').innerHTML =
+      `Form B is filed by a company. Enter the company name to create it from <b>${escapeHtml(ea.company_name)}</b> (Form EA).`;
+    document.getElementById('formBCompany').value = '';
+    document.getElementById('formBError').textContent = '';
+    formBBackdrop.classList.add('open');
+    setTimeout(() => document.getElementById('formBCompany').focus(), 40);
+  }
+  function closeFormBModal(){ formBBackdrop.classList.remove('open'); pendingFormBEa = null; }
+  document.getElementById('formBCancelBtn').addEventListener('click', closeFormBModal);
+  formBBackdrop.addEventListener('click', (e) => { if (e.target === formBBackdrop) closeFormBModal(); });
+  document.getElementById('formBCompany').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('formBSaveBtn').click(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && formBBackdrop.classList.contains('open')) closeFormBModal(); });
+  document.getElementById('formBSaveBtn').addEventListener('click', async () => {
+    const ea = findEntry(pendingFormBEa);
+    const errEl = document.getElementById('formBError');
+    const company = document.getElementById('formBCompany').value.trim();
+    if (!ea) { closeFormBModal(); return; }
+    if (!company) { errEl.textContent = 'Enter the company name.'; return; }
+
+    const existing = (formData.form_b || []).find(b => b.company_name.trim().toLowerCase() === company.toLowerCase());
+    if (existing) {
+      closeFormBModal();
+      showToast(`A Form B entry already exists for ${existing.company_name}.`);
+      goToForm('form_b', existing.id);
+      return;
+    }
+
+    const btn = document.getElementById('formBSaveBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    // Form B has no due-date rule of its own yet — it keeps the EA entry's due date, as before.
+    const { data, error } = await sb.from('form_entries')
+      .insert({ form_type: 'form_b', company_name: company, due_date: ea.due_date, created_by: currentUser.id })
+      .select().single();
+    btn.disabled = false; btn.textContent = 'Save';
+    if (error) { errEl.textContent = 'Could not save: ' + error.message; return; }
+
+    closeFormBModal();
+    showToast(`${company} added to Form B.`);
+    await logActivity(`Created Form B entry for company "${company}" from Form EA client "${ea.company_name}"`);
+    await loadFormEntries();
+    goToForm('form_b', data.id);
+  });
+
+  /* ---------------- CP204: jump to the next step ---------------- */
+  // CP204 (original) -> 1st Revised -> 2nd Revised -> Final Revised. Each step is its own row so the
+  // dates of the finished step stay on record; the company "jumps" by getting a row in the next step.
+  async function onCp204JumpClick(entryId){
+    const entry = findEntry(entryId);
+    if (!entry || !CP204_FORMS.includes(entry.form_type) || normStatus(entry.status) !== 'submitted') return;
+    let nextRev = null;
+    if (entry.form_type === 'form_cp204') nextRev = 1;
+    else if (entry.revision === 1) nextRev = 2;
+    else if (entry.revision === 2) nextRev = 3;
+    if (!nextRev) return;                                   // Final Revised is the last step
+
+    const existing = (formData.form_cp204a || []).find(c => c.parent_id === entry.id);
+    if (existing) {
+      showToast(`${entry.company_name} is already in ${CP204_REV_LABELS[nextRev]}.`);
+      goToForm('form_cp204a', existing.id);
+      return;
+    }
+    const { data, error } = await sb.from('form_entries')
+      .insert({ form_type: 'form_cp204a', company_name: entry.company_name, revision: nextRev, parent_id: entry.id, created_by: currentUser.id })
+      .select().single();
+    if (error) { showToast('Could not jump to the next step: ' + error.message); return; }
+    showToast(`${entry.company_name} jumped to ${CP204_REV_LABELS[nextRev]} (CP204A).`);
+    await logActivity(`Jumped "${entry.company_name}" from ${entry.form_type === 'form_cp204' ? 'CP204' : 'CP204A ' + CP204_REV_LABELS[entry.revision]} to CP204A ${CP204_REV_LABELS[nextRev]}`);
+    await loadFormEntries();
+    goToForm('form_cp204a', data.id);
+  }
+
   async function onFinishClick(eaId, target){
     const ea = (formData.form_ea || []).find(e => e.id === eaId);
     if (!ea || ea.status !== 'completed' || !EA_TARGET_LABELS[target]) return;
+
+    // Form B belongs to a company, but the EA entry is an individual -> ask for the company name first.
+    if (target === 'form_b') { openFormBModal(ea); return; }
 
     const label = EA_TARGET_LABELS[target];
     const nameLower = ea.company_name.trim().toLowerCase();
@@ -1817,10 +1985,11 @@
     ea_received: 'EA', ea_received_date: 'EA received date',
     salary_received: 'Summary Salary', salary_received_date: 'Summary Salary received date',
     process_date: 'Process date', client_paid_date: 'Client Paid On', customs_payment_date: 'Make Payment to Customs',
-    payment_received_on: 'Payment Received On', paid_to_lhdn: 'Paid to LHDN'
+    payment_received_on: 'Payment Received On', paid_to_lhdn: 'Paid to LHDN',
+    proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
   };
   function formNameOf(formType){
-    const fixed = { form_ea: 'Form EA', form_be: 'Form BE', form_pcb: 'PCB', form_cp205: 'CP205' };
+    const fixed = { form_ea: 'Form EA', form_be: 'Form BE', form_pcb: 'PCB', form_cp205: 'CP205', form_cp204: 'CP204', form_cp204a: 'CP204A' };
     return fixed[formType] || (FORMS.find(f => f.key === formType) || {}).label || formType;
   }
   function findEntry(id){
@@ -2074,11 +2243,12 @@
   function goToForm(formType, entryId){
     closeNotifPanel();
     document.getElementById('navDashboard').click();
-    const widget = { form_ea: 'form_be', form_be: 'form_be', form_pcb: 'form_pcb', form_cp205: 'form_pcb' }[formType] || formType;
+    const widget = { form_ea: 'form_be', form_be: 'form_be', form_pcb: 'form_pcb', form_cp205: 'form_pcb', form_cp204: 'form_cp204', form_cp204a: 'form_cp204' }[formType] || formType;
     if (!FORMS.some(f => f.key === widget)) return;
     if (currentListFormType !== widget) openFormList(widget);
     if (widget === 'form_be') activeSubForm = formType;
     if (widget === 'form_pcb') activeSubForm2 = formType;
+    if (widget === 'form_cp204') activeSubForm3 = formType;
     listSearchTerm = ''; document.getElementById('listSearchInput').value = '';
     statusFilter = null; listLetterFilter = null; listMonthFilter = null; listPeriodFilter = null;
     const target = entryId ? findEntry(entryId) : null;
