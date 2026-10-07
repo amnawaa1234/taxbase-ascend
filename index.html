@@ -18,18 +18,23 @@
   body{
     margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
     font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--ink);
-    padding:24px;
+    padding:24px; position:relative; overflow:hidden;
+    background:#1a2a44;
   }
+  .bg{position:fixed; inset:0; z-index:0; pointer-events:none; background:#1a2a44 url('login-bg.png') center/cover no-repeat;}
+  .bg::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg,rgba(15,30,60,.25),rgba(15,30,60,.45));}
+  .card{position:relative; z-index:1; box-shadow:0 18px 50px rgba(8,20,45,.35);}
+  .credit{position:fixed; bottom:10px; left:0; right:0; text-align:center; z-index:1; font-size:11.5px; color:rgba(255,255,255,.9); letter-spacing:.3px; text-shadow:0 1px 2px rgba(8,20,45,.5);}
   .card{
     width:100%; max-width:380px; background:#fff; border:1px solid var(--line);
     border-radius:10px; padding:36px 32px;
   }
   .mark{
-    width:40px; height:40px; margin-bottom:20px;
+    width:44px; height:44px; margin:0 auto 14px;
   }
   .mark img{width:100%; height:100%; display:block;}
-  h1{font-size:20px; font-weight:600; margin:0 0 4px;}
-  p.sub{color:var(--muted); font-size:14px; margin:0 0 28px;}
+  h1{font-size:22px; font-weight:700; margin:0 0 6px; text-align:center;}
+  p.sub{color:var(--muted); font-size:14px; margin:0 0 26px; text-align:center;}
   label{display:block; font-size:13px; font-weight:500; margin-bottom:6px; color:var(--ink);}
   input{
     width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px;
@@ -59,15 +64,63 @@
     background:#FFF0F0; border:1px solid #FFC9C9; color:var(--red);
     font-size:13px; padding:10px 12px; border-radius:7px; margin-bottom:16px; display:none;
   }
+  .card.wide{max-width:560px;}
+  .role-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:4px;}
+  .role-card{
+    all:unset; box-sizing:border-box; cursor:pointer; text-align:center;
+    border:1px solid var(--line); border-radius:10px; padding:20px 10px 16px; background:#fcfcfb;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    transition:border-color .12s, box-shadow .12s, transform .12s;
+  }
+  .role-card:hover, .role-card:focus-visible{border-color:var(--navy); box-shadow:0 2px 10px rgba(43,76,126,.14); transform:translateY(-1px);}
+  .role-card .ico{width:44px; height:44px; border-radius:50%; background:#E9EFF8; color:var(--navy); display:flex; align-items:center; justify-content:center;}
+  .role-card .ico svg{width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .role-card .rname{font-size:14px; font-weight:600; color:var(--ink);}
+  .role-card .rdesc{font-size:11.5px; color:var(--muted); line-height:1.35;}
+  .role-chip{display:flex; justify-content:center; width:max-content; margin-left:auto; margin-right:auto; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--navy); background:#E9EFF8; padding:5px 11px; border-radius:99px; margin-bottom:18px;}
+  button.back-link{all:unset; cursor:pointer; font-size:13px; color:var(--muted); display:inline-block; margin-top:14px;}
+  button.back-link:hover{color:var(--navy); text-decoration:underline;}
+  @media (max-width:520px){ .role-grid{grid-template-columns:1fr;} .role-card{flex-direction:row; text-align:left; padding:14px;} }
+  #stageForm{display:none;}
+  /* header sits directly on the wallpaper; only the role cards / login form are boxed */
+  .card.wide{max-width:640px; background:transparent; border:none; box-shadow:none; padding:0;}
+  .mark{margin:0 auto 12px; filter:drop-shadow(0 4px 12px rgba(0,0,0,.35));}
+  h1{font-family:'Times New Roman',Times,'Liberation Serif',serif; font-weight:700; font-size:44px; letter-spacing:1px; color:#fff; margin:0 0 8px; text-shadow:0 2px 14px rgba(0,0,0,.45);}
+  p.sub{color:rgba(255,255,255,.9); font-size:15px; margin:0 0 30px; text-shadow:0 1px 8px rgba(0,0,0,.5);}
+  .role-card{background:rgba(255,255,255,.96); border-color:transparent; box-shadow:0 10px 30px rgba(8,20,45,.35);}
+  .role-card:hover, .role-card:focus-visible{border-color:transparent; box-shadow:0 14px 36px rgba(8,20,45,.45); transform:translateY(-3px);}
+  #stageForm{max-width:380px; margin:0 auto; background:#fff; border-radius:12px; padding:28px 30px 22px; box-shadow:0 18px 50px rgba(8,20,45,.4);}
+  #stageForm .role-chip{display:flex;}
+  button.back-link{display:block; text-align:center; margin:14px auto 0;}
 </style>
 </head>
 <body>
 
-<div class="card">
+<div class="bg" aria-hidden="true"></div>
+<div class="card wide" id="card">
   <div class="mark"><img src="icon.svg" alt="TaxBase"></div>
   <h1>TaxBase</h1>
-  <p class="sub">Ascend Advisory Group — sign in with your registered account.</p>
+  <p class="sub" id="subText">Ascend Advisory Group — choose how you sign in.</p>
 
+  <div id="stageCards">
+    <div class="role-grid">
+      <button type="button" class="role-card" data-role="admin">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+        <span><span class="rname">Admin</span><br><span class="rdesc">Data entry &amp; record management</span></span>
+      </button>
+      <button type="button" class="role-card" data-role="hod">
+        <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M17.5 3.5l.6 1.2 1.3.2-.9.9.2 1.3-1.2-.6-1.2.6.2-1.3-.9-.9 1.3-.2z"/></svg></span>
+        <span><span class="rname">Head of Department</span><br><span class="rdesc">Review &amp; edit records</span></span>
+      </button>
+      <button type="button" class="role-card" data-role="staff">
+        <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg></span>
+        <span><span class="rname">Staff</span><br><span class="rdesc">Update status &amp; add remarks</span></span>
+      </button>
+    </div>
+  </div>
+
+  <div id="stageForm">
+  <div class="role-chip" id="roleChip"></div>
   <div class="error" id="errorBox"></div>
 
   <form id="loginForm">
@@ -83,7 +136,11 @@
     </div>
     <button type="submit" id="submitBtn">Sign in</button>
   </form>
+  <button type="button" class="back-link" id="backBtn">← Choose a different role</button>
+  </div>
 </div>
+
+<div class="credit">Ascend Advisory Group · Kuala Lumpur, Malaysia</div>
 
 <script>
   // ---- Fill these in from your Supabase project (Settings > API) ----
@@ -93,6 +150,25 @@
 
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const STAFF_EMAIL_DOMAIN = "ascend-fintrack.local"; // internal only, never actually emailed
+
+  const ROLE_NAMES = { admin: 'Admin', hod: 'Head of Department', staff: 'Staff' };
+  let selectedRole = null;
+  const stageCards = document.getElementById('stageCards');
+  const stageForm = document.getElementById('stageForm');
+  document.querySelectorAll('.role-card').forEach(c => c.addEventListener('click', () => {
+    selectedRole = c.dataset.role;
+    document.getElementById('roleChip').textContent = `Signing in as ${ROLE_NAMES[selectedRole]}`;
+    document.getElementById('errorBox').style.display = 'none';
+    document.getElementById('staffId').placeholder = selectedRole === 'admin' ? 'e.g. AD1001' : selectedRole === 'hod' ? 'e.g. HD1001' : 'e.g. ST1023';
+    stageCards.style.display = 'none'; stageForm.style.display = 'block';
+    document.getElementById('subText').textContent = 'Ascend Advisory Group';
+    document.getElementById('staffId').focus();
+  }));
+  document.getElementById('backBtn').addEventListener('click', () => {
+    selectedRole = null; stageForm.style.display = 'none'; stageCards.style.display = 'block';
+    document.getElementById('subText').textContent = 'Ascend Advisory Group — choose how you sign in.';
+    document.getElementById('loginForm').reset();
+  });
 
   const form = document.getElementById('loginForm');
   const errorBox = document.getElementById('errorBox');
@@ -121,6 +197,7 @@
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!selectedRole) return;
     errorBox.style.display = 'none';
     submitBtn.disabled = true;
     submitBtn.textContent = 'Signing in...';
@@ -138,16 +215,25 @@
       return;
     }
 
-    // Confirm this account belongs to staff or the head of department
+    // Confirm this account has a valid role
     const { data: profile, error: profileError } = await sb
       .from('profiles')
       .select('role')
       .eq('id', data.user.id)
       .single();
 
-    if (profileError || !profile || !['staff', 'head'].includes(profile.role)) {
+    if (profileError || !profile || !['admin', 'hod', 'staff'].includes(profile.role)) {
       await sb.auth.signOut();
       showError('This account is not authorized to access the finance client tracker.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign in';
+      return;
+    }
+
+    // The ID must belong to the role card that was chosen
+    if (profile.role !== selectedRole) {
+      await sb.auth.signOut();
+      showError(`This ID is not registered as ${ROLE_NAMES[selectedRole]}. Please go back and choose the correct role.`);
       submitBtn.disabled = false;
       submitBtn.textContent = 'Sign in';
       return;
