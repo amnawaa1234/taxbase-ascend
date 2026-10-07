@@ -29,6 +29,8 @@
   header h1{font-size:16px; font-weight:600; margin:0;}
   .who{display:flex; align-items:center; gap:14px; font-size:13px;}
   .who .role{opacity:.75;}
+  #userName{font-weight:600;}
+  .who .role{background:rgba(255,255,255,.14); padding:2px 9px; border-radius:99px; opacity:1; font-size:12px;}
   .logout{
     background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
     padding:6px 12px; border-radius:6px; font-size:13px; cursor:pointer; font-family:inherit;
@@ -2481,7 +2483,7 @@
       return;
     }
     currentProfile = profile;
-    document.getElementById('userName').textContent = profile.full_name;
+    document.getElementById('userName').textContent = `Hello, ${profile.full_name}!`;
     document.getElementById('userRole').textContent = ROLE_LABELS[profile.role];
     document.body.classList.add('role-' + profile.role);
 
@@ -2502,4 +2504,4 @@
   })();
 </script>
 </body>
-</html>F
+</html>
