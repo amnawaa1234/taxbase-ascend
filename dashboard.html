@@ -316,7 +316,7 @@
   .list-table th.admin-col, .list-table td.admin-col{position:sticky; right:0; z-index:1; width:62px; min-width:62px; padding-left:4px; padding-right:4px;}
   .list-table td.finish-col, .list-table td.admin-col{background:#fff;}
   .list-table th.finish-col, .list-table th.admin-col{z-index:3;}
-  body.staff-view .list-table .finish-col{right:0;}
+  body.role-staff .list-table .finish-col{right:0;}
   .list-table tbody tr:last-child td{border-bottom:none;}
   .company-cell{font-weight:600; white-space:nowrap;}
   .due-cell{color:var(--muted); white-space:nowrap;}
@@ -373,7 +373,11 @@
   .no-remarks{font-size:12px; color:var(--muted); margin-bottom:8px;}
 
   .admin-col{display:none;}
-  body.admin-view .admin-col{display:table-cell;}
+  body.role-hod .admin-col, body.role-admin .admin-col{display:table-cell;}
+  body:not(.role-admin) .delete-btn{display:none;}
+  body:not(.role-admin):not(.role-hod) .triple-btn{display:none;}
+  body:not(.role-admin):not(.role-hod) #listAddBtn{display:none !important;}
+
   .finish-col{display:none;}
   .list-table.show-finish-col .finish-col{display:table-cell;}
   .e-col{display:none;}
@@ -758,7 +762,18 @@
   const CP204_REV_LABELS = { 1: '1st Revised', 2: '2nd Revised', 3: 'Final Revised' };
   let pendingRemark = null; // { entryId, body }
 
-  const isAdmin = () => currentProfile && currentProfile.role === 'head';
+  // ---- Roles ----
+  //  admin = add, edit name/due date, DELETE (only role that can delete)
+  //  hod   = Head of Department: add, edit name/due date, no delete
+  //  staff = view, add remarks, change status + all dates/timestamps
+  //  (everyone can change status and dates; hand-over buttons create entries so Admin/HOD only)
+  const ROLE_LABELS = { admin: 'Admin', hod: 'HOD', staff: 'Staff' };
+  const VALID_ROLES = ['admin', 'hod', 'staff'];
+  const roleOf    = () => currentProfile ? currentProfile.role : null;
+  const canAdd    = () => roleOf() === 'admin' || roleOf() === 'hod';
+  const canEdit   = () => roleOf() === 'admin' || roleOf() === 'hod';   // name / due date, hand-overs
+  const canDelete = () => roleOf() === 'admin';
+  const isAdmin   = canEdit;     // legacy name used by the edit modal
 
   // Every form uses the same four statuses.
   const STATUSES = ['pending', 'in_progress', 'completed', 'submitted'];
@@ -1238,6 +1253,7 @@
     }));
     body.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', () => openEditModal(btn.dataset.entry)));
     body.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', () => {
+      if (!canDelete()) return;
       pendingDelete = { id: btn.dataset.entry, name: btn.dataset.name };
       const ent = entityOf(currentDataKey()).toLowerCase();
       document.getElementById('deleteConfirmTitle').textContent = `Delete this ${ent}?`;
@@ -1251,6 +1267,9 @@
     body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
+    if (!canEdit()) {
+      body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Only Admin or HOD can do this'; });
+    }
     body.querySelectorAll('.e-today-btn').forEach(btn => btn.addEventListener('click', () => {
       const today = new Date().toISOString().slice(0, 10);
       onEFieldUpdate(btn.dataset.entry, btn.dataset.field, today);
@@ -1400,10 +1419,10 @@
           ? cp204JumpCell(entry, status)
           : ''}</td>
         <td class="admin-col"><div class="admin-actions">
-          <button type="button" class="edit-btn" data-entry="${entry.id}" title="Edit ${entityOf(entry.form_type).toLowerCase()} name${CP204_FORMS.includes(entry.form_type) ? '' : ' / due date'} (Admin only)">
+          <button type="button" class="edit-btn" data-entry="${entry.id}" title="Edit ${entityOf(entry.form_type).toLowerCase()} name${CP204_FORMS.includes(entry.form_type) ? '' : ' / due date'} (Admin / HOD only)">
             <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
-          <button type="button" class="delete-btn" data-entry="${entry.id}" data-name="${escapeHtml(entry.company_name)}" title="Delete ${entityOf(entry.form_type).toLowerCase()}">
+          <button type="button" class="delete-btn" data-entry="${entry.id}" data-name="${escapeHtml(entry.company_name)}" title="Delete ${entityOf(entry.form_type).toLowerCase()} (Admin only)">
             <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
           </button>
         </div></td>
@@ -1443,7 +1462,7 @@
     document.getElementById('deleteConfirmBackdrop').classList.remove('open');
   });
   document.getElementById('deleteConfirmBtn').addEventListener('click', async () => {
-    if (!pendingDelete || !isAdmin()) return;
+    if (!pendingDelete || !canDelete()) return;
     const btn = document.getElementById('deleteConfirmBtn');
     btn.disabled = true; btn.textContent = 'Deleting...';
     const deletedEntry = findEntry(pendingDelete.id);
@@ -1451,7 +1470,7 @@
     btn.disabled = false; btn.textContent = 'Delete';
     document.getElementById('deleteConfirmBackdrop').classList.remove('open');
     if (error || !data || !data.length) {
-      showToast('Could not delete: ' + (error ? error.message : 'the database refused it. Run taxbase-allow-delete.sql in Supabase to give Admin delete permission.'));
+      showToast('Could not delete: ' + (error ? error.message : 'the database refused it. Run taxbase-three-roles.sql in Supabase.'));
     } else {
       showToast(`${pendingDelete.name} deleted.`);
       await logActivity(`Deleted "${pendingDelete.name}" from ${formNameOf(deletedEntry ? deletedEntry.form_type : currentDataKey())}`);
@@ -1485,6 +1504,7 @@
   /* ---------------- Inline add-client form ---------------- */
   const addEntryForm = document.getElementById('addEntryForm');
   document.getElementById('listAddBtn').addEventListener('click', () => {
+    if (!canAdd()) return;
     const isOpen = addEntryForm.classList.contains('open');
     if (isOpen) { closeEntryForm(); return; }
     const f = FORMS.find(x => x.key === currentListFormType);
@@ -1532,6 +1552,7 @@
   document.getElementById('cancelEntryForm').addEventListener('click', closeEntryForm);
 
   document.getElementById('saveEntryBtn').addEventListener('click', async () => {
+    if (!canAdd()) return;
     const company_name = document.getElementById('eCompanyName').value.trim();
     const due_date = currentListFormType === 'form_be'
       ? beDueDate(parseInt(document.getElementById('eYA').value, 10))
@@ -1783,6 +1804,7 @@
   // PCB / CP205 / CP500 are paid again and again. When a period is done, the client "jumps" to the
   // next one: a new row with the next due date. The finished row stays behind as the payment history.
   async function onNextPeriodClick(entryId){
+    if (!canEdit()) { showToast('Only Admin or HOD can do this.'); return; }
     const entry = findEntry(entryId);
     if (!entry || !entry.due_date || !isDone(entry.status) || !PCB_STYLE_FORMS.includes(entry.form_type)) return;
     const nextDue = entry.form_type === 'form_cp500' ? nextCP500After(entry.due_date) : nextMonthAfter(entry.due_date);
@@ -1907,6 +1929,7 @@
   document.getElementById('formBCompany').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('formBSaveBtn').click(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && formBBackdrop.classList.contains('open')) closeFormBModal(); });
   document.getElementById('formBSaveBtn').addEventListener('click', async () => {
+    if (!canEdit()) return;
     const ea = findEntry(pendingFormBEa);
     const errEl = document.getElementById('formBError');
     const company = document.getElementById('formBCompany').value.trim();
@@ -1949,6 +1972,7 @@
   // CP204 (original) -> 1st Revised -> 2nd Revised -> Final Revised. Each step is its own row so the
   // dates of the finished step stay on record; the company "jumps" by getting a row in the next step.
   async function onCp204JumpClick(entryId){
+    if (!canEdit()) { showToast('Only Admin or HOD can do this.'); return; }
     const entry = findEntry(entryId);
     if (!entry || !CP204_FORMS.includes(entry.form_type) || normStatus(entry.status) !== 'submitted') return;
     let nextRev = null;
@@ -1974,6 +1998,7 @@
   }
 
   async function onFinishClick(eaId, target){
+    if (!canEdit()) { showToast('Only Admin or HOD can do this.'); return; }
     const ea = (formData.form_ea || []).find(e => e.id === eaId);
     if (!ea || ea.status !== 'completed' || !EA_TARGET_LABELS[target]) return;
 
@@ -2061,6 +2086,7 @@
   });
   document.getElementById('tripleCancelBtn').addEventListener('click', closeTripleForm);
   document.getElementById('tripleSaveBtn').addEventListener('click', async () => {
+    if (!canAdd()) return;
     const company_name = document.getElementById('tripleClientName').value.trim();
     const errEl = document.getElementById('tripleFormError');
     if (!company_name) { errEl.textContent = `Enter a ${TRIPLE_LABELS[tripleMode].toLowerCase()}.`; return; }
@@ -2449,15 +2475,16 @@
     currentUser = session.user;
 
     const { data: profile } = await sb.from('profiles').select('full_name, role').eq('id', currentUser.id).single();
-    if (!profile || !['staff', 'head'].includes(profile.role)) {
+    if (!profile || !VALID_ROLES.includes(profile.role)) {
       await sb.auth.signOut();
       window.location.href = 'index.html';
       return;
     }
     currentProfile = profile;
     document.getElementById('userName').textContent = profile.full_name;
-    document.getElementById('userRole').textContent = profile.role === 'head' ? 'Admin' : 'Staff';
-    document.body.classList.add(profile.role === 'head' ? 'admin-view' : 'staff-view');
+    document.getElementById('userRole').textContent = ROLE_LABELS[profile.role];
+    document.body.classList.add('role-' + profile.role);
+
 
     showToast(`Welcome, ${profile.full_name}! 👋`);
     setupRealtime();
@@ -2475,4 +2502,4 @@
   })();
 </script>
 </body>
-</html>
+</html>F
