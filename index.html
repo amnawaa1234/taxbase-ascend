@@ -82,6 +82,8 @@
   button.back-link:hover{color:var(--navy); text-decoration:underline;}
   @media (max-width:520px){ .role-grid{grid-template-columns:1fr;} .role-card{flex-direction:row; text-align:left; padding:14px;} }
   #stageForm{display:none;}
+  .panel select{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px; font-size:14px; font-family:inherit; margin-bottom:16px; background:#fcfcfb; color:var(--ink);}
+  .panel select:focus{outline:none; border-color:var(--navy);}
   /* header sits directly on the wallpaper; only the role cards / login form are boxed */
   .card.wide{margin:auto; max-width:640px; background:transparent; border:none; box-shadow:none; padding:0;}
   .mark{margin:0 auto 12px; filter:drop-shadow(0 4px 12px rgba(0,0,0,.35));}
@@ -215,21 +217,19 @@
     const requested_role = document.getElementById('regRole').value;
     const nameKey = full_name.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (!nameKey) { note('regError', 'Your name must contain letters or numbers (A–Z).'); return; }
-    const email = `${nameKey}@${STAFF_EMAIL_DOMAIN}`;   // internal login name, never emailed
     const p1 = document.getElementById('regPass').value, p2 = document.getElementById('regPass2').value;
     if (p1 !== p2) { note('regError', 'Passwords do not match.'); return; }
     const btn = document.getElementById('regBtn');
     btn.disabled = true; btn.textContent = 'Registering...';
-    const { data, error } = await sb.auth.signUp({ email, password: p1, options: { data: { full_name, requested_role } } });
+    const { error } = await sb.rpc('register_user', { p_name: full_name, p_role: requested_role, p_password: p1 });
     btn.disabled = false; btn.textContent = 'Register';
     if (error) {
       const m = (error.message || '').toLowerCase();
-      note('regError', m.includes('already') || m.includes('database error')
+      note('regError', m.includes('already')
         ? 'This name is already registered. Add your middle name or an initial to make it different.'
         : 'Could not register: ' + error.message);
       return;
     }
-    if (data && data.session) await sb.auth.signOut();   // no access until approved
     document.getElementById('registerForm').reset();
     note('regOk', 'Registration sent. You can sign in once the Head of Department approves your account.');
   });
