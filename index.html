@@ -134,8 +134,8 @@
   <div class="error" id="errorBox"></div>
 
   <form id="loginForm">
-    <label for="staffId">Staff ID</label>
-    <input type="text" id="staffId" required autocomplete="username" placeholder="e.g. ST1023">
+    <label for="staffId">Name</label>
+    <input type="text" id="staffId" required autocomplete="username" placeholder="Your registered name">
     <label for="password">Password</label>
     <div class="password-wrap">
       <input type="password" id="password" required autocomplete="current-password">
@@ -152,16 +152,18 @@
 
   <div class="panel" id="stageRegister">
     <h2>Create an account</h2>
-    <p class="hint">Your account stays inactive until the Head of Department approves it.</p>
+    <p class="hint">You will sign in with your name and password. Your account stays inactive until the Head of Department approves it.</p>
     <div class="error" id="regError"></div>
     <div class="ok" id="regOk"></div>
     <form id="registerForm">
       <label for="regName">Full name</label>
-      <input type="text" id="regName" required autocomplete="name" placeholder="As shown in company records">
-      <label for="regStaffId">Staff ID</label>
-      <input type="text" id="regStaffId" required autocomplete="username" placeholder="e.g. ST1023" pattern="[A-Za-z0-9]{3,20}" title="3–20 letters or numbers">
-      <label for="regEmail">Work email</label>
-      <input type="email" id="regEmail" required autocomplete="email" placeholder="name@company.com">
+      <input type="text" id="regName" required autocomplete="name" placeholder="e.g. Ahmad bin Ismail">
+      <label for="regRole">Role</label>
+      <select id="regRole" required>
+        <option value="staff">Staff</option>
+        <option value="admin">Admin</option>
+        <option value="hod">Head of Department</option>
+      </select>
       <label for="regPass">Password</label>
       <input type="password" id="regPass" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
       <label for="regPass2">Confirm password</label>
@@ -173,14 +175,8 @@
 
   <div class="panel" id="stageForgot">
     <h2>Forgot password</h2>
-    <p class="hint">Enter your Staff ID. If your account has a registered email, we will send a reset link to it.</p>
-    <div class="error" id="fgError"></div>
-    <div class="ok" id="fgOk"></div>
-    <form id="forgotForm">
-      <label for="fgStaffId">Staff ID</label>
-      <input type="text" id="fgStaffId" required autocomplete="username" placeholder="e.g. ST1023">
-      <button type="submit" id="fgBtn">Send reset link</button>
-    </form>
+    <p class="hint" style="margin-bottom:6px;">Ask the <b>Head of Department</b> to reset your password. They will give you a temporary password.</p>
+    <p class="hint">After signing in with it, use <b>Change password</b> (top right) to set your own.</p>
     <button type="button" class="back-link" data-back="cards">← Back to sign in</button>
   </div>
 </div>
@@ -203,35 +199,33 @@
   function showStage(name){
     Object.entries(STAGES).forEach(([k, el]) => el.style.display = k === name ? 'block' : 'none');
     document.getElementById('subText').textContent = SUBS[name];
-    ['errorBox', 'regError', 'regOk', 'fgError', 'fgOk'].forEach(id => document.getElementById(id).style.display = 'none');
+    ['errorBox', 'regError', 'regOk'].forEach(id => document.getElementById(id).style.display = 'none');
   }
   document.getElementById('goRegister').addEventListener('click', () => showStage('register'));
   document.getElementById('goForgot').addEventListener('click', () => {
-    document.getElementById('fgStaffId').value = document.getElementById('staffId').value;
     showStage('forgot');
   });
   document.querySelectorAll('[data-back="cards"]').forEach(b => b.addEventListener('click', () => { selectedRole = null; showStage('cards'); }));
   const note = (id, msg, ok) => { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; };
-  const resetUrl = () => new URL('reset.html', window.location.href).href;
 
   document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     ['regError', 'regOk'].forEach(id => document.getElementById(id).style.display = 'none');
     const full_name = document.getElementById('regName').value.trim();
-    const staff_id = document.getElementById('regStaffId').value.trim().toUpperCase();
-    const email = document.getElementById('regEmail').value.trim().toLowerCase();
+    const requested_role = document.getElementById('regRole').value;
+    const nameKey = full_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!nameKey) { note('regError', 'Your name must contain letters or numbers (A–Z).'); return; }
+    const email = `${nameKey}@${STAFF_EMAIL_DOMAIN}`;   // internal login name, never emailed
     const p1 = document.getElementById('regPass').value, p2 = document.getElementById('regPass2').value;
     if (p1 !== p2) { note('regError', 'Passwords do not match.'); return; }
     const btn = document.getElementById('regBtn');
     btn.disabled = true; btn.textContent = 'Registering...';
-    const { data, error } = await sb.auth.signUp({ email, password: p1, options: { data: { full_name, staff_id } } });
+    const { data, error } = await sb.auth.signUp({ email, password: p1, options: { data: { full_name, requested_role } } });
     btn.disabled = false; btn.textContent = 'Register';
     if (error) {
       const m = (error.message || '').toLowerCase();
-      note('regError', m.includes('already') && m.includes('registered') && !m.includes('staff')
-        ? 'This email is already registered.'
-        : m.includes('database error') || m.includes('staff id')
-        ? 'This Staff ID is already registered.'
+      note('regError', m.includes('already') || m.includes('database error')
+        ? 'This name is already registered. Add your middle name or an initial to make it different.'
         : 'Could not register: ' + error.message);
       return;
     }
@@ -240,26 +234,10 @@
     note('regOk', 'Registration sent. You can sign in once the Head of Department approves your account.');
   });
 
-  document.getElementById('forgotForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    ['fgError', 'fgOk'].forEach(id => document.getElementById(id).style.display = 'none');
-    const sid = document.getElementById('fgStaffId').value.trim();
-    const btn = document.getElementById('fgBtn');
-    btn.disabled = true; btn.textContent = 'Sending...';
-    const { data: em } = await sb.rpc('login_email', { p_staff_id: sid });
-    if (em && !em.endsWith('@' + STAFF_EMAIL_DOMAIN)) {
-      await sb.auth.resetPasswordForEmail(em, { redirectTo: resetUrl() });
-    }
-    btn.disabled = false; btn.textContent = 'Send reset link';
-    // Same message either way, so the page does not reveal which Staff IDs exist.
-    note('fgOk', 'If this Staff ID has a registered email, a reset link has been sent. No email? Ask the Head of Department to reset your password.');
-  });
-
   document.querySelectorAll('.role-card').forEach(c => c.addEventListener('click', () => {
     selectedRole = c.dataset.role;
     document.getElementById('roleChip').textContent = `Signing in as ${ROLE_NAMES[selectedRole]}`;
     document.getElementById('errorBox').style.display = 'none';
-    document.getElementById('staffId').placeholder = selectedRole === 'admin' ? 'e.g. AD1001' : selectedRole === 'hod' ? 'e.g. HD1001' : 'e.g. ST1023';
     showStage('form');
     document.getElementById('staffId').focus();
   }));
@@ -302,7 +280,7 @@
 
     const staffId = document.getElementById('staffId').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
-    let email = `${staffId}@${STAFF_EMAIL_DOMAIN}`;
+    let email = `${staffId.replace(/[^a-z0-9]/g, '')}@${STAFF_EMAIL_DOMAIN}`;
     const { data: looked } = await sb.rpc('login_email', { p_staff_id: staffId });
     if (looked) email = looked;
 
