@@ -578,6 +578,11 @@
             <label for="eDueDate">Due date</label>
             <input type="date" id="eDueDate">
           </div>
+          <div id="eFyeWrap" style="display:none;">
+            <label for="eFye">FYE — Final Year End date</label>
+            <input type="date" id="eFye">
+            <div class="due-preview" style="margin-top:6px;">The month buttons for CP204 / CP204A follow this date.</div>
+          </div>
           <div id="eYAWrap" style="display:none;">
             <label for="eYA">Year of Assessment (YA)</label>
             <select id="eYA"></select>
@@ -713,6 +718,10 @@
     <div id="editDueWrap">
       <label for="editDue">Due date</label>
       <input type="date" id="editDue">
+    </div>
+    <div id="editFyeWrap" style="display:none;">
+      <label for="editFye">FYE — Final Year End date</label>
+      <input type="date" id="editFye">
     </div>
     <label class="report-opt" id="editAllWrap" style="display:none; font-weight:500; font-size:13px; margin-top:14px;">
       <input type="checkbox" id="editAll" checked>
@@ -1084,8 +1093,8 @@
   // due date — it depends on each company's financial year) the month the step was added.
   function monthOf(e, formType){
     if (CP204_FORMS.includes(formType)) {
-      const d = new Date(e.created_at);
-      return isNaN(d) ? null : d.getMonth() + 1;
+      // CP204 / CP204A follow the company's FYE (Final Year End) month
+      return e.fye_date ? parseInt(e.fye_date.slice(5, 7), 10) : null;
     }
     return e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : null;
   }
@@ -1178,7 +1187,7 @@
       btn('status-filter-btn', 'status', '', 'All', statusFilter === null, counts.all) +
       STATUSES.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
     if (hasMonths) {
-      html += `<div class="sidebar-section-label">${currentListFormType === 'form_cp204' ? 'Month Added' : 'Due Month'}</div>` +
+      html += `<div class="sidebar-section-label">${currentListFormType === 'form_cp204' ? 'FYE Month' : 'Due Month'}</div>` +
         btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null, monthCounts.all) +
         MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1, monthCounts[i + 1])).join('');
     }
@@ -1482,6 +1491,10 @@
       if (child) stageTag += `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ Jumped to ${CP204_REV_LABELS[child.revision] || 'next step'}</div>`;
     }
 
+    if (CP204_FORMS.includes(entry.form_type)) {
+      stageTag = `<div class="ea-note" style="margin-top:4px; white-space:normal;">FYE: ${entry.fye_date ? formatDateDMY(entry.fye_date) : '<span style="color:var(--red);">not set</span>'}</div>` + stageTag;
+    }
+
     const simpleDateCell = (field, value) => `
       <div class="e-date-row">
         <input type="date" class="e-date-input" data-entry="${entry.id}" data-field="${field}" value="${value || ''}">
@@ -1659,6 +1672,8 @@
     const isCP500 = formType === 'form_cp500';
     const isCP204 = formType === 'form_cp204';
     document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500 || isCP204) ? 'none' : '';
+    document.getElementById('eFyeWrap').style.display = isCP204 ? '' : 'none';
+    document.getElementById('eFye').value = '';
     document.getElementById('eYAWrap').style.display = isBE ? '' : 'none';
     if (!isBE) return;
     const d = defaultYA();
@@ -1686,8 +1701,10 @@
       : currentListFormType === 'form_cp204'
       ? null                                     // CP204 has no fixed due date — just the company name
       : (document.getElementById('eDueDate').value || null);
+    const fye_date = currentListFormType === 'form_cp204' ? (document.getElementById('eFye').value || null) : null;
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
+    if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE (Final Year End) date.'; return; }
     if (!company_name) { errEl.textContent = 'Enter a company name.'; return; }
     if (!due_date && currentListFormType !== 'form_cp204') { errEl.textContent = 'Choose a due date.'; return; }
 
@@ -1695,7 +1712,7 @@
     btn.disabled = true; btn.textContent = 'Saving...';
 
     const { data: newEntry, error } = await sb.from('form_entries')
-      .insert({ form_type: currentListFormType, company_name, due_date, created_by: currentUser.id })
+      .insert({ form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), created_by: currentUser.id })
       .select().single();
 
     if (error) {
@@ -1713,7 +1730,7 @@
     btn.disabled = false; btn.textContent = 'Save';
     closeEntryForm();
     showToast(`${company_name} added.`);
-    await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${remark ? ' with a remark' : ''}`);
+    await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${remark ? ' with a remark' : ''}`);
     await loadFormEntries();
   });
 
@@ -1777,6 +1794,7 @@
     const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
     if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
+    else cols.push({ h: 'FYE', v: dateOf('fye_date') });
     if (key === 'form_b') cols.push({ h: 'Client', v: e => e.client_name || '' });
     if (['form_cp500', 'form_pcb', 'form_cp205'].includes(key)) cols.push({ h: key === 'form_cp500' ? 'Instalment' : 'Payment', v: e => { const b = paymentBadge(e); return b ? `${b.no}/${b.total}` : ''; } });
     if (key === 'form_cp204a') cols.push({ h: 'Revision', v: e => CP204_REV_LABELS[e.revision] || '' });
@@ -1972,13 +1990,16 @@
     const hasDue = !CP204_FORMS.includes(entry.form_type);          // CP204 has no due date
     document.getElementById('editDueWrap').style.display = hasDue ? '' : 'none';
     document.getElementById('editDue').value = entry.due_date || '';
+    const isCp = CP204_FORMS.includes(entry.form_type);
+    document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
+    document.getElementById('editFye').value = entry.fye_date || '';
     const others = relatedRows(entry);
     const wrap = document.getElementById('editAllWrap');
     wrap.style.display = others.length ? 'flex' : 'none';
     document.getElementById('editAll').checked = true;
     const grp = RELATED_GROUPS.find(g => g.includes(entry.form_type));
     document.getElementById('editAllText').textContent =
-      `Also apply the new name to this ${ent.toLowerCase()}'s ${others.length} other row${others.length === 1 ? '' : 's'} in ${grp ? grp.map(formNameOf).join(' / ') + ' (other steps)' : formNameOf(entry.form_type) + ' (other periods)'}`;
+      `Also apply the new name / FYE to this ${ent.toLowerCase()}'s ${others.length} other row${others.length === 1 ? '' : 's'} in ${grp ? grp.map(formNameOf).join(' / ') + ' (other steps)' : formNameOf(entry.form_type) + ' (other periods)'}`;
     document.getElementById('editError').textContent = '';
     editBackdrop.classList.add('open');
     setTimeout(() => document.getElementById('editName').focus(), 40);
@@ -1999,15 +2020,20 @@
     if (!name) { errEl.textContent = `Enter the ${entityOf(entry.form_type).toLowerCase()} name.`; return; }
     if (hasDue && !due) { errEl.textContent = 'Choose a due date.'; return; }
 
+    const isCp = CP204_FORMS.includes(entry.form_type);
+    const fye = isCp ? (document.getElementById('editFye').value || null) : null;
+    if (isCp && !fye) { errEl.textContent = 'Choose the FYE (Final Year End) date.'; return; }
     const nameChanged = name !== entry.company_name;
     const dueChanged = hasDue && due !== (entry.due_date || null);
-    if (!nameChanged && !dueChanged) { closeEditModal(); return; }
+    const fyeChanged = isCp && fye !== (entry.fye_date || null);
+    if (!nameChanged && !dueChanged && !fyeChanged) { closeEditModal(); return; }
 
-    const others = (nameChanged && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
+    const others = ((nameChanged || fyeChanged) && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
       ? relatedRows(entry) : [];
     const patch = {};
     if (nameChanged) patch.company_name = name;
     if (dueChanged) patch.due_date = due;
+    if (fyeChanged) patch.fye_date = fye;
 
     const btn = document.getElementById('editSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -2019,7 +2045,7 @@
     }
     let othersFailed = false;
     if (others.length) {
-      const r = await sb.from('form_entries').update({ company_name: name }).in('id', others.map(o => o.id)).select();
+      const r = await sb.from('form_entries').update({ ...(nameChanged ? { company_name: name } : {}), ...(fyeChanged ? { fye_date: fye } : {}) }).in('id', others.map(o => o.id)).select();
       othersFailed = !!r.error;
     }
     btn.disabled = false; btn.textContent = 'Save';
@@ -2028,6 +2054,7 @@
     const parts = [];
     if (nameChanged) parts.push(`name "${oldName}" → "${name}"${others.length ? ` (and ${others.length} other row${others.length === 1 ? '' : 's'})` : ''}`);
     if (dueChanged) parts.push(`due date ${formatDateDMY(oldDue)} → ${formatDateDMY(due)}`);
+    if (fyeChanged) parts.push(`FYE ${entry.fye_date ? formatDateDMY(entry.fye_date) : 'not set'} → ${formatDateDMY(fye)}`);
     closeEditModal();
     showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : `${name} updated.`);
     await logActivity(`Edited ${entityOf(entry.form_type).toLowerCase()} in ${formNameOf(entry.form_type)}: ${parts.join('; ')}`);
@@ -2111,7 +2138,7 @@
       return;
     }
     const { data, error } = await sb.from('form_entries')
-      .insert({ form_type: 'form_cp204a', company_name: entry.company_name, revision: nextRev, parent_id: entry.id, created_by: currentUser.id })
+      .insert({ form_type: 'form_cp204a', company_name: entry.company_name, revision: nextRev, parent_id: entry.id, ...(entry.fye_date ? { fye_date: entry.fye_date } : {}), created_by: currentUser.id })
       .select().single();
     if (error) { showToast('Could not jump to the next step: ' + error.message); return; }
     showToast(`${entry.company_name} jumped to ${CP204_REV_LABELS[nextRev]} (CP204A).`);
