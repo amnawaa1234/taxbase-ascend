@@ -134,7 +134,7 @@
 
   /* ---- Dashboard search bar ---- */
   .dash-top{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; margin-bottom:22px;}
-  .dash-welcome h2{margin:0; font-size:26px; color:var(--navy);}
+  .dash-welcome h2{margin:0; font-size:28px; color:var(--navy); font-family:'Times New Roman',Times,serif; font-weight:700;}
   .dash-welcome p{margin:6px 0 0; font-size:14px; color:var(--muted);}
   .red-num{color:#D92D20; font-weight:700;}
   .settings-title{margin:0 0 16px; font-size:22px; color:var(--navy);}
@@ -171,6 +171,8 @@
 
   /* ---- Widget cards (sortable) ---- */
   .widget-grid{display:flex; gap:14px; flex-wrap:wrap;}
+  .widget-hint{text-align:center; color:#8A8F9C; font-size:13.5px; margin:18px 0 4px;}
+  body.list-open .widget-hint{display:none;}
   .widget-card{
     flex:1; min-width:200px; max-width:280px; background:#fff; border:1px solid var(--line);
     border-radius:10px; padding:18px 20px; cursor:pointer; user-select:none;
@@ -535,6 +537,8 @@
     </div>
 
     <div class="widget-grid" id="widgetGrid"></div>
+
+    <div class="widget-hint" id="widgetHint">Click on any Widget Form to make action.</div>
 
     <!-- Inline list panel: appears here once a widget card is clicked -->
     <div class="list-panel" id="listPanel">
@@ -1107,6 +1111,7 @@
     formData.form_cp205 = await loadOneFormType('form_cp205');
     formData.form_cp204a = await loadOneFormType('form_cp204a');
 
+    loadedOnce = true;
     renderWidgets();
     if (currentListFormType) renderCurrentPanel();
     renderBell();
@@ -1118,6 +1123,7 @@
   widgetOrder = widgetOrder.filter(k => FORMS.some(f => f.key === k));
   let draggedKey = null;
 
+  let countUpDone = false, loadedOnce = false;   // numbers count up from 0 once per login
   function renderWidgets(){
     const grid = document.getElementById('widgetGrid');
     grid.innerHTML = widgetOrder.map(key => {
@@ -1133,6 +1139,19 @@
 
     const totalPending = widgetOrder.reduce((n, k) => n + activeEntries(k).filter(e => normStatus(e.status) === 'pending').length, 0);
     const wc = document.getElementById('welcomeCount'); if (wc) wc.textContent = totalPending;
+    if (!countUpDone && loadedOnce) {
+      countUpDone = true;
+      const els = [...grid.querySelectorAll('.widget-num')].map(el => [el, parseInt(el.textContent, 10) || 0]);
+      if (wc) els.push([wc, totalPending]);
+      els.forEach(([el]) => { el.textContent = '0'; });
+      const t0 = performance.now(), DUR = 1200;
+      const step = (t) => {
+        const p = Math.min(1, (t - t0) / DUR), e = 1 - Math.pow(1 - p, 3);
+        els.forEach(([el, n]) => { el.textContent = Math.round(n * e); });
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
     grid.querySelectorAll('.widget-card').forEach(card => {
       card.addEventListener('click', () => openFormList(card.dataset.form));
       card.addEventListener('dragstart', (e) => {
@@ -1337,7 +1356,7 @@
     activeSubForm3 = 'form_cp204';
     showArchive = false;
     renderCurrentPanel();
-    listPanel.classList.add('open');
+    listPanel.classList.add('open'); document.body.classList.add('list-open');
     markActiveWidget();
     listPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -1453,7 +1472,7 @@
     renderListTable();
   });
   function closeListPanel(){
-    listPanel.classList.remove('open');
+    listPanel.classList.remove('open'); document.body.classList.remove('list-open');
     currentListFormType = null;
     closeEntryForm();
     closeTripleForm();
@@ -2376,26 +2395,28 @@
   dashSearchInput.addEventListener('input', () => {
     const term = dashSearchInput.value.trim().toLowerCase();
     if (!term) { dashSearchResults.classList.remove('open'); dashSearchResults.innerHTML = ''; return; }
+    const SEARCH_KEYS = [['form_c','Form C'],['form_ea','Form EA'],['form_be','Form BE'],['form_e','Form E'],['form_sst','Form SST'],['form_b','Form B'],['form_pcb','PCB'],['form_cp205','CP205'],['form_cp500','Form CP500'],['form_cp204','CP204'],['form_cp204a','CP204A']];
     const matches = [];
-    FORMS.forEach(f => {
-      activeEntries(f.key).forEach(entry => {
-        if ((entry.company_name + ' ' + (entry.client_name || '')).toLowerCase().includes(term)) matches.push({ entry, form: f });
+    SEARCH_KEYS.forEach(([k, label]) => {
+      activeEntries(k).forEach(entry => {
+        if ((entry.company_name + ' ' + (entry.client_name || '')).toLowerCase().includes(term)) matches.push({ entry, key: k, label });
       });
     });
     if (!matches.length) {
       dashSearchResults.innerHTML = `<div class="dash-search-empty">No companies match "${escapeHtml(dashSearchInput.value.trim())}".</div>`;
     } else {
-      dashSearchResults.innerHTML = matches.slice(0, 8).map(({ entry, form }) => `
-        <div class="dash-search-item" data-form="${form.key}">
+      dashSearchResults.innerHTML = matches.slice(0, 8).map(({ entry, key, label }) => `
+        <div class="dash-search-item" data-key="${key}" data-id="${entry.id}">
           <span class="sname">${escapeHtml(entry.company_name)}</span>
-          <span class="sform">${escapeHtml(form.label)}</span>
+          <span class="sform">${escapeHtml(label)}</span>
           <span class="sdue">${formatDateDMY(entry.due_date)}</span>
         </div>`).join('');
       dashSearchResults.querySelectorAll('.dash-search-item').forEach(el => {
-        el.addEventListener('click', () => {
-          openFormList(el.dataset.form);
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation();
           dashSearchResults.classList.remove('open');
           dashSearchInput.value = '';
+          goToForm(el.dataset.key, el.dataset.id);   // opens the list, scrolls to the client and flashes it yellow
         });
       });
     }
@@ -2745,7 +2766,6 @@
     document.body.classList.add('role-' + profile.role);
 
 
-    showToast(`Welcome, ${profile.full_name}! 👋`);
     if (profile.role === 'hod') loadUsers();
     setupRealtime();
 
