@@ -132,6 +132,47 @@
     main{order:2; width:100%; padding:18px;}
   }
 
+
+  /* ---- Organizations (HOD) ---- */
+  .orgs-top{display:flex; align-items:center; gap:14px; margin-bottom:16px;}
+  .orgs-top h2{margin:0; font-size:20px; color:var(--navy);}
+  .orgs-add-btn{background:var(--navy); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;}
+  .orgs-add-btn:hover{opacity:.9;}
+  .orgs-cols{display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;}
+  .orgs-left{flex:1 1 320px; max-width:460px; display:flex; flex-direction:column; gap:10px;}
+  .orgs-right{flex:1 1 360px; min-width:0;}
+  .org-card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; display:flex; align-items:center; gap:10px;}
+  .org-card.active{border-color:var(--navy); box-shadow:0 0 0 2px rgba(43,76,126,.15);}
+  .org-card .org-name{font-weight:600; flex:1; min-width:0; overflow-wrap:anywhere;}
+  .org-card .org-count{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .org-view-btn{background:#fff; color:var(--navy); border:1px solid var(--navy); border-radius:8px; padding:6px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; white-space:nowrap;}
+  .org-card.active .org-view-btn{background:var(--navy); color:#fff;}
+  .org-del{background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:2px 6px; border-radius:6px; font-family:inherit;}
+  .org-del:hover{color:var(--red); background:var(--red-bg);}
+  .org-del.sure{color:#fff; background:var(--red); font-size:12px;}
+  .clients-panel{background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px;}
+  .clients-panel h3{margin:0 0 4px; font-size:16px;}
+  .clients-panel .cp-sub{font-size:12.5px; color:var(--muted); margin-bottom:12px;}
+  .client-add{display:flex; gap:8px; margin-bottom:12px;}
+  .client-add input{flex:1; padding:8px 12px; border:1px solid var(--line); border-radius:8px; font-size:13px; font-family:inherit;}
+  .client-row{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px; cursor:pointer; background:#fff;}
+  .client-row:hover{background:#F6F8FC; border-color:#C9D8F2;}
+  .client-row .cl-name{flex:1; font-weight:500; overflow-wrap:anywhere;}
+  .client-row .cl-go{color:var(--muted); font-size:12px;}
+  .org-st{display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.03em;}
+  .org-st.pending{background:#EDF3FF; color:#2F6FED;} .org-st.in_progress{background:#FFD43B; color:#5C4300;}
+  .org-st.completed{background:#EBFBEE; color:#2F9E44;} .org-st.submitted{background:#1B6B3A; color:#fff;}
+  .org-st.none{background:#F1F2F5; color:var(--muted); font-weight:500;}
+  .orgs-empty{color:var(--muted); font-size:13.5px; padding:14px 2px;}
+  .org-client-inputs .oc-row{display:flex; gap:6px; margin-bottom:8px;}
+  .org-client-inputs input{flex:1;}
+  .id-row{display:flex; gap:8px;}
+  .id-row select{flex:0 0 150px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-family:inherit; font-size:14px; background:#fff;}
+  .id-row input{flex:1; min-width:0;}
+  .id-row input:disabled{background:#F4F5F7; cursor:not-allowed;}
+  .id-hint{font-size:12px; color:var(--muted); margin-top:4px;}
+  .id-tag{font-size:11.5px; color:var(--muted); margin-top:3px; white-space:normal;}
+
   /* ---- Dashboard search bar ---- */
   .dash-top{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; margin-bottom:22px;}
   .dash-welcome h2{margin:0; font-size:26px; color:#000; font-family:'Merriweather',Georgia,serif; font-weight:700;}
@@ -458,8 +499,8 @@
   .nav-badge.on{display:inline-flex;}
   .nav-sidebar.collapsed .nav-badge{position:absolute; top:2px; right:6px; margin:0;}
   .nav-item{position:relative;}
-  #navUsers{display:none;}
-  body.role-hod #navUsers{display:flex;}
+  #navUsers, #navOrgs{display:none;}
+  body.role-hod #navUsers, body.role-hod #navOrgs{display:flex;}
   .hdr-btn{background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff; padding:6px 12px; border-radius:6px; font-size:13px; cursor:pointer; font-family:inherit;}
   .hdr-btn:hover{background:rgba(255,255,255,.14);}
   .users-section{margin:18px 0 8px; font-size:14px; font-weight:600;}
@@ -502,6 +543,7 @@
   <aside class="nav-sidebar" id="navSidebar">
     <button class="nav-toggle" id="navToggle" title="Collapse sidebar">«</button>
     <button class="nav-item active" id="navDashboard"><span class="nav-icon">📋</span><span class="nav-label">Dashboard</span></button>
+    <button class="nav-item" id="navOrgs"><span class="nav-icon">🏢</span><span class="nav-label">Organizations</span></button>
     <button class="nav-item" id="navActivity"><span class="nav-icon">🕒</span><span class="nav-label">My Activity</span></button>
     <button class="nav-item" id="navUsers"><span class="nav-icon">👥</span><span class="nav-label">Users</span><span class="nav-badge" id="usersBadge">0</span></button>
     <button class="nav-item" id="navSettings"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></button>
@@ -572,6 +614,14 @@
         <h3 id="tripleAddTitle">New client</h3>
         <label for="tripleClientName">Client name</label>
         <input type="text" id="tripleClientName" placeholder="e.g. Ahmad bin Ismail">
+        <div id="tripleIdWrap">
+          <label for="tripleIdType" style="margin-top:12px;">IC No. / Passport No.</label>
+          <div class="id-row">
+            <select id="tripleIdType"><option value="">Choose one…</option><option value="ic">IC No.</option><option value="passport">Passport No.</option></select>
+            <input type="text" id="tripleIdNo" disabled placeholder="Choose IC or Passport first" autocomplete="off">
+          </div>
+          <div class="id-hint">Numbers only — no dash (-).</div>
+        </div>
         <div class="ea-note" id="tripleNote"></div>
         <div class="modal-error" id="tripleFormError"></div>
         <div class="add-entry-actions">
@@ -661,6 +711,17 @@
       </div>
     </div>
     </div> <!-- /dashboardView -->
+
+    <div id="orgsView" style="display:none;">
+      <div class="orgs-top">
+        <button class="orgs-add-btn" id="addCompanyBtn" type="button">+ Add Company</button>
+        <h2>Organizations</h2>
+      </div>
+      <div class="orgs-cols">
+        <div class="orgs-left" id="orgsLeft"><div class="orgs-empty">Loading…</div></div>
+        <div class="orgs-right" id="orgsRight"></div>
+      </div>
+    </div>
 
     <div id="usersView" style="display:none;">
       <div class="list-panel-header"><h2>Users</h2></div>
@@ -756,6 +817,23 @@
   </div>
 </div>
 
+<!-- Add company (Organizations) -->
+<div class="modal-backdrop" id="orgBackdrop">
+  <div class="modal" style="max-width:440px;">
+    <h2>Add Company</h2>
+    <label for="orgName">Company name</label>
+    <input type="text" id="orgName" placeholder="e.g. Meridian Holdings Sdn Bhd">
+    <label style="margin-top:14px;">Clients under this company</label>
+    <div class="org-client-inputs" id="orgClientInputs"></div>
+    <button type="button" class="hdr-btn" id="orgAddClientRow" style="color:var(--navy); border-color:var(--navy);">+ Add another client</button>
+    <div class="modal-error" id="orgError"></div>
+    <div class="modal-actions">
+      <button id="orgCancelBtn">Cancel</button>
+      <button class="primary" id="orgSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit name / due date (admin only) -->
 <div class="modal-backdrop" id="editBackdrop">
   <div class="modal" style="max-width:420px;">
@@ -769,6 +847,14 @@
     <div id="editFyeWrap" style="display:none;">
       <label for="editFye">FYE — Final Year End date</label>
       <input type="date" id="editFye">
+    </div>
+    <div id="editIdWrap" style="display:none;">
+      <label for="editIdType">IC No. / Passport No.</label>
+      <div class="id-row">
+        <select id="editIdType"><option value="">Not set</option><option value="ic">IC No.</option><option value="passport">Passport No.</option></select>
+        <input type="text" id="editIdNo" disabled placeholder="Choose IC or Passport first" autocomplete="off">
+      </div>
+      <div class="id-hint">Numbers only — no dash (-).</div>
     </div>
     <label class="report-opt" id="editAllWrap" style="display:none; font-weight:500; font-size:13px; margin-top:14px;">
       <input type="checkbox" id="editAll" checked>
@@ -936,18 +1022,202 @@
 
   /* ---------------- Dashboard / My Activity / Users switch ---------------- */
   function setView(name){
-    const map = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'], settings: ['navSettings', 'settingsView', 'block'] };
+    const map = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'], settings: ['navSettings', 'settingsView', 'block'], orgs: ['navOrgs', 'orgsView', 'block'] };
     Object.entries(map).forEach(([k, [nav, view, disp]]) => {
       document.getElementById(nav).classList.toggle('active', k === name);
       document.getElementById(view).style.display = k === name ? disp : 'none';
     });
     if (name === 'activity') openActivityView();
     if (name === 'users') loadUsers();
+    if (name === 'orgs') loadOrgs();
   }
   document.getElementById('navDashboard').addEventListener('click', () => setView('dashboard'));
   document.getElementById('navActivity').addEventListener('click', () => setView('activity'));
+  document.getElementById('navOrgs').addEventListener('click', () => { if (roleOf() === 'hod') setView('orgs'); });
   document.getElementById('navSettings').addEventListener('click', () => setView('settings'));
   document.getElementById('navUsers').addEventListener('click', () => { if (roleOf() === 'hod') setView('users'); });
+
+
+  /* ---------------- IC / Passport number helpers (no dashes) ---------------- */
+  function cleanIdNo(type, v){
+    v = String(v || '');
+    return type === 'ic' ? v.replace(/\D/g, '').slice(0, 12) : v.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 15);
+  }
+  function validIdNo(type, v){ return type === 'ic' ? /^\d{12}$/.test(v) : /^[A-Z0-9]{5,15}$/.test(v); }
+  const ID_LABELS = { ic: 'IC No.', passport: 'Passport No.' };
+  function wireIdPair(typeEl, noEl){
+    const apply = () => {
+      const t = typeEl.value;
+      noEl.disabled = !t;
+      noEl.placeholder = t === 'ic' ? 'e.g. 900101015555 (12 digits)' : t === 'passport' ? 'e.g. A12345678' : 'Choose IC or Passport first';
+      noEl.inputMode = t === 'ic' ? 'numeric' : 'text';
+      noEl.value = cleanIdNo(t, noEl.value);
+    };
+    typeEl.addEventListener('change', () => { noEl.value = ''; apply(); if (typeEl.value) noEl.focus(); });
+    noEl.addEventListener('input', () => { noEl.value = cleanIdNo(typeEl.value, noEl.value); });
+    noEl.addEventListener('paste', () => setTimeout(() => { noEl.value = cleanIdNo(typeEl.value, noEl.value); }, 0));
+    return apply;
+  }
+  const applyTripleId = wireIdPair(document.getElementById('tripleIdType'), document.getElementById('tripleIdNo'));
+  const applyEditId = wireIdPair(document.getElementById('editIdType'), document.getElementById('editIdNo'));
+
+  /* ---------------- Organizations (HOD): companies -> clients -> Form EA ---------------- */
+  let orgsCache = [], orgClientsCache = [], selectedOrgId = null;
+  async function loadOrgs(){
+    if (roleOf() !== 'hod') return;
+    const [o, c] = await Promise.all([
+      sb.from('organizations').select('id, name, created_at').order('name', { ascending: true }),
+      sb.from('org_clients').select('id, org_id, name, created_at').order('name', { ascending: true })
+    ]);
+    if (o.error || c.error) { showToast('Could not load organizations: ' + (o.error || c.error).message + ' (run taxbase-organizations.sql?)'); return; }
+    orgsCache = o.data || []; orgClientsCache = c.data || [];
+    renderOrgs();
+  }
+  function eaForClient(name){ return (formData.form_ea || []).find(e => normName(e.company_name) === normName(name)); }
+  function renderOrgs(){
+    const left = document.getElementById('orgsLeft'), right = document.getElementById('orgsRight');
+    if (!orgsCache.some(o => o.id === selectedOrgId)) selectedOrgId = null;
+    left.innerHTML = orgsCache.length ? orgsCache.map(o => {
+      const n = orgClientsCache.filter(c => c.org_id === o.id).length;
+      return `<div class="org-card${o.id === selectedOrgId ? ' active' : ''}" data-org="${o.id}">
+        <div class="org-name">${escapeHtml(o.name)}</div>
+        <span class="org-count">${n} client${n === 1 ? '' : 's'}</span>
+        <button type="button" class="org-view-btn" data-view="${o.id}">${o.id === selectedOrgId ? 'Hide Clients' : 'View Clients'}</button>
+        <button type="button" class="org-del" data-del-org="${o.id}" title="Delete company">✕</button>
+      </div>`;
+    }).join('') : '<div class="orgs-empty">No companies yet. Click “+ Add Company” to add one.</div>';
+
+    const org = orgsCache.find(o => o.id === selectedOrgId);
+    if (!org) { right.innerHTML = ''; }
+    else {
+      const clients = orgClientsCache.filter(c => c.org_id === org.id);
+      right.innerHTML = `<div class="clients-panel">
+        <h3>${escapeHtml(org.name)}</h3>
+        <div class="cp-sub">Click a client to open it in the Form EA list.</div>
+        <div class="client-add"><input type="text" id="newClientName" placeholder="Add another client…"><button type="button" class="orgs-add-btn" id="newClientBtn">+ Add</button></div>
+        ${clients.length ? clients.map(c => {
+          const ea = eaForClient(c.name);
+          const st = ea ? normStatus(ea.status) : null;
+          return `<div class="client-row" data-client="${c.id}" data-name="${escapeHtml(c.name)}">
+            <span class="cl-name">${escapeHtml(c.name)}</span>
+            ${st ? `<span class="org-st ${st}">${STATUS_LABELS[st]}</span>` : '<span class="org-st none">No EA entry yet</span>'}
+            <span class="cl-go">Form EA ›</span>
+            <button type="button" class="org-del" data-del-client="${c.id}" title="Remove client">✕</button>
+          </div>`;
+        }).join('') : '<div class="orgs-empty">No clients under this company yet.</div>'}
+      </div>`;
+      const addIt = () => addOrgClient(org.id);
+      document.getElementById('newClientBtn').addEventListener('click', addIt);
+      document.getElementById('newClientName').addEventListener('keydown', e => { if (e.key === 'Enter') addIt(); });
+    }
+  }
+  // two-step delete: first click arms the button, second click confirms
+  let armedDel = null;
+  function armOrDelete(btn, doIt){
+    if (armedDel && armedDel.btn === btn) { clearTimeout(armedDel.t); armedDel = null; doIt(); return; }
+    if (armedDel) { clearTimeout(armedDel.t); armedDel.btn.classList.remove('sure'); armedDel.btn.textContent = '✕'; }
+    btn.classList.add('sure'); btn.textContent = 'Sure?';
+    armedDel = { btn, t: setTimeout(() => { btn.classList.remove('sure'); btn.textContent = '✕'; armedDel = null; }, 3000) };
+  }
+  document.getElementById('orgsView').addEventListener('click', async (e) => {
+    if (roleOf() !== 'hod') return;
+    const dOrg = e.target.closest('[data-del-org]'), dCl = e.target.closest('[data-del-client]');
+    if (dOrg) {
+      e.stopPropagation();
+      armOrDelete(dOrg, async () => {
+        const o = orgsCache.find(x => x.id === dOrg.dataset.delOrg);
+        const { error } = await sb.from('organizations').delete().eq('id', dOrg.dataset.delOrg);
+        if (error) { showToast('Could not delete: ' + error.message); return; }
+        showToast(`${o ? o.name : 'Company'} deleted.`);
+        await logActivity(`Deleted company "${o ? o.name : ''}" from Organizations`);
+        await loadOrgs();
+      });
+      return;
+    }
+    if (dCl) {
+      e.stopPropagation();
+      armOrDelete(dCl, async () => {
+        const c = orgClientsCache.find(x => x.id === dCl.dataset.delClient);
+        const { error } = await sb.from('org_clients').delete().eq('id', dCl.dataset.delClient);
+        if (error) { showToast('Could not remove: ' + error.message); return; }
+        showToast(`${c ? c.name : 'Client'} removed.`);
+        await logActivity(`Removed client "${c ? c.name : ''}" from a company in Organizations`);
+        await loadOrgs();
+      });
+      return;
+    }
+    const view = e.target.closest('[data-view]');
+    if (view) { selectedOrgId = selectedOrgId === view.dataset.view ? null : view.dataset.view; renderOrgs(); return; }
+    const row = e.target.closest('.client-row');
+    if (row) openEAForClient(row.dataset.name);
+  });
+  async function addOrgClient(orgId){
+    const inp = document.getElementById('newClientName');
+    const name = inp.value.trim();
+    if (!name) { inp.focus(); return; }
+    if (orgClientsCache.some(c => c.org_id === orgId && normName(c.name) === normName(name))) { showToast(`${name} is already under this company.`); return; }
+    const { error } = await sb.from('org_clients').insert({ org_id: orgId, name, created_by: currentUser.id });
+    if (error) { showToast('Could not add client: ' + error.message); return; }
+    const o = orgsCache.find(x => x.id === orgId);
+    await logActivity(`Added client "${name}" under company "${o ? o.name : ''}"`);
+    await loadOrgs();
+    const again = document.getElementById('newClientName'); if (again) again.focus();
+  }
+  // Open the client in the Form EA list (and flash its row). If it has no EA entry yet, open the EA list filtered to that name.
+  function openEAForClient(name){
+    const ea = eaForClient(name);
+    if (ea) { goToForm('form_ea', ea.id); return; }
+    goToForm('form_ea');
+    listSearchTerm = name; document.getElementById('listSearchInput').value = name;
+    renderListTable();
+    showToast(`${name} has no Form EA entry yet.`);
+  }
+
+  // Add Company modal
+  const orgBackdrop = document.getElementById('orgBackdrop');
+  function addClientInputRow(val){
+    const wrap = document.getElementById('orgClientInputs');
+    const row = document.createElement('div'); row.className = 'oc-row';
+    row.innerHTML = `<input type="text" class="oc-input" placeholder="Client name" value="${escapeHtml(val || '')}"><button type="button" class="org-del" title="Remove">✕</button>`;
+    row.querySelector('button').addEventListener('click', () => { if (wrap.children.length > 1) row.remove(); else row.querySelector('input').value = ''; });
+    wrap.appendChild(row);
+    return row.querySelector('input');
+  }
+  document.getElementById('addCompanyBtn').addEventListener('click', () => {
+    if (roleOf() !== 'hod') return;
+    document.getElementById('orgName').value = '';
+    document.getElementById('orgClientInputs').innerHTML = '';
+    addClientInputRow('');
+    document.getElementById('orgError').textContent = '';
+    orgBackdrop.classList.add('open');
+    setTimeout(() => document.getElementById('orgName').focus(), 40);
+  });
+  document.getElementById('orgAddClientRow').addEventListener('click', () => addClientInputRow('').focus());
+  document.getElementById('orgCancelBtn').addEventListener('click', () => orgBackdrop.classList.remove('open'));
+  orgBackdrop.addEventListener('click', (e) => { if (e.target === orgBackdrop) orgBackdrop.classList.remove('open'); });
+  document.getElementById('orgSaveBtn').addEventListener('click', async () => {
+    if (roleOf() !== 'hod') return;
+    const errEl = document.getElementById('orgError');
+    const name = document.getElementById('orgName').value.trim();
+    const seen = new Set(), clients = [];
+    document.querySelectorAll('#orgClientInputs .oc-input').forEach(i => { const v = i.value.trim(); if (v && !seen.has(normName(v))) { seen.add(normName(v)); clients.push(v); } });
+    if (!name) { errEl.textContent = 'Enter the company name.'; return; }
+    if (!clients.length) { errEl.textContent = 'Enter at least one client under this company.'; return; }
+    const btn = document.getElementById('orgSaveBtn'); btn.disabled = true; btn.textContent = 'Saving...';
+    const { data, error } = await sb.from('organizations').insert({ name, created_by: currentUser.id }).select().single();
+    if (error) {
+      btn.disabled = false; btn.textContent = 'Save';
+      errEl.textContent = error.code === '23505' ? 'This company is already in the list.' : 'Could not save: ' + error.message;
+      return;
+    }
+    const r = await sb.from('org_clients').insert(clients.map(c => ({ org_id: data.id, name: c, created_by: currentUser.id })));
+    btn.disabled = false; btn.textContent = 'Save';
+    orgBackdrop.classList.remove('open');
+    showToast(r.error ? `${name} added, but the clients could not be saved: ${r.error.message}` : `${name} added with ${clients.length} client${clients.length === 1 ? '' : 's'}.`);
+    await logActivity(`Added company "${name}" with ${clients.length} client${clients.length === 1 ? '' : 's'} in Organizations`);
+    selectedOrgId = data.id;
+    await loadOrgs();
+  });
 
   /* ---------------- Users (HOD): approve sign-ups, change roles ---------------- */
   const ROLE_OPTIONS = [['admin', 'Admin'], ['hod', 'Head of Department'], ['staff', 'Staff']];
@@ -1602,6 +1872,8 @@
     const clientTag = (entry.form_type === 'form_b' && entry.client_name)
       ? `<div class="client-sub">Client: <b>${escapeHtml(entry.client_name)}</b></div>` : '';
 
+    const idTag = (entry.form_type === 'form_ea' && entry.id_number)
+      ? `<div class="id-tag">${ID_LABELS[entry.id_type] || 'ID'}: ${escapeHtml(entry.id_number)}</div>` : (entry.form_type === 'form_ea' ? `<div class="id-tag" style="color:var(--red);">IC / Passport not set</div>` : '');
     const badge = paymentBadge(entry);
     const instTag = badge ? `<span class="inst-tag" title="${badge.noun} ${badge.no} of ${badge.total}">${badge.no}/${badge.total}</span>` : '';
 
@@ -1635,7 +1907,7 @@
 
     return `
       <tr data-row="${entry.id}">
-        <td class="company-cell">${escapeHtml(entry.company_name)}${instTag}${clientTag}${beTag}${stageTag}</td>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
@@ -1916,6 +2188,7 @@
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
     if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
     else cols.push({ h: 'FYE', v: dateOf('fye_date') });
+    if (key === 'form_ea') cols.push({ h: 'IC / Passport No.', v: e => e.id_number ? `${ID_LABELS[e.id_type] || ''} ${e.id_number}`.trim() : '' });
     if (key === 'form_b') cols.push({ h: 'Client', v: e => e.client_name || '' });
     if (['form_cp500', 'form_pcb', 'form_cp205'].includes(key)) cols.push({ h: key === 'form_cp500' ? 'Instalment' : 'Payment', v: e => { const b = paymentBadge(e); return b ? `${b.no}/${b.total}` : ''; } });
     if (key === 'form_cp204a') cols.push({ h: 'Revision', v: e => CP204_REV_LABELS[e.revision] || '' });
@@ -2126,6 +2399,11 @@
     const grp = RELATED_GROUPS.find(g => g.includes(entry.form_type));
     document.getElementById('editAllText').textContent =
       `Also apply the new name / FYE to this ${ent.toLowerCase()}'s ${others.length} other row${others.length === 1 ? '' : 's'} in ${grp ? grp.map(formNameOf).join(' / ') + ' (other steps)' : formNameOf(entry.form_type) + ' (other periods)'}`;
+    const isEa = entry.form_type === 'form_ea';
+    document.getElementById('editIdWrap').style.display = isEa ? '' : 'none';
+    document.getElementById('editIdType').value = isEa ? (entry.id_type || '') : '';
+    applyEditId();
+    document.getElementById('editIdNo').value = isEa ? (entry.id_number || '') : '';
     document.getElementById('editError').textContent = '';
     editBackdrop.classList.add('open');
     setTimeout(() => document.getElementById('editName').focus(), 40);
@@ -2152,7 +2430,14 @@
     const nameChanged = name !== entry.company_name;
     const dueChanged = hasDue && due !== (entry.due_date || null);
     const fyeChanged = isCp && fye !== (entry.fye_date || null);
-    if (!nameChanged && !dueChanged && !fyeChanged) { closeEditModal(); return; }
+    let idChanged = false, newIdType = null, newIdNo = null;
+    if (entry.form_type === 'form_ea') {
+      newIdType = document.getElementById('editIdType').value || null;
+      newIdNo = newIdType ? cleanIdNo(newIdType, document.getElementById('editIdNo').value) : null;
+      if (newIdType && !validIdNo(newIdType, newIdNo)) { errEl.textContent = newIdType === 'ic' ? 'IC No. must be 12 digits, no dash.' : 'Passport No. must be 5–15 letters/numbers, no dash.'; return; }
+      idChanged = newIdType !== (entry.id_type || null) || newIdNo !== (entry.id_number || null);
+    }
+    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged) { closeEditModal(); return; }
 
     const others = ((nameChanged || fyeChanged) && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
       ? relatedRows(entry) : [];
@@ -2160,6 +2445,7 @@
     if (nameChanged) patch.company_name = name;
     if (dueChanged) patch.due_date = due;
     if (fyeChanged) patch.fye_date = fye;
+    if (idChanged) { patch.id_type = newIdType; patch.id_number = newIdNo; }
 
     const btn = document.getElementById('editSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -2181,6 +2467,7 @@
     if (nameChanged) parts.push(`name "${oldName}" → "${name}"${others.length ? ` (and ${others.length} other row${others.length === 1 ? '' : 's'})` : ''}`);
     if (dueChanged) parts.push(`due date ${formatDateDMY(oldDue)} → ${formatDateDMY(due)}`);
     if (fyeChanged) parts.push(`FYE ${entry.fye_date ? formatDateDMY(entry.fye_date) : 'not set'} → ${formatDateDMY(fye)}`);
+    if (idChanged) parts.push(newIdType ? `${ID_LABELS[newIdType]} set` : 'IC/Passport cleared');
     closeEditModal();
     showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : `${name} updated.`);
     await logActivity(`Edited ${entityOf(entry.form_type).toLowerCase()} in ${formNameOf(entry.form_type)}: ${parts.join('; ')}`);
@@ -2356,6 +2643,9 @@
       document.getElementById('tripleNote').textContent = typeof TRIPLE_NOTES[mode] === 'function' ? TRIPLE_NOTES[mode]() : TRIPLE_NOTES[mode];
       document.querySelector('label[for="tripleClientName"]').textContent = TRIPLE_LABELS[mode];
       document.getElementById('tripleClientName').placeholder = TRIPLE_PLACEHOLDERS[mode];
+      const wantsId = mode === 'ea' || mode === 'both';
+      document.getElementById('tripleIdWrap').style.display = wantsId ? '' : 'none';
+      document.getElementById('tripleIdType').value = ''; document.getElementById('tripleIdNo').value = ''; applyTripleId();
       tripleAddForm.classList.add('open');
       document.getElementById('tripleClientName').focus();
     });
@@ -2367,6 +2657,13 @@
     const errEl = document.getElementById('tripleFormError');
     if (!company_name) { errEl.textContent = `Enter a ${TRIPLE_LABELS[tripleMode].toLowerCase()}.`; return; }
 
+    let idFields = {};
+    if (tripleMode === 'ea' || tripleMode === 'both') {
+      const t = document.getElementById('tripleIdType').value, n = cleanIdNo(t, document.getElementById('tripleIdNo').value);
+      if (!t) { errEl.textContent = 'Choose IC No. or Passport No. first.'; return; }
+      if (!validIdNo(t, n)) { errEl.textContent = t === 'ic' ? 'IC No. must be 12 digits, no dash.' : 'Passport No. must be 5–15 letters/numbers, no dash.'; return; }
+      idFields = { id_type: t, id_number: n };
+    }
     const btn = document.getElementById('tripleSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
 
@@ -2375,7 +2672,7 @@
     // requires_be flags it so the EA list shows the "BE required" tag and the Create BE button.
     const cfg = TRIPLE_SAVE_CONFIG[tripleMode];
     const { error } = await sb.from('form_entries').insert({
-      form_type: cfg.formType, company_name, due_date: cfg.due(), created_by: currentUser.id, ...cfg.extra()
+      form_type: cfg.formType, company_name, due_date: cfg.due(), created_by: currentUser.id, ...cfg.extra(), ...idFields
     });
 
     btn.disabled = false; btn.textContent = 'Save';
