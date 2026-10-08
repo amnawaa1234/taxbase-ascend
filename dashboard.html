@@ -134,7 +134,22 @@
 
 
   /* ---- Organizations (HOD) ---- */
-  .orgs-top{display:flex; align-items:center; gap:14px; margin-bottom:16px;}
+  .orgs-top{display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:16px;}
+  .org-form{display:none; background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px; margin:-4px 0 18px; max-width:560px; margin-left:auto;}
+  .org-form.open{display:block;}
+  .org-form h3{margin:0 0 10px; font-size:16px;}
+  .org-form label{display:block; font-size:13px; font-weight:600; margin-bottom:6px;}
+  .org-form input[type=text]{width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit;}
+  .org-form input[type=text]:focus{outline:none; border-color:var(--navy);}
+  .orgs-link-btn{background:none; border:none; color:var(--navy); font-size:13px; cursor:pointer; padding:2px 0; font-family:inherit;}
+  .org-pick{margin-top:12px; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .org-pick-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:#F6F7F9; font-size:13px; flex-wrap:wrap;}
+  .org-pick-head input{width:200px !important; padding:6px 10px !important; font-size:13px !important;}
+  .org-pick-list{max-height:200px; overflow:auto;}
+  .org-pick-item{display:flex; align-items:center; gap:10px; padding:8px 12px; border-top:1px solid var(--line); font-size:13.5px; cursor:pointer; margin:0 !important; font-weight:400 !important;}
+  .org-pick-item:hover{background:#F6F8FC;}
+  .org-pick-item .pk-note{margin-left:auto; font-size:11.5px; color:var(--muted);}
+  .org-pick-empty{padding:12px; color:var(--muted); font-size:13px;}
   .orgs-top h2{margin:0; font-size:20px; color:var(--navy);}
   .orgs-add-btn{background:var(--navy); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;}
   .orgs-add-btn:hover{opacity:.9;}
@@ -714,8 +729,28 @@
 
     <div id="orgsView" style="display:none;">
       <div class="orgs-top">
-        <button class="orgs-add-btn" id="addCompanyBtn" type="button">+ Add Company</button>
         <h2>Organizations</h2>
+        <button class="orgs-add-btn" id="addCompanyBtn" type="button">+ Add Company</button>
+      </div>
+      <div class="org-form" id="orgForm">
+        <h3>New company</h3>
+        <label for="orgName">Company name</label>
+        <input type="text" id="orgName" placeholder="e.g. Meridian Holdings Sdn Bhd">
+        <label style="margin-top:14px;">Clients under this company</label>
+        <div class="org-client-inputs" id="orgClientInputs"></div>
+        <button type="button" class="orgs-link-btn" id="orgAddClientRow">+ Type another client</button>
+        <div class="org-pick">
+          <div class="org-pick-head">
+            <span>Or choose from the Form EA list <b id="orgPickCount"></b></span>
+            <input type="text" id="orgPickSearch" placeholder="Search EA clients…">
+          </div>
+          <div class="org-pick-list" id="orgPickList"></div>
+        </div>
+        <div class="modal-error" id="orgError"></div>
+        <div class="add-entry-actions">
+          <button id="orgCancelBtn" type="button">Cancel</button>
+          <button class="primary" id="orgSaveBtn" type="button">Save</button>
+        </div>
       </div>
       <div class="orgs-cols">
         <div class="orgs-left" id="orgsLeft"><div class="orgs-empty">Loading…</div></div>
@@ -813,23 +848,6 @@
     <div class="modal-actions">
       <button id="remarkCancelBtn">Cancel</button>
       <button class="primary" id="remarkConfirmBtn">Confirm</button>
-    </div>
-  </div>
-</div>
-
-<!-- Add company (Organizations) -->
-<div class="modal-backdrop" id="orgBackdrop">
-  <div class="modal" style="max-width:440px;">
-    <h2>Add Company</h2>
-    <label for="orgName">Company name</label>
-    <input type="text" id="orgName" placeholder="e.g. Meridian Holdings Sdn Bhd">
-    <label style="margin-top:14px;">Clients under this company</label>
-    <div class="org-client-inputs" id="orgClientInputs"></div>
-    <button type="button" class="hdr-btn" id="orgAddClientRow" style="color:var(--navy); border-color:var(--navy);">+ Add another client</button>
-    <div class="modal-error" id="orgError"></div>
-    <div class="modal-actions">
-      <button id="orgCancelBtn">Cancel</button>
-      <button class="primary" id="orgSaveBtn">Save</button>
     </div>
   </div>
 </div>
@@ -1094,7 +1112,7 @@
       right.innerHTML = `<div class="clients-panel">
         <h3>${escapeHtml(org.name)}</h3>
         <div class="cp-sub">Click a client to open it in the Form EA list.</div>
-        <div class="client-add"><input type="text" id="newClientName" placeholder="Add another client…"><button type="button" class="orgs-add-btn" id="newClientBtn">+ Add</button></div>
+        <div class="client-add"><input type="text" id="newClientName" placeholder="Add another client… (type, or pick from Form EA)" list="eaNamesList"><datalist id="eaNamesList">${eaClientNames().map(e => `<option value="${escapeHtml(e.company_name)}">`).join('')}</datalist><button type="button" class="orgs-add-btn" id="newClientBtn">+ Add</button></div>
         ${clients.length ? clients.map(c => {
           const ea = eaForClient(c.name);
           const st = ea ? normStatus(ea.status) : null;
@@ -1173,8 +1191,9 @@
     showToast(`${name} has no Form EA entry yet.`);
   }
 
-  // Add Company modal
-  const orgBackdrop = document.getElementById('orgBackdrop');
+  // Add Company: inline form under the button (type clients and/or pick them from the Form EA list)
+  const orgForm = document.getElementById('orgForm');
+  let orgPicked = new Set();   // normalised names ticked in the EA list
   function addClientInputRow(val){
     const wrap = document.getElementById('orgClientInputs');
     const row = document.createElement('div'); row.className = 'oc-row';
@@ -1183,26 +1202,53 @@
     wrap.appendChild(row);
     return row.querySelector('input');
   }
+  function eaClientNames(){
+    const seen = new Map();
+    (formData.form_ea || []).forEach(e => { const k = normName(e.company_name); if (k && !seen.has(k)) seen.set(k, e); });
+    return [...seen.values()].sort((a, b) => a.company_name.localeCompare(b.company_name));
+  }
+  function renderOrgPick(){
+    const term = document.getElementById('orgPickSearch').value.trim().toLowerCase();
+    const taken = new Map();   // client name -> company it already belongs to
+    orgClientsCache.forEach(c => { const o = orgsCache.find(x => x.id === c.org_id); taken.set(normName(c.name), o ? o.name : ''); });
+    const list = eaClientNames().filter(e => !term || e.company_name.toLowerCase().includes(term));
+    document.getElementById('orgPickList').innerHTML = list.length ? list.map(e => {
+      const k = normName(e.company_name);
+      return `<label class="org-pick-item"><input type="checkbox" data-k="${escapeHtml(k)}" ${orgPicked.has(k) ? 'checked' : ''}>
+        <span>${escapeHtml(e.company_name)}</span>${taken.has(k) ? `<span class="pk-note">already in ${escapeHtml(taken.get(k))}</span>` : ''}</label>`;
+    }).join('') : `<div class="org-pick-empty">${eaClientNames().length ? 'No match.' : 'No clients in the Form EA list yet.'}</div>`;
+    document.querySelectorAll('#orgPickList input').forEach(cb => cb.addEventListener('change', () => {
+      if (cb.checked) orgPicked.add(cb.dataset.k); else orgPicked.delete(cb.dataset.k);
+      document.getElementById('orgPickCount').textContent = orgPicked.size ? `(${orgPicked.size} selected)` : '';
+    }));
+    document.getElementById('orgPickCount').textContent = orgPicked.size ? `(${orgPicked.size} selected)` : '';
+  }
+  const closeOrgForm = () => orgForm.classList.remove('open');
   document.getElementById('addCompanyBtn').addEventListener('click', () => {
     if (roleOf() !== 'hod') return;
+    if (orgForm.classList.contains('open')) { closeOrgForm(); return; }
     document.getElementById('orgName').value = '';
     document.getElementById('orgClientInputs').innerHTML = '';
     addClientInputRow('');
+    orgPicked = new Set(); document.getElementById('orgPickSearch').value = '';
+    renderOrgPick();
     document.getElementById('orgError').textContent = '';
-    orgBackdrop.classList.add('open');
-    setTimeout(() => document.getElementById('orgName').focus(), 40);
+    orgForm.classList.add('open');
+    document.getElementById('orgName').focus();
   });
+  document.getElementById('orgPickSearch').addEventListener('input', renderOrgPick);
   document.getElementById('orgAddClientRow').addEventListener('click', () => addClientInputRow('').focus());
-  document.getElementById('orgCancelBtn').addEventListener('click', () => orgBackdrop.classList.remove('open'));
-  orgBackdrop.addEventListener('click', (e) => { if (e.target === orgBackdrop) orgBackdrop.classList.remove('open'); });
+  document.getElementById('orgCancelBtn').addEventListener('click', closeOrgForm);
   document.getElementById('orgSaveBtn').addEventListener('click', async () => {
     if (roleOf() !== 'hod') return;
     const errEl = document.getElementById('orgError');
     const name = document.getElementById('orgName').value.trim();
     const seen = new Set(), clients = [];
-    document.querySelectorAll('#orgClientInputs .oc-input').forEach(i => { const v = i.value.trim(); if (v && !seen.has(normName(v))) { seen.add(normName(v)); clients.push(v); } });
+    const add = v => { v = v.trim(); if (v && !seen.has(normName(v))) { seen.add(normName(v)); clients.push(v); } };
+    document.querySelectorAll('#orgClientInputs .oc-input').forEach(i => add(i.value));
+    eaClientNames().forEach(e => { if (orgPicked.has(normName(e.company_name))) add(e.company_name); });
     if (!name) { errEl.textContent = 'Enter the company name.'; return; }
-    if (!clients.length) { errEl.textContent = 'Enter at least one client under this company.'; return; }
+    if (!clients.length) { errEl.textContent = 'Add at least one client: type a name or choose from the Form EA list.'; return; }
     const btn = document.getElementById('orgSaveBtn'); btn.disabled = true; btn.textContent = 'Saving...';
     const { data, error } = await sb.from('organizations').insert({ name, created_by: currentUser.id }).select().single();
     if (error) {
@@ -1212,7 +1258,7 @@
     }
     const r = await sb.from('org_clients').insert(clients.map(c => ({ org_id: data.id, name: c, created_by: currentUser.id })));
     btn.disabled = false; btn.textContent = 'Save';
-    orgBackdrop.classList.remove('open');
+    closeOrgForm();
     showToast(r.error ? `${name} added, but the clients could not be saved: ${r.error.message}` : `${name} added with ${clients.length} client${clients.length === 1 ? '' : 's'}.`);
     await logActivity(`Added company "${name}" with ${clients.length} client${clients.length === 1 ? '' : 's'} in Organizations`);
     selectedOrgId = data.id;
