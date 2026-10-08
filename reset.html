@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reset password — TaxBase</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2B4C7E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1C1E26; --muted:#6B7180; --line:#E2E4E9; --bg:#F7F7F5;
+    --navy:#2B4C7E; --navy-dark:#1F3A61; --red:#E03131;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; display:flex; justify-content:center;
+    font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--ink);
+    padding:32px 24px; position:relative; overflow-x:hidden;
+    background:#1a2a44;
+  }
+  .bg{position:fixed; inset:0; z-index:0; pointer-events:none; background:#1a2a44 url('login-bg.png') center/cover no-repeat;}
+  .bg::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg,rgba(15,30,60,.25),rgba(15,30,60,.45));}
+  .card{position:relative; z-index:1; box-shadow:0 18px 50px rgba(8,20,45,.35);}
+  .credit{position:fixed; bottom:10px; left:0; right:0; text-align:center; z-index:1; font-size:11.5px; color:rgba(255,255,255,.9); letter-spacing:.3px; text-shadow:0 1px 2px rgba(8,20,45,.5);}
+  .card{
+    width:100%; max-width:380px; background:#fff; border:1px solid var(--line);
+    border-radius:10px; padding:36px 32px;
+  }
+  .mark{
+    width:44px; height:44px; margin:0 auto 14px;
+  }
+  .mark img{width:100%; height:100%; display:block;}
+  h1{font-size:22px; font-weight:700; margin:0 0 6px; text-align:center;}
+  p.sub{color:var(--muted); font-size:14px; margin:0 0 26px; text-align:center;}
+  label{display:block; font-size:13px; font-weight:500; margin-bottom:6px; color:var(--ink);}
+  input{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px;
+    font-size:14px; font-family:inherit; margin-bottom:16px; background:#fcfcfb;
+  }
+  input:focus{outline:none; border-color:var(--navy);}
+  .password-wrap{position:relative; margin-bottom:16px;}
+  .password-wrap input{margin-bottom:0 !important; padding-right:42px;}
+  button.eye-toggle{
+    position:absolute; top:50%; right:6px; transform:translateY(-50%);
+    width:30px !important; height:30px !important; margin:0 !important; padding:0 !important;
+    background:transparent !important; border:none !important; border-radius:6px !important;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--muted); cursor:pointer;
+  }
+  button.eye-toggle:hover{background:#EDEFF3 !important; color:var(--ink);}
+  .eye-toggle svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .eye-toggle .eye-off{display:none;}
+  button{
+    width:100%; padding:11px; background:var(--navy); color:#fff; border:none;
+    border-radius:7px; font-size:14px; font-weight:600; font-family:inherit;
+    cursor:pointer; margin-top:6px;
+  }
+  button:hover{background:var(--navy-dark);}
+  button:disabled{opacity:.6; cursor:default;}
+  .error{
+    background:#FFF0F0; border:1px solid #FFC9C9; color:var(--red);
+    font-size:13px; padding:10px 12px; border-radius:7px; margin-bottom:16px; display:none;
+  }
+  .card.wide{max-width:560px;}
+  .role-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:4px;}
+  .role-card{
+    all:unset; box-sizing:border-box; cursor:pointer; text-align:center;
+    border:1px solid var(--line); border-radius:10px; padding:20px 10px 16px; background:#fcfcfb;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    transition:border-color .12s, box-shadow .12s, transform .12s;
+  }
+  .role-card:hover, .role-card:focus-visible{border-color:var(--navy); box-shadow:0 2px 10px rgba(43,76,126,.14); transform:translateY(-1px);}
+  .role-card .ico{width:44px; height:44px; border-radius:50%; background:#E9EFF8; color:var(--navy); display:flex; align-items:center; justify-content:center;}
+  .role-card .ico svg{width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .role-card .rname{font-size:14px; font-weight:600; color:var(--ink);}
+  .role-card .rdesc{font-size:11.5px; color:var(--muted); line-height:1.35;}
+  .role-chip{display:flex; justify-content:center; width:max-content; margin-left:auto; margin-right:auto; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--navy); background:#E9EFF8; padding:5px 11px; border-radius:99px; margin-bottom:18px;}
+  button.back-link{all:unset; cursor:pointer; font-size:13px; color:var(--muted); display:inline-block; margin-top:14px;}
+  button.back-link:hover{color:var(--navy); text-decoration:underline;}
+  @media (max-width:520px){ .role-grid{grid-template-columns:1fr;} .role-card{flex-direction:row; text-align:left; padding:14px;} }
+  #stageForm{display:none;}
+  /* header sits directly on the wallpaper; only the role cards / login form are boxed */
+  .card.wide{margin:auto; max-width:640px; background:transparent; border:none; box-shadow:none; padding:0;}
+  .mark{margin:0 auto 12px; filter:drop-shadow(0 4px 12px rgba(0,0,0,.35));}
+  h1{font-family:'Times New Roman',Times,'Liberation Serif',serif; font-weight:700; font-size:44px; letter-spacing:1px; color:#fff; margin:0 0 8px; text-shadow:0 2px 14px rgba(0,0,0,.45);}
+  p.sub{color:rgba(255,255,255,.9); font-size:15px; margin:0 0 30px; text-shadow:0 1px 8px rgba(0,0,0,.5);}
+  .role-card{background:rgba(255,255,255,.96); border-color:transparent; box-shadow:0 10px 30px rgba(8,20,45,.35);}
+  .role-card:hover, .role-card:focus-visible{border-color:transparent; box-shadow:0 14px 36px rgba(8,20,45,.45); transform:translateY(-3px);}
+  #stageForm{max-width:380px; margin:0 auto; background:#fff; border-radius:12px; padding:28px 30px 22px; box-shadow:0 18px 50px rgba(8,20,45,.4);}
+  #stageForm .role-chip{display:flex;}
+  button.back-link{display:block; text-align:center; margin:14px auto 0;}
+  .link-row{text-align:center; margin-top:18px; font-size:13.5px; color:rgba(255,255,255,.88); text-shadow:0 1px 6px rgba(0,0,0,.5);}
+  .link-row button.lnk{all:unset; cursor:pointer; color:#fff; font-weight:600; text-decoration:underline; text-underline-offset:3px;}
+  .forgot-row{text-align:right; margin:-6px 0 6px;}
+  .forgot-row button.lnk{all:unset; cursor:pointer; font-size:12.5px; color:var(--navy); font-weight:500;}
+  .forgot-row button.lnk:hover{text-decoration:underline;}
+  .panel{display:none; max-width:400px; margin:0 auto; background:#fff; border-radius:12px; padding:28px 30px 22px; box-shadow:0 18px 50px rgba(8,20,45,.4);}
+  .panel h2{font-size:17px; font-weight:600; margin:0 0 4px; text-align:center;}
+  .panel p.hint{font-size:13px; color:var(--muted); text-align:center; margin:0 0 18px; line-height:1.45;}
+  .ok{background:#EAF7EE; border:1px solid #BFE5CB; color:#1E7A3C; font-size:13px; padding:10px 12px; border-radius:7px; margin-bottom:16px; display:none; line-height:1.45;}
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"></div>
+<div class="card wide" id="card">
+  <div class="mark"><img src="icon.svg" alt="TaxBase"></div>
+  <h1>TaxBase</h1>
+  <p class="sub">Ascend Advisory Group</p>
+
+  <div class="panel" id="panelWait" style="display:block;">
+    <h2>Checking your reset link…</h2>
+    <p class="hint" id="waitHint">One moment.</p>
+  </div>
+
+  <div class="panel" id="panelForm">
+    <h2>Choose a new password</h2>
+    <p class="hint">Use at least 8 characters.</p>
+    <div class="error" id="rsError"></div>
+    <div class="ok" id="rsOk"></div>
+    <form id="resetForm">
+      <label for="np1">New password</label>
+      <input type="password" id="np1" required minlength="8" autocomplete="new-password">
+      <label for="np2">Confirm new password</label>
+      <input type="password" id="np2" required minlength="8" autocomplete="new-password">
+      <button type="submit" id="rsBtn">Update password</button>
+    </form>
+  </div>
+</div>
+<script>
+  const SUPABASE_URL = "https://peqzoyzxdrsjovpmuirm.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_ePzp2ldvvl1eh5EGlPdCzg__gnBEnwV";
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const show = (id) => ['panelWait', 'panelForm'].forEach(p => document.getElementById(p).style.display = p === id ? 'block' : 'none');
+  let ready = false;
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') { ready = true; show('panelForm'); }
+  });
+  setTimeout(async () => {
+    if (ready) return;
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && /type=recovery/.test(location.hash + location.search)) { ready = true; show('panelForm'); return; }
+    document.querySelector('#panelWait h2').textContent = 'This reset link is invalid or has expired.';
+    document.getElementById('waitHint').innerHTML = 'Request a new one from the sign-in page (Forgot password?). <br><br><a href="index.html" style="color:var(--navy); font-weight:600;">← Back to sign in</a>';
+  }, 2500);
+
+  document.getElementById('resetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('rsError'), ok = document.getElementById('rsOk');
+    err.style.display = 'none'; ok.style.display = 'none';
+    const a = document.getElementById('np1').value, b = document.getElementById('np2').value;
+    if (a !== b) { err.textContent = 'Passwords do not match.'; err.style.display = 'block'; return; }
+    const btn = document.getElementById('rsBtn'); btn.disabled = true; btn.textContent = 'Updating...';
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) {
+      err.textContent = 'Could not update password: ' + error.message; err.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Update password'; return;
+    }
+    ok.textContent = 'Password updated. Taking you to sign in…'; ok.style.display = 'block';
+    await sb.auth.signOut();
+    setTimeout(() => window.location.href = 'index.html', 1800);
+  });
+</script>
+</body>
+</html>
