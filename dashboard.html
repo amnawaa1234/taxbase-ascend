@@ -133,9 +133,19 @@
   }
 
   /* ---- Dashboard search bar ---- */
-  .dash-search-wrap{position:relative; max-width:420px; margin-bottom:22px;}
+  .dash-top{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; margin-bottom:22px;}
+  .dash-welcome h2{margin:0; font-size:26px; color:var(--navy);}
+  .dash-welcome p{margin:6px 0 0; font-size:14px; color:var(--muted);}
+  .red-num{color:#D92D20; font-weight:700;}
+  .settings-title{margin:0 0 16px; font-size:22px; color:var(--navy);}
+  .settings-card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:6px 20px; max-width:640px;}
+  .settings-row{display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 0;}
+  .settings-h{font-weight:600;} .settings-d{font-size:13px; color:var(--muted); margin-top:2px;}
+  .settings-btn{background:var(--navy); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:13px; cursor:pointer; font-family:inherit;}
+  .settings-btn:hover{opacity:.9;}
+  .dash-search-wrap{position:relative; width:360px; max-width:100%; margin-left:auto;}
   .dash-search-wrap input{
-    width:100%; padding:11px 14px; border:1px solid var(--line); border-radius:8px;
+    width:100%; padding:11px 18px; border:1px solid var(--line); border-radius:999px;
     font-size:14px; font-family:inherit; background:#fff;
   }
   .dash-search-wrap input:focus{outline:none; border-color:var(--navy);}
@@ -169,7 +179,7 @@
   .widget-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.07); border-color:#D3D7DE;}
   .widget-card.dragging{opacity:.4;}
   .widget-card .widget-label{font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.03em;}
-  .widget-card .widget-num{font-size:30px; font-weight:700; margin-top:10px; color:var(--ink);}
+  .widget-card .widget-num{font-size:30px; font-weight:700; margin-top:10px; color:#D92D20;}
 
   /* ---- Widget active state (its list panel is open) ---- */
   .widget-card.active{border-color:var(--navy); box-shadow:0 0 0 2px rgba(43,76,126,.15);}
@@ -479,7 +489,6 @@
     </div>
     <span id="userName">—</span>
     <span class="role" id="userRole"></span>
-    <button class="hdr-btn" id="changePwBtn" type="button">Change password</button>
     <button class="logout" id="logoutBtn">Log out</button>
   </div>
 </header>
@@ -491,6 +500,7 @@
     <button class="nav-item active" id="navDashboard"><span class="nav-icon">📋</span><span class="nav-label">Dashboard</span></button>
     <button class="nav-item" id="navActivity"><span class="nav-icon">🕒</span><span class="nav-label">My Activity</span></button>
     <button class="nav-item" id="navUsers"><span class="nav-icon">👥</span><span class="nav-label">Users</span><span class="nav-badge" id="usersBadge">0</span></button>
+    <button class="nav-item" id="navSettings"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></button>
 
     <div class="nav-date" id="navDate">
       <div class="nd-day" id="ndDay"></div>
@@ -500,10 +510,26 @@
   </aside>
 
   <main>
+    <div id="settingsView" style="display:none;">
+      <h2 class="settings-title">Settings</h2>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div><div class="settings-h">Password</div><div class="settings-d">Change the password you use to sign in.</div></div>
+          <button class="settings-btn" id="changePwBtn" type="button">Change password</button>
+        </div>
+      </div>
+    </div>
+
     <div id="dashboardView">
-    <div class="dash-search-wrap">
-      <input type="text" id="dashSearchInput" placeholder="Search company / client name...">
-      <div class="dash-search-results" id="dashSearchResults"></div>
+    <div class="dash-top">
+      <div class="dash-welcome">
+        <h2 id="welcomeTitle">Welcome!</h2>
+        <p id="welcomeSub">There are a total of <b class="red-num" id="welcomeCount">0</b> incoming tasks. Get the tasks done before the due date.</p>
+      </div>
+      <div class="dash-search-wrap">
+        <input type="text" id="dashSearchInput" placeholder="Search company / client name...">
+        <div class="dash-search-results" id="dashSearchResults"></div>
+      </div>
     </div>
 
     <div class="widget-grid" id="widgetGrid"></div>
@@ -904,7 +930,7 @@
 
   /* ---------------- Dashboard / My Activity / Users switch ---------------- */
   function setView(name){
-    const map = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'] };
+    const map = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'], settings: ['navSettings', 'settingsView', 'block'] };
     Object.entries(map).forEach(([k, [nav, view, disp]]) => {
       document.getElementById(nav).classList.toggle('active', k === name);
       document.getElementById(view).style.display = k === name ? disp : 'none';
@@ -914,6 +940,7 @@
   }
   document.getElementById('navDashboard').addEventListener('click', () => setView('dashboard'));
   document.getElementById('navActivity').addEventListener('click', () => setView('activity'));
+  document.getElementById('navSettings').addEventListener('click', () => setView('settings'));
   document.getElementById('navUsers').addEventListener('click', () => { if (roleOf() === 'hod') setView('users'); });
 
   /* ---------------- Users (HOD): approve sign-ups, change roles ---------------- */
@@ -1093,7 +1120,7 @@
     const grid = document.getElementById('widgetGrid');
     grid.innerHTML = widgetOrder.map(key => {
       const f = FORMS.find(x => x.key === key);
-      const count = activeEntries(key).length;
+      const count = activeEntries(key).filter(e => normStatus(e.status) === 'pending').length;
       const activeCls = key === currentListFormType ? ' active' : '';
       return `
         <div class="widget-card${activeCls}" draggable="true" data-form="${key}">
@@ -1102,6 +1129,8 @@
         </div>`;
     }).join('');
 
+    const totalPending = widgetOrder.reduce((n, k) => n + activeEntries(k).filter(e => normStatus(e.status) === 'pending').length, 0);
+    const wc = document.getElementById('welcomeCount'); if (wc) wc.textContent = totalPending;
     grid.querySelectorAll('.widget-card').forEach(card => {
       card.addEventListener('click', () => openFormList(card.dataset.form));
       card.addEventListener('dragstart', (e) => {
@@ -2702,6 +2731,7 @@
     }
     currentProfile = profile;
     document.getElementById('userName').textContent = `Hello, ${profile.full_name}!`;
+    document.getElementById('welcomeTitle').textContent = `Welcome, ${String(profile.full_name||'').trim().split(/\s+/)[0]}!`;
     document.getElementById('userRole').textContent = ROLE_LABELS[profile.role];
     document.body.classList.add('role-' + profile.role);
 
