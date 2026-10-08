@@ -134,9 +134,9 @@
 
 
   /* ---- Organizations (HOD) ---- */
-  .orgs-top{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:14px; margin-bottom:16px;}
-  .orgs-top > :last-child{justify-self:end;}
-  .org-form{display:none; background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px; margin:-4px 0 18px; max-width:560px; margin-left:auto; margin-right:auto;}
+  .orgs-top{display:flex; align-items:center; gap:36px; flex-wrap:wrap; margin-bottom:6px;}
+  .orgs-sub{margin:0 0 18px; font-size:13.5px; color:var(--muted);}
+  .org-form{display:none; background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px; margin:0 0 18px; max-width:560px;}
   .org-form.open{display:block;}
   .org-form h3{margin:0 0 10px; font-size:16px;}
   .org-form label{display:block; font-size:13px; font-weight:600; margin-bottom:6px;}
@@ -149,6 +149,7 @@
   .org-pick-list{max-height:200px; overflow:auto;}
   .org-pick-item{display:flex; align-items:center; gap:10px; padding:8px 12px; border-top:1px solid var(--line); font-size:13.5px; cursor:pointer; margin:0 !important; font-weight:400 !important;}
   .org-pick-item:hover{background:#F6F8FC;}
+  .org-pick-item .pk-form{font-size:11px; color:var(--navy); background:#EDF3FF; border-radius:10px; padding:1px 8px;}
   .org-pick-item .pk-note{margin-left:auto; font-size:11.5px; color:var(--muted);}
   .org-pick-empty{padding:12px; color:var(--muted); font-size:13px;}
   .orgs-top h2{margin:0; font-size:20px; color:var(--navy);}
@@ -735,8 +736,8 @@
       <div class="orgs-top">
         <h2>Organizations</h2>
         <button class="orgs-add-btn" id="addCompanyBtn" type="button">+ Add Company</button>
-        <span></span>
       </div>
+      <p class="orgs-sub">View companies and the clients fall under each of them. Click client to know more details and their current status.</p>
       <div class="org-form" id="orgForm">
         <h3>New company</h3>
         <label for="orgName">Company name</label>
@@ -746,8 +747,8 @@
         <button type="button" class="orgs-link-btn" id="orgAddClientRow">+ Type another client</button>
         <div class="org-pick">
           <div class="org-pick-head">
-            <span>Or choose from the Form EA list <b id="orgPickCount"></b></span>
-            <input type="text" id="orgPickSearch" placeholder="Search EA clients…">
+            <span>Or choose from the Form EA / BE list <b id="orgPickCount"></b></span>
+            <input type="text" id="orgPickSearch" placeholder="Search EA / BE clients…">
           </div>
           <div class="org-pick-list" id="orgPickList"></div>
         </div>
@@ -1097,6 +1098,7 @@
     renderOrgs();
   }
   function eaForClient(name){ return (formData.form_ea || []).find(e => normName(e.company_name) === normName(name)); }
+  function beForClient(name){ return (formData.form_be || []).find(e => normName(e.company_name) === normName(name)); }
   function renderOrgs(){
     const left = document.getElementById('orgsLeft'), right = document.getElementById('orgsRight');
     if (!orgsCache.some(o => o.id === selectedOrgId)) selectedOrgId = null;
@@ -1120,12 +1122,12 @@
         <div id="newClientRows"></div>
         <div class="cp-save" id="newClientSave" style="display:none;"><button type="button" id="newClientCancel">Cancel</button><button type="button" class="primary" id="newClientSaveBtn">Save</button></div>
         ${clients.length ? clients.map(c => {
-          const ea = eaForClient(c.name);
-          const st = ea ? normStatus(ea.status) : null;
+          const ea = eaForClient(c.name), be = beForClient(c.name);
+          const badge = (lbl, e) => `<span class="org-st ${normStatus(e.status)}" title="Form ${lbl}">${lbl}: ${STATUS_LABELS[normStatus(e.status)]}</span>`;
           return `<div class="client-row" data-client="${c.id}" data-name="${escapeHtml(c.name)}">
             <span class="cl-name">${escapeHtml(c.name)}</span>
-            ${st ? `<span class="org-st ${st}">${STATUS_LABELS[st]}</span>` : '<span class="org-st none">No EA entry yet</span>'}
-            <span class="cl-go">Form EA ›</span>
+            ${ea || be ? (ea ? badge('EA', ea) : '') + (be ? badge('BE', be) : '') : '<span class="org-st none">Not in EA / BE yet</span>'}
+            <span class="cl-go">${ea ? 'Form EA' : be ? 'Form BE' : 'Form EA'} ›</span>
             <button type="button" class="org-del" data-del-client="${c.id}" title="Remove client">✕</button>
           </div>`;
         }).join('') : '<div class="orgs-empty">No clients under this company yet.</div>'}
@@ -1134,7 +1136,7 @@
       const sync = () => { saveBar.style.display = rows.children.length ? 'flex' : 'none'; };
       document.getElementById('newClientBtn').addEventListener('click', () => {
         const r = document.createElement('div'); r.className = 'oc-row';
-        r.innerHTML = '<input type="text" class="nc-input" placeholder="Client name (type, or pick from Form EA)" list="eaNamesList"><button type="button" class="org-del" title="Remove">✕</button>';
+        r.innerHTML = '<input type="text" class="nc-input" placeholder="Client name (type, or pick from Form EA / BE)" list="eaNamesList"><button type="button" class="org-del" title="Remove">✕</button>';
         r.querySelector('button').addEventListener('click', () => { r.remove(); sync(); });
         r.querySelector('input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('newClientSaveBtn').click(); });
         rows.appendChild(r); sync(); r.querySelector('input').focus();
@@ -1199,12 +1201,13 @@
   }
   // Open the client in the Form EA list (and flash its row). If it has no EA entry yet, open the EA list filtered to that name.
   function openEAForClient(name){
-    const ea = eaForClient(name);
+    const ea = eaForClient(name), be = beForClient(name);
     if (ea) { goToForm('form_ea', ea.id); return; }
+    if (be) { goToForm('form_be', be.id); return; }
     goToForm('form_ea');
     listSearchTerm = name; document.getElementById('listSearchInput').value = name;
     renderListTable();
-    showToast(`${name} has no Form EA entry yet.`);
+    showToast(`${name} is not in the Form EA / BE list yet.`);
   }
 
   // Add Company: inline form under the button (type clients and/or pick them from the Form EA list)
@@ -1218,9 +1221,13 @@
     wrap.appendChild(row);
     return row.querySelector('input');
   }
-  function eaClientNames(){
+  function eaClientNames(){   // clients from the Form EA and Form BE lists (one entry per name)
     const seen = new Map();
-    (formData.form_ea || []).forEach(e => { const k = normName(e.company_name); if (k && !seen.has(k)) seen.set(k, e); });
+    ['form_ea', 'form_be'].forEach(k => (formData[k] || []).forEach(e => {
+      const n = normName(e.company_name); if (!n) return;
+      if (!seen.has(n)) seen.set(n, { company_name: e.company_name, forms: new Set() });
+      seen.get(n).forms.add(k === 'form_ea' ? 'EA' : 'BE');
+    }));
     return [...seen.values()].sort((a, b) => a.company_name.localeCompare(b.company_name));
   }
   function renderOrgPick(){
@@ -1231,8 +1238,8 @@
     document.getElementById('orgPickList').innerHTML = list.length ? list.map(e => {
       const k = normName(e.company_name);
       return `<label class="org-pick-item"><input type="checkbox" data-k="${escapeHtml(k)}" ${orgPicked.has(k) ? 'checked' : ''}>
-        <span>${escapeHtml(e.company_name)}</span>${taken.has(k) ? `<span class="pk-note">already in ${escapeHtml(taken.get(k))}</span>` : ''}</label>`;
-    }).join('') : `<div class="org-pick-empty">${eaClientNames().length ? 'No match.' : 'No clients in the Form EA list yet.'}</div>`;
+        <span>${escapeHtml(e.company_name)}</span><span class="pk-form">${[...e.forms].join(' + ')}</span>${taken.has(k) ? `<span class="pk-note">already in ${escapeHtml(taken.get(k))}</span>` : ''}</label>`;
+    }).join('') : `<div class="org-pick-empty">${eaClientNames().length ? 'No match.' : 'No clients in the Form EA / BE list yet.'}</div>`;
     document.querySelectorAll('#orgPickList input').forEach(cb => cb.addEventListener('change', () => {
       if (cb.checked) orgPicked.add(cb.dataset.k); else orgPicked.delete(cb.dataset.k);
       document.getElementById('orgPickCount').textContent = orgPicked.size ? `(${orgPicked.size} selected)` : '';
@@ -1264,7 +1271,7 @@
     document.querySelectorAll('#orgClientInputs .oc-input').forEach(i => add(i.value));
     eaClientNames().forEach(e => { if (orgPicked.has(normName(e.company_name))) add(e.company_name); });
     if (!name) { errEl.textContent = 'Enter the company name.'; return; }
-    if (!clients.length) { errEl.textContent = 'Add at least one client: type a name or choose from the Form EA list.'; return; }
+    if (!clients.length) { errEl.textContent = 'Add at least one client: type a name or choose from the Form EA / BE list.'; return; }
     const btn = document.getElementById('orgSaveBtn'); btn.disabled = true; btn.textContent = 'Saving...';
     const { data, error } = await sb.from('organizations').insert({ name, created_by: currentUser.id }).select().single();
     if (error) {
