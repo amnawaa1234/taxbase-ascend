@@ -440,6 +440,24 @@
   .remark-compose-actions button{padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:#fff; font-size:12px; cursor:pointer; font-family:inherit;}
   .remark-compose-actions button.primary{background:var(--navy); color:#fff; border-color:var(--navy);}
 
+  .nav-badge{margin-left:auto; background:var(--red); color:#fff; font-size:11px; font-weight:700; min-width:18px; height:18px; border-radius:99px; display:none; align-items:center; justify-content:center; padding:0 5px;}
+  .nav-badge.on{display:inline-flex;}
+  .nav-sidebar.collapsed .nav-badge{position:absolute; top:2px; right:6px; margin:0;}
+  .nav-item{position:relative;}
+  #navUsers{display:none;}
+  body.role-hod #navUsers{display:flex;}
+  .hdr-btn{background:transparent; border:1px solid rgba(255,255,255,.3); color:#fff; padding:6px 12px; border-radius:6px; font-size:13px; cursor:pointer; font-family:inherit;}
+  .hdr-btn:hover{background:rgba(255,255,255,.14);}
+  .users-section{margin:18px 0 8px; font-size:14px; font-weight:600;}
+  .users-table{width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; font-size:13px;}
+  .users-table th{background:#F2F4F8; text-align:left; padding:9px 12px; font-weight:600; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.3px;}
+  .users-table td{padding:9px 12px; border-top:1px solid var(--line); vertical-align:middle;}
+  .users-table select{padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:13px; background:#fff;}
+  .users-table .u-actions{display:flex; gap:6px;}
+  .users-table button{padding:6px 11px; border-radius:6px; border:1px solid var(--line); background:#fff; cursor:pointer; font-family:inherit; font-size:12.5px;}
+  .users-table button.approve{background:var(--navy); color:#fff; border-color:var(--navy);}
+  .users-table button.reject{color:var(--red); border-color:#F5C2C2;}
+  .users-empty{padding:16px; color:var(--muted); font-size:13px; background:#fff; border:1px dashed var(--line); border-radius:8px;}
   .toast-stack{position:fixed; top:calc(var(--header-h) + 12px); right:16px; z-index:50; display:flex; flex-direction:column; gap:8px; max-width:320px;}
   .toast{background:var(--ink); color:#fff; padding:11px 14px; border-radius:7px; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.18); animation:slideIn .18s ease-out;}
   @keyframes slideIn{from{transform:translateX(16px); opacity:0;} to{transform:translateX(0); opacity:1;}}
@@ -461,6 +479,7 @@
     </div>
     <span id="userName">—</span>
     <span class="role" id="userRole"></span>
+    <button class="hdr-btn" id="changePwBtn" type="button">Change password</button>
     <button class="logout" id="logoutBtn">Log out</button>
   </div>
 </header>
@@ -471,6 +490,7 @@
     <button class="nav-toggle" id="navToggle" title="Collapse sidebar">«</button>
     <button class="nav-item active" id="navDashboard"><span class="nav-icon">📋</span><span class="nav-label">Dashboard</span></button>
     <button class="nav-item" id="navActivity"><span class="nav-icon">🕒</span><span class="nav-label">My Activity</span></button>
+    <button class="nav-item" id="navUsers"><span class="nav-icon">👥</span><span class="nav-label">Users</span><span class="nav-badge" id="usersBadge">0</span></button>
 
     <div class="nav-date" id="navDate">
       <div class="nd-day" id="ndDay"></div>
@@ -605,6 +625,14 @@
     </div>
     </div> <!-- /dashboardView -->
 
+    <div id="usersView" style="display:none;">
+      <div class="list-panel-header"><h2>Users</h2></div>
+      <div class="users-section" id="pendingHeading">Waiting for approval</div>
+      <div id="pendingBox"></div>
+      <div class="users-section">All users</div>
+      <div id="allUsersBox"></div>
+    </div>
+
     <div id="activityView" style="display:none;">
       <div class="list-panel-header">
         <h2 id="activityHeading">My Activity</h2>
@@ -632,6 +660,24 @@
     </div>
   </main>
 
+</div>
+
+<!-- Change password modal -->
+<div class="modal-backdrop" id="pwBackdrop">
+  <div class="modal">
+    <h2>Change password <span class="close-x" id="pwCloseX">&times;</span></h2>
+    <label for="pwCurrent">Current password</label>
+    <input type="password" id="pwCurrent" autocomplete="current-password">
+    <label for="pwNew">New password</label>
+    <input type="password" id="pwNew" autocomplete="new-password" placeholder="At least 8 characters">
+    <label for="pwNew2">Confirm new password</label>
+    <input type="password" id="pwNew2" autocomplete="new-password">
+    <div class="modal-error" id="pwError"></div>
+    <div class="modal-actions">
+      <button id="pwCancelBtn" type="button">Cancel</button>
+      <button class="primary" id="pwSaveBtn" type="button">Update password</button>
+    </div>
+  </div>
 </div>
 
 <!-- Delete confirmation modal (admin only) -->
@@ -832,19 +878,94 @@
     setNavCollapsed(saved !== null ? saved === '1' : (w > 860 && w < 1500));
   })();
 
-  /* ---------------- Dashboard / My Activity switch ---------------- */
-  document.getElementById('navDashboard').addEventListener('click', () => {
-    document.getElementById('navDashboard').classList.add('active');
-    document.getElementById('navActivity').classList.remove('active');
-    document.getElementById('dashboardView').style.display = '';
-    document.getElementById('activityView').style.display = 'none';
+  /* ---------------- Dashboard / My Activity / Users switch ---------------- */
+  function setView(name){
+    const map = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'] };
+    Object.entries(map).forEach(([k, [nav, view, disp]]) => {
+      document.getElementById(nav).classList.toggle('active', k === name);
+      document.getElementById(view).style.display = k === name ? disp : 'none';
+    });
+    if (name === 'activity') openActivityView();
+    if (name === 'users') loadUsers();
+  }
+  document.getElementById('navDashboard').addEventListener('click', () => setView('dashboard'));
+  document.getElementById('navActivity').addEventListener('click', () => setView('activity'));
+  document.getElementById('navUsers').addEventListener('click', () => { if (roleOf() === 'hod') setView('users'); });
+
+  /* ---------------- Users (HOD): approve sign-ups, change roles ---------------- */
+  const ROLE_OPTIONS = [['admin', 'Admin'], ['hod', 'Head of Department'], ['staff', 'Staff']];
+  let usersCache = [];
+  async function loadUsers(){
+    if (roleOf() !== 'hod') return;
+    const { data, error } = await sb.from('profiles').select('id, full_name, staff_id, email, role, created_at').order('created_at', { ascending: true });
+    if (error) { showToast('Could not load users: ' + error.message); return; }
+    usersCache = data || [];
+    renderUsers();
+  }
+  function renderUsers(){
+    const pending = usersCache.filter(u => u.role === 'pending');
+    const badge = document.getElementById('usersBadge');
+    badge.textContent = pending.length; badge.classList.toggle('on', pending.length > 0);
+    document.getElementById('pendingHeading').textContent = `Waiting for approval (${pending.length})`;
+    const roleSel = (id, cur, withPlaceholder) => `<select data-uid="${id}" class="u-role">
+      ${withPlaceholder ? '' : ''}${ROLE_OPTIONS.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}
+      ${cur === 'rejected' ? '<option value="rejected" selected>Rejected</option>' : ''}
+    </select>`;
+    document.getElementById('pendingBox').innerHTML = pending.length ? `
+      <table class="users-table"><thead><tr><th>Name</th><th>Staff ID</th><th>Email</th><th>Role to give</th><th></th></tr></thead><tbody>
+      ${pending.map(u => `<tr>
+        <td>${escapeHtml(u.full_name || '')}</td><td>${escapeHtml(u.staff_id || '')}</td><td>${escapeHtml(u.email || '—')}</td>
+        <td>${roleSel(u.id, 'staff')}</td>
+        <td><div class="u-actions"><button class="approve" data-uid="${u.id}">Approve</button><button class="reject" data-uid="${u.id}">Reject</button></div></td></tr>`).join('')}
+      </tbody></table>` : '<div class="users-empty">No one is waiting for approval.</div>';
+    const others = usersCache.filter(u => u.role !== 'pending');
+    document.getElementById('allUsersBox').innerHTML = `
+      <table class="users-table"><thead><tr><th>Name</th><th>Staff ID</th><th>Email</th><th>Role</th></tr></thead><tbody>
+      ${others.map(u => `<tr>
+        <td>${escapeHtml(u.full_name || '')}${u.id === currentUser.id ? ' <span style="color:var(--muted);">(you)</span>' : ''}</td>
+        <td>${escapeHtml(u.staff_id || '')}</td><td>${escapeHtml(u.email || '—')}</td>
+        <td>${u.id === currentUser.id ? 'Head of Department' : roleSel(u.id, u.role)}</td></tr>`).join('')}
+      </tbody></table>`;
+    const rowRole = (uid) => document.querySelector(`#pendingBox select[data-uid="${uid}"]`).value;
+    document.querySelectorAll('#pendingBox .approve').forEach(b => b.addEventListener('click', () => setUserRole(b.dataset.uid, rowRole(b.dataset.uid), 'Approved')));
+    document.querySelectorAll('#pendingBox .reject').forEach(b => b.addEventListener('click', () => setUserRole(b.dataset.uid, 'rejected', 'Rejected')));
+    document.querySelectorAll('#allUsersBox select.u-role').forEach(sel => sel.addEventListener('change', () => setUserRole(sel.dataset.uid, sel.value, 'Changed role of')));
+  }
+  async function setUserRole(uid, role, verb){
+    if (roleOf() !== 'hod' || uid === currentUser.id) return;
+    const u = usersCache.find(x => x.id === uid);
+    const { data, error } = await sb.from('profiles').update({ role }).eq('id', uid).select();
+    if (error || !data || !data.length) { showToast('Could not update: ' + (error ? error.message : 'not allowed. Run taxbase-signup.sql in Supabase.')); await loadUsers(); return; }
+    const label = role === 'rejected' ? 'Rejected' : ROLE_LABELS[role];
+    showToast(`${verb === 'Approved' ? 'Approved' : verb === 'Rejected' ? 'Rejected' : 'Role updated'}: ${u ? u.full_name : ''}${role === 'rejected' ? '' : ' → ' + label}`);
+    await logActivity(`${verb} ${u ? u.full_name + ' (' + (u.staff_id || '') + ')' : 'a user'}${role === 'rejected' ? '' : ' as ' + label}`);
+    await loadUsers(); await loadProfiles();
+  }
+
+  /* ---------------- Change password ---------------- */
+  const pwBackdrop = document.getElementById('pwBackdrop');
+  const closePw = () => pwBackdrop.classList.remove('open');
+  document.getElementById('changePwBtn').addEventListener('click', () => {
+    ['pwCurrent', 'pwNew', 'pwNew2'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('pwError').textContent = '';
+    pwBackdrop.classList.add('open'); document.getElementById('pwCurrent').focus();
   });
-  document.getElementById('navActivity').addEventListener('click', () => {
-    document.getElementById('navActivity').classList.add('active');
-    document.getElementById('navDashboard').classList.remove('active');
-    document.getElementById('dashboardView').style.display = 'none';
-    document.getElementById('activityView').style.display = 'block';
-    openActivityView();
+  document.getElementById('pwCancelBtn').addEventListener('click', closePw);
+  document.getElementById('pwCloseX').addEventListener('click', closePw);
+  document.getElementById('pwSaveBtn').addEventListener('click', async () => {
+    const cur = document.getElementById('pwCurrent').value, n1 = document.getElementById('pwNew').value, n2 = document.getElementById('pwNew2').value;
+    const err = document.getElementById('pwError');
+    if (!cur) { err.textContent = 'Enter your current password.'; return; }
+    if (n1.length < 8) { err.textContent = 'New password must be at least 8 characters.'; return; }
+    if (n1 !== n2) { err.textContent = 'New passwords do not match.'; return; }
+    if (n1 === cur) { err.textContent = 'New password must be different from the current one.'; return; }
+    const btn = document.getElementById('pwSaveBtn'); btn.disabled = true; btn.textContent = 'Updating...';
+    const { error: authErr } = await sb.auth.signInWithPassword({ email: currentUser.email, password: cur });
+    if (authErr) { err.textContent = 'Current password is incorrect.'; btn.disabled = false; btn.textContent = 'Update password'; return; }
+    const { error } = await sb.auth.updateUser({ password: n1 });
+    btn.disabled = false; btn.textContent = 'Update password';
+    if (error) { err.textContent = 'Could not update: ' + error.message; return; }
+    closePw(); showToast('Password updated.');
   });
 
   /* ---------------- Profiles (for remark author names + admin's staff picker) ---------------- */
@@ -2489,6 +2610,7 @@
 
 
     showToast(`Welcome, ${profile.full_name}! 👋`);
+    if (profile.role === 'hod') loadUsers();
     setupRealtime();
 
     syncHeaderHeight();
