@@ -928,6 +928,7 @@
   }
   function renderUsers(){
     const pending = usersCache.filter(u => u.role === 'pending');
+    const rejected = usersCache.filter(u => u.role === 'rejected');   // shown below the pending ones, can still be approved later
     const badge = document.getElementById('usersBadge');
     badge.textContent = pending.length; badge.classList.toggle('on', pending.length > 0);
     document.getElementById('pendingHeading').textContent = `Waiting for approval (${pending.length})`;
@@ -935,15 +936,15 @@
       ${withPlaceholder ? '' : ''}${ROLE_OPTIONS.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}
       ${cur === 'rejected' ? '<option value="rejected" selected>Rejected</option>' : ''}
     </select>`;
-    document.getElementById('pendingBox').innerHTML = pending.length ? `
+    document.getElementById('pendingBox').innerHTML = (pending.length || rejected.length) ? `
       <table class="users-table"><thead><tr><th>Name</th><th>Role requested</th><th>Role to give</th><th>Staff ID to give</th><th></th></tr></thead><tbody>
-      ${pending.map(u => `<tr>
-        <td>${escapeHtml(u.full_name || '')}</td><td>${escapeHtml((ROLE_LABELS[u.requested_role] || 'Staff'))}</td>
+      ${pending.concat(rejected).map(u => `<tr>
+        <td>${escapeHtml(u.full_name || '')}${u.role === 'rejected' ? ' <span style="color:var(--red); font-size:12px; font-weight:600;">· Rejected</span>' : ''}</td><td>${escapeHtml((ROLE_LABELS[u.requested_role] || 'Staff'))}</td>
         <td>${roleSel(u.id, ROLE_LABELS[u.requested_role] ? u.requested_role : 'staff')}</td>
         <td><input type="text" class="u-sid" data-uid="${u.id}" value="${suggestStaffId(ROLE_LABELS[u.requested_role] ? u.requested_role : 'staff')}" style="width:110px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:13px; text-transform:uppercase;"></td>
-        <td><div class="u-actions"><button class="approve" data-uid="${u.id}">Approve</button><button class="reject" data-uid="${u.id}">Reject</button></div></td></tr>`).join('')}
+        <td><div class="u-actions"><button class="approve" data-uid="${u.id}">${u.role === 'rejected' ? 'Approve instead' : 'Approve'}</button>${u.role === 'rejected' ? '' : `<button class="reject" data-uid="${u.id}">Reject</button>`}</div></td></tr>`).join('')}
       </tbody></table>` : '<div class="users-empty">No one is waiting for approval.</div>';
-    const others = usersCache.filter(u => u.role !== 'pending');
+    const others = usersCache.filter(u => u.role !== 'pending' && u.role !== 'rejected');
     document.getElementById('allUsersBox').innerHTML = `
       <table class="users-table"><thead><tr><th>Name</th><th>Staff ID</th><th>Role</th><th>Password</th></tr></thead><tbody>
       ${others.map(u => `<tr>
