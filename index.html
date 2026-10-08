@@ -136,8 +136,8 @@
   <div class="error" id="errorBox"></div>
 
   <form id="loginForm">
-    <label for="staffId">Name</label>
-    <input type="text" id="staffId" required autocomplete="username" placeholder="Your registered name">
+    <label for="staffId">Staff ID</label>
+    <input type="text" id="staffId" required autocomplete="username" placeholder="e.g. ST1023">
     <label for="password">Password</label>
     <div class="password-wrap">
       <input type="password" id="password" required autocomplete="current-password">
@@ -154,7 +154,7 @@
 
   <div class="panel" id="stageRegister">
     <h2>Create an account</h2>
-    <p class="hint">You will sign in with your name and password. Your account stays inactive until the Head of Department approves it.</p>
+    <p class="hint">Your account stays inactive until the Head of Department approves it and gives you your Staff ID. You then sign in with that Staff ID and your password.</p>
     <div class="error" id="regError"></div>
     <div class="ok" id="regOk"></div>
     <form id="registerForm">
@@ -231,7 +231,7 @@
       return;
     }
     document.getElementById('registerForm').reset();
-    note('regOk', 'Registration sent. You can sign in once the Head of Department approves your account.');
+    note('regOk', 'Registration sent. Once the Head of Department approves it, they will give you your Staff ID. Use that ID and your password to sign in.');
   });
 
   document.querySelectorAll('.role-card').forEach(c => c.addEventListener('click', () => {
@@ -280,7 +280,7 @@
 
     const staffId = document.getElementById('staffId').value.trim().toLowerCase();
     const password = document.getElementById('password').value;
-    let email = `${staffId.replace(/[^a-z0-9]/g, '')}@${STAFF_EMAIL_DOMAIN}`;
+    let email = `${staffId.replace(/[^a-z0-9]/g, '')}@${STAFF_EMAIL_DOMAIN}`;   // fallback; the database lookup below gives the real one
     const { data: looked } = await sb.rpc('login_email', { p_staff_id: staffId });
     if (looked) email = looked;
 
