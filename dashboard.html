@@ -667,6 +667,21 @@
 
 </div>
 
+<!-- HOD: reset a user's password -->
+<div class="modal-backdrop" id="rpBackdrop">
+  <div class="modal">
+    <h2>Reset password</h2>
+    <p class="modal-sub">Set a temporary password for <b id="rpWho"></b>. Tell them to change it after signing in.</p>
+    <label for="rpPass">Temporary password</label>
+    <input type="text" id="rpPass" autocomplete="off" placeholder="At least 8 characters">
+    <div class="modal-error" id="rpError"></div>
+    <div class="modal-actions">
+      <button id="rpCancelBtn" type="button">Cancel</button>
+      <button class="primary" id="rpSaveBtn" type="button">Set password</button>
+    </div>
+  </div>
+</div>
+
 <!-- Change password modal -->
 <div class="modal-backdrop" id="pwBackdrop">
   <div class="modal">
@@ -906,7 +921,7 @@
   let usersCache = [];
   async function loadUsers(){
     if (roleOf() !== 'hod') return;
-    const { data, error } = await sb.from('profiles').select('id, full_name, staff_id, email, role, created_at').order('created_at', { ascending: true });
+    const { data, error } = await sb.from('profiles').select('id, full_name, staff_id, role, requested_role, created_at').order('created_at', { ascending: true });
     if (error) { showToast('Could not load users: ' + error.message); return; }
     usersCache = data || [];
     renderUsers();
@@ -921,23 +936,24 @@
       ${cur === 'rejected' ? '<option value="rejected" selected>Rejected</option>' : ''}
     </select>`;
     document.getElementById('pendingBox').innerHTML = pending.length ? `
-      <table class="users-table"><thead><tr><th>Name</th><th>Staff ID</th><th>Email</th><th>Role to give</th><th></th></tr></thead><tbody>
+      <table class="users-table"><thead><tr><th>Name</th><th>Role requested</th><th>Role to give</th><th></th></tr></thead><tbody>
       ${pending.map(u => `<tr>
-        <td>${escapeHtml(u.full_name || '')}</td><td>${escapeHtml(u.staff_id || '')}</td><td>${escapeHtml(u.email || '—')}</td>
-        <td>${roleSel(u.id, 'staff')}</td>
+        <td>${escapeHtml(u.full_name || '')}</td><td>${escapeHtml((ROLE_LABELS[u.requested_role] || 'Staff'))}</td>
+        <td>${roleSel(u.id, ROLE_LABELS[u.requested_role] ? u.requested_role : 'staff')}</td>
         <td><div class="u-actions"><button class="approve" data-uid="${u.id}">Approve</button><button class="reject" data-uid="${u.id}">Reject</button></div></td></tr>`).join('')}
       </tbody></table>` : '<div class="users-empty">No one is waiting for approval.</div>';
     const others = usersCache.filter(u => u.role !== 'pending');
     document.getElementById('allUsersBox').innerHTML = `
-      <table class="users-table"><thead><tr><th>Name</th><th>Staff ID</th><th>Email</th><th>Role</th></tr></thead><tbody>
+      <table class="users-table"><thead><tr><th>Name</th><th>Role</th><th>Password</th></tr></thead><tbody>
       ${others.map(u => `<tr>
-        <td>${escapeHtml(u.full_name || '')}${u.id === currentUser.id ? ' <span style="color:var(--muted);">(you)</span>' : ''}</td>
-        <td>${escapeHtml(u.staff_id || '')}</td><td>${escapeHtml(u.email || '—')}</td>
-        <td>${u.id === currentUser.id ? 'Head of Department' : roleSel(u.id, u.role)}</td></tr>`).join('')}
+        <td>${escapeHtml(u.full_name || '')}${u.id === currentUser.id ? ' <span style="color:var(--muted);">(you)</span>' : ''}${u.staff_id ? ` <span style="color:var(--muted); font-size:12px;">· ${escapeHtml(u.staff_id)}</span>` : ''}</td>
+        <td>${u.id === currentUser.id ? 'Head of Department' : roleSel(u.id, u.role)}</td>
+        <td>${u.id === currentUser.id ? '' : `<button class="reset-pw" data-uid="${u.id}">Reset password</button>`}</td></tr>`).join('')}
       </tbody></table>`;
     const rowRole = (uid) => document.querySelector(`#pendingBox select[data-uid="${uid}"]`).value;
     document.querySelectorAll('#pendingBox .approve').forEach(b => b.addEventListener('click', () => setUserRole(b.dataset.uid, rowRole(b.dataset.uid), 'Approved')));
     document.querySelectorAll('#pendingBox .reject').forEach(b => b.addEventListener('click', () => setUserRole(b.dataset.uid, 'rejected', 'Rejected')));
+    document.querySelectorAll('#allUsersBox .reset-pw').forEach(b => b.addEventListener('click', () => openResetPw(b.dataset.uid)));
     document.querySelectorAll('#allUsersBox select.u-role').forEach(sel => sel.addEventListener('change', () => setUserRole(sel.dataset.uid, sel.value, 'Changed role of')));
   }
   async function setUserRole(uid, role, verb){
@@ -947,9 +963,37 @@
     if (error || !data || !data.length) { showToast('Could not update: ' + (error ? error.message : 'not allowed. Run taxbase-signup.sql in Supabase.')); await loadUsers(); return; }
     const label = role === 'rejected' ? 'Rejected' : ROLE_LABELS[role];
     showToast(`${verb === 'Approved' ? 'Approved' : verb === 'Rejected' ? 'Rejected' : 'Role updated'}: ${u ? u.full_name : ''}${role === 'rejected' ? '' : ' → ' + label}`);
-    await logActivity(`${verb} ${u ? u.full_name + ' (' + (u.staff_id || '') + ')' : 'a user'}${role === 'rejected' ? '' : ' as ' + label}`);
+    await logActivity(`${verb} ${u ? u.full_name : 'a user'}${role === 'rejected' ? '' : ' as ' + label}`);
     await loadUsers(); await loadProfiles();
   }
+
+  /* ---------------- HOD resets someone's password ---------------- */
+  let resetUid = null;
+  const rpBackdrop = document.getElementById('rpBackdrop');
+  function openResetPw(uid){
+    const u = usersCache.find(x => x.id === uid); if (!u) return;
+    resetUid = uid;
+    document.getElementById('rpWho').textContent = `${u.full_name}`;
+    document.getElementById('rpPass').value = '';
+    document.getElementById('rpError').textContent = '';
+    rpBackdrop.classList.add('open'); document.getElementById('rpPass').focus();
+  }
+  const closeRp = () => { rpBackdrop.classList.remove('open'); resetUid = null; };
+  document.getElementById('rpCancelBtn').addEventListener('click', closeRp);
+  document.getElementById('rpSaveBtn').addEventListener('click', async () => {
+    if (roleOf() !== 'hod' || !resetUid) return;
+    const pw = document.getElementById('rpPass').value;
+    const err = document.getElementById('rpError');
+    if (pw.length < 8) { err.textContent = 'Temporary password must be at least 8 characters.'; return; }
+    const u = usersCache.find(x => x.id === resetUid);
+    const btn = document.getElementById('rpSaveBtn'); btn.disabled = true; btn.textContent = 'Saving...';
+    const { error } = await sb.rpc('admin_reset_password', { p_user: resetUid, p_password: pw });
+    btn.disabled = false; btn.textContent = 'Set password';
+    if (error) { err.textContent = 'Could not reset: ' + error.message + ' (run taxbase-no-email.sql in Supabase)'; return; }
+    closeRp();
+    showToast(`Password reset for ${u ? u.full_name : 'user'}. Give them the temporary password.`);
+    await logActivity(`Reset the password of ${u ? u.full_name : 'a user'}`);
+  });
 
   /* ---------------- Change password ---------------- */
   const pwBackdrop = document.getElementById('pwBackdrop');
