@@ -133,9 +133,53 @@
   }
 
 
+
+  /* ---- Back / Previous bar, chooser & client profile pages ---- */
+  .bp-bar{display:flex; gap:8px; margin-bottom:16px;}
+  .bp-btn{background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer; font-family:inherit; color:var(--navy);}
+  .bp-btn:hover:not(:disabled){background:#EDF3FF; border-color:#C9D8F2;}
+  .bp-btn:disabled{color:#B5B9C4; cursor:not-allowed;}
+  body.no-nav .nav-sidebar{display:none;}
+  .ch-wrap{max-width:860px; margin:40px auto 0; text-align:center;}
+  .ch-title{font-family:'Merriweather',Georgia,serif; font-size:26px; margin:0 0 8px; color:#000;}
+  .ch-sub{color:var(--muted); margin:0 0 24px; font-size:14px;}
+  .ch-cards{display:flex; gap:20px; justify-content:center; flex-wrap:wrap; margin-top:26px;}
+  .ch-card{width:340px; max-width:100%; background:#fff; border:1px solid var(--line); border-radius:14px; padding:28px 22px; cursor:pointer; font-family:inherit; display:flex; flex-direction:column; gap:8px; align-items:center; transition:box-shadow .15s, border-color .15s, transform .15s;}
+  .ch-card:hover{box-shadow:0 8px 22px rgba(43,76,126,.14); border-color:var(--navy); transform:translateY(-2px);}
+  .ch-ico{font-size:34px;}
+  .ch-name{font-size:18px; font-weight:700; color:var(--navy);}
+  .ch-desc{font-size:13px; color:var(--muted); line-height:1.5;}
+  .pl-search{display:flex; gap:8px; margin-bottom:10px; max-width:720px;}
+  .pl-search input{flex:1; padding:9px 16px; border:1px solid var(--line); border-radius:999px; font-size:14px; font-family:inherit; background:#fff;}
+  .pl-search input:focus, .pl-specific input:focus{outline:none; border-color:var(--navy);}
+  .pl-search .orgs-add-btn{border-radius:999px; white-space:nowrap;}
+  .pl-specific{display:none; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; max-width:900px; align-items:end;}
+  .pl-specific.open{display:grid;}
+  .pl-specific label{display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:var(--muted);}
+  .pl-specific input, .pl-specific select{width:100%; padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; font-family:inherit; background:#fff;}
+  .pl-clear button{padding:7px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; font-family:inherit; font-size:13px;}
+  .pl-count{font-size:13px; color:var(--muted); margin:6px 0 10px;}
+  .pf-card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px; max-width:900px;}
+  .pf-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .pf-name{font-weight:700; font-size:15px;}
+  .pf-count{font-size:12px; font-weight:700; background:#EDF3FF; color:var(--navy); border-radius:20px; padding:3px 12px;}
+  .pf-id{font-size:12.5px; color:var(--muted);}
+  .pf-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .pf-table th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--muted); padding:5px 8px; border-bottom:1px solid var(--line);}
+  .pf-table td{padding:7px 8px; border-bottom:1px solid #F0F1F4; vertical-align:middle;}
+  .pf-table tr.pf-row{cursor:pointer;} .pf-table tr.pf-row:hover td{background:#F6F8FC;}
+  .pf-table tr:last-child td{border-bottom:none;}
+  .pf-sts{display:inline-flex; gap:6px; flex-wrap:wrap;}
+  .pf-more{display:block; margin:6px auto 20px; background:#fff; border:1px solid var(--navy); color:var(--navy); border-radius:8px; padding:8px 18px; cursor:pointer; font-family:inherit;}
+
   /* ---- Organizations (HOD) ---- */
   .orgs-top{display:flex; align-items:center; gap:36px; flex-wrap:wrap; margin-bottom:6px;}
-  .orgs-sub{margin:0 0 18px; font-size:13.5px; color:var(--muted);}
+  .orgs-search{display:flex; gap:8px; margin:0 0 16px; max-width:520px;}
+  .orgs-search input{flex:1; padding:9px 16px; border:1px solid var(--line); border-radius:999px; font-size:14px; font-family:inherit; background:#fff;}
+  .orgs-search input:focus{outline:none; border-color:var(--navy);}
+  .orgs-search .orgs-add-btn{border-radius:999px;}
+  .client-row.match{background:#FFF7CC; border-color:#F0DC7A;}
+  .orgs-sub{margin:0 0 14px; font-size:13.5px; color:var(--muted);}
   .org-form{display:none; background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px; margin:0 0 18px; max-width:560px;}
   .org-form.open{display:block;}
   .org-form h3{margin:0 0 10px; font-size:16px;}
@@ -151,6 +195,12 @@
   .org-pick-item:hover{background:#F6F8FC;}
   .org-pick-item .pk-form{font-size:11px; color:var(--navy); background:#EDF3FF; border-radius:10px; padding:1px 8px;}
   .org-pick-item .pk-note{margin-left:auto; font-size:11.5px; color:var(--muted);}
+  .rm-head{display:flex; justify-content:space-between; align-items:center; margin:14px 0 6px; font-size:13px;}
+  .modal .rm-all{display:flex; flex-direction:row; align-items:center; gap:6px; font-size:12.5px; font-weight:500; cursor:pointer; margin:0; width:auto;}
+  .modal .rm-all input, .modal .rm-grid input{width:auto; margin:0; padding:0;}
+  .rm-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
+  .modal .rm-grid label{display:flex; flex-direction:row; align-items:center; gap:6px; font-size:12.5px; border:1px solid var(--line); border-radius:6px; padding:5px 8px; cursor:pointer; font-weight:500; margin:0;}
+  .modal .rm-grid label .rmc{margin-left:auto; color:var(--muted); font-size:11px;}
   .org-pick-empty{padding:12px; color:var(--muted); font-size:13px;}
   .orgs-top h2{margin:0; font-size:20px; color:var(--navy);}
   .orgs-add-btn{background:var(--navy); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;}
@@ -451,7 +501,8 @@
 
   .admin-col{display:none;}
   body.role-hod .admin-col, body.role-admin .admin-col{display:table-cell;}
-  body:not(.role-admin) .delete-btn{display:none;}
+  body:not(.role-hod) .delete-btn{display:none;}
+  body.role-staff .add-remark-btn, body.role-staff .remark-compose{display:none !important;}
   body:not(.role-admin):not(.role-hod) .triple-btn{display:none;}
   body:not(.role-admin):not(.role-hod) #listAddBtn{display:none !important;}
 
@@ -576,6 +627,68 @@
   </aside>
 
   <main>
+    <div class="bp-bar" id="bpBar">
+      <button type="button" class="bp-btn" id="bpBack" title="Go up one level">← Back</button>
+      <button type="button" class="bp-btn" id="bpPrev" title="Go to the previous page you were on">‹ Previous</button>
+    </div>
+
+    <!-- Step 1 after every login: choose an action -->
+    <div id="chooserView" style="display:none;">
+      <div class="ch-wrap">
+        <h2 class="ch-title">Choose an action you would like to do.</h2>
+        <div class="ch-cards">
+          <button type="button" class="ch-card" id="chServices">
+            <span class="ch-ico">📋</span>
+            <span class="ch-name">Services &amp; Operational</span>
+            <span class="ch-desc">Dashboard, form lists, reports and day-to-day work.</span>
+          </button>
+          <button type="button" class="ch-card" id="chProfile">
+            <span class="ch-ico">🗂️</span>
+            <span class="ch-name">Client Profile Consultation</span>
+            <span class="ch-desc">Look up a company or an individual and see every service they applied for.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Client Profile Consultation: choose Company or Individual -->
+    <div id="profileView" style="display:none;">
+      <div class="ch-wrap">
+        <h2 class="ch-title">Client Profile Consultation</h2>
+        <p class="ch-sub">Choose the type of client you want to look up.</p>
+        <div class="ch-cards">
+          <button type="button" class="ch-card" data-ptype="company">
+            <span class="ch-ico">🏢</span>
+            <span class="ch-name">Company</span>
+            <span class="ch-desc" id="pcCompanyCount"></span>
+          </button>
+          <button type="button" class="ch-card" data-ptype="individual">
+            <span class="ch-ico">👤</span>
+            <span class="ch-name">Individual</span>
+            <span class="ch-desc" id="pcIndividualCount"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Client profile list (company / individual) -->
+    <div id="profileListView" style="display:none;">
+      <h2 class="settings-title" id="plTitle">Company profiles</h2>
+      <div class="pl-search">
+        <input type="text" id="plOverall" placeholder="Overall search: name, IC / passport, service or status…" autocomplete="off">
+        <button type="button" class="orgs-add-btn" id="plSpecificToggle">Specific search ▾</button>
+      </div>
+      <div class="pl-specific" id="plSpecific">
+        <div><label for="plName">Name</label><input type="text" id="plName" placeholder="Name contains…"></div>
+        <div id="plIdWrap"><label for="plId">IC / Passport No.</label><input type="text" id="plId" placeholder="Number (no dash)"></div>
+        <div><label for="plService">Service (Form)</label><select id="plService"></select></div>
+        <div><label for="plStatus">Status</label><select id="plStatus"><option value="">Any status</option><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="submitted">Submitted</option></select></div>
+        <div class="pl-clear"><button type="button" id="plClear">Clear</button></div>
+      </div>
+      <div class="pl-count" id="plCount"></div>
+      <div id="plList"></div>
+    </div>
+
     <div id="settingsView" style="display:none;">
       <h2 class="settings-title">Settings</h2>
       <div class="settings-card">
@@ -586,7 +699,7 @@
       </div>
     </div>
 
-    <div id="dashboardView">
+    <div id="dashboardView" style="display:none;">
     <div class="dash-top">
       <div class="dash-welcome">
         <h2 id="welcomeTitle">Welcome!</h2>
@@ -758,6 +871,10 @@
           <button class="primary" id="orgSaveBtn" type="button">Save</button>
         </div>
       </div>
+      <div class="orgs-search">
+        <input type="text" id="orgSearch" placeholder="Search company or client name…" autocomplete="off">
+        <button type="button" class="orgs-add-btn" id="orgSearchBtn">🔍 Search</button>
+      </div>
       <div class="orgs-cols">
         <div class="orgs-left" id="orgsLeft"><div class="orgs-empty">Loading…</div></div>
         <div class="orgs-right" id="orgsRight"></div>
@@ -909,10 +1026,12 @@
 
 <!-- Generate report modal -->
 <div class="modal-backdrop" id="reportBackdrop">
-  <div class="modal" style="max-width:420px;">
+  <div class="modal" style="max-width:480px; max-height:92vh; overflow-y:auto;">
     <h2 id="reportTitle">Generate report</h2>
     <p class="modal-sub" style="margin-bottom:14px;">Choose which status lists to include. A printable report opens — use <b>Print / Save as PDF</b> to print it or download it as a PDF.</p>
     <div id="reportStatusOptions"></div>
+    <div class="rm-head"><b id="reportMonthLabel">Due month</b><label class="rm-all"><input type="checkbox" id="reportAllMonths" checked> All months</label></div>
+    <div id="reportMonthOptions" class="rm-grid"></div>
     <div class="modal-error" id="reportError"></div>
     <div class="modal-actions">
       <button id="reportCancelBtn">Cancel</button>
@@ -981,12 +1100,12 @@
   //  hod   = Head of Department: add, edit name/due date, no delete
   //  staff = view, add remarks, change status + all dates/timestamps
   //  (everyone can change status and dates; hand-over buttons create entries so Admin/HOD only)
-  const ROLE_LABELS = { admin: 'Admin', hod: 'HOD', staff: 'Staff' };
+  const ROLE_LABELS = { admin: 'Executive Administrator', hod: 'HOD', staff: 'Viewer (Read-only)' };
   const VALID_ROLES = ['admin', 'hod', 'staff'];
   const roleOf    = () => currentProfile ? currentProfile.role : null;
   const canAdd    = () => roleOf() === 'admin' || roleOf() === 'hod';
   const canEdit   = () => roleOf() === 'admin' || roleOf() === 'hod';   // name / due date, hand-overs
-  const canDelete = () => roleOf() === 'admin';
+  const canDelete = () => roleOf() === 'hod';                              // only HOD deletes
   const isAdmin   = canEdit;     // legacy name used by the edit modal
 
   // Every form uses the same four statuses.
@@ -1044,17 +1163,145 @@
     setNavCollapsed(saved !== null ? saved === '1' : (w > 860 && w < 1500));
   })();
 
-  /* ---------------- Dashboard / My Activity / Users switch ---------------- */
-  function setView(name){
-    const map = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'], settings: ['navSettings', 'settingsView', 'block'], orgs: ['navOrgs', 'orgsView', 'block'] };
-    Object.entries(map).forEach(([k, [nav, view, disp]]) => {
+  /* ---------------- Screens: choose action -> Services & Operational / Client Profile; Back & Previous ---------------- */
+  const SERVICE_SCREENS = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'], settings: ['navSettings', 'settingsView', 'block'], orgs: ['navOrgs', 'orgsView', 'block'] };
+  const OTHER_SCREENS = { chooser: ['chooserView', 'block'], profile: ['profileView', 'block'], profileList: ['profileListView', 'block'] };
+  const NO_NAV_SCREENS = ['chooser', 'profile', 'profileList'];
+  let screenNow = null, profileType = 'company';
+  const screenHistory = [];                       // screens visited before the current one (for "Previous")
+  const parentOf = n => n === 'chooser' ? null : n === 'profileList' ? 'profile' : 'chooser';   // for "Back"
+  function modeOf(n){ return (n === 'profile' || n === 'profileList') ? 'profile' : n === 'chooser' ? null : 'services'; }
+  function setView(name, opts){ showScreen(name, opts); }      // kept for older callers
+  function showScreen(name, opts){
+    opts = opts || {};
+    if (name === 'users' && roleOf() !== 'hod') name = 'dashboard';
+    if (name === 'orgs' && roleOf() !== 'hod') name = 'dashboard';
+    if (!opts.noPush && screenNow && screenNow !== name) screenHistory.push(screenNow);
+    screenNow = name;
+    Object.entries(SERVICE_SCREENS).forEach(([k, [nav, view, disp]]) => {
       document.getElementById(nav).classList.toggle('active', k === name);
       document.getElementById(view).style.display = k === name ? disp : 'none';
     });
+    Object.entries(OTHER_SCREENS).forEach(([k, [view, disp]]) => { document.getElementById(view).style.display = k === name ? disp : 'none'; });
+    document.body.classList.toggle('no-nav', NO_NAV_SCREENS.includes(name));
+    const m = modeOf(name);
+    try { if (m) sessionStorage.setItem('taxbase_mode', m); } catch (e) {}
+    document.getElementById('bpBack').disabled = !parentOf(name);
+    document.getElementById('bpPrev').disabled = !screenHistory.length;
     if (name === 'activity') openActivityView();
     if (name === 'users') loadUsers();
     if (name === 'orgs') loadOrgs();
+    if (name === 'profile') renderProfileTypes();
+    if (name === 'profileList') renderProfileList();
+    window.scrollTo(0, 0);
   }
+  document.getElementById('bpBack').addEventListener('click', () => { const p = parentOf(screenNow); if (p) showScreen(p); });
+  document.getElementById('bpPrev').addEventListener('click', () => {
+    const prev = screenHistory.pop();
+    if (prev) showScreen(prev, { noPush: true });
+  });
+  document.getElementById('chServices').addEventListener('click', () => showScreen('dashboard'));
+  document.getElementById('chProfile').addEventListener('click', () => showScreen('profile'));
+  document.querySelectorAll('[data-ptype]').forEach(b => b.addEventListener('click', () => { profileType = b.dataset.ptype; resetProfileSearch(); showScreen('profileList'); }));
+
+  /* ---------------- Client Profile Consultation ---------------- */
+  const COMPANY_FORMS = ['form_c', 'form_e', 'form_sst', 'form_b', 'form_cp204', 'form_cp204a', 'form_cp205'];
+  const INDIVIDUAL_FORMS = ['form_ea', 'form_be', 'form_pcb', 'form_cp500'];
+  // One profile per client name: every service (form) they applied for, with its entries.
+  function buildProfiles(kind){
+    const map = new Map();
+    const add = (name, formKey, entry) => {
+      const k = normName(name); if (!k) return;
+      if (!map.has(k)) map.set(k, { name: String(name).trim(), idType: null, idNo: null, services: new Map() });
+      const p = map.get(k);
+      if (!p.services.has(formKey)) p.services.set(formKey, []);
+      p.services.get(formKey).push(entry);
+      if (formKey === 'form_ea' && entry.id_number && !p.idNo) { p.idType = entry.id_type; p.idNo = entry.id_number; }
+    };
+    (kind === 'company' ? COMPANY_FORMS : INDIVIDUAL_FORMS).forEach(k => (formData[k] || []).forEach(e => add(e.company_name, k, e)));
+    if (kind === 'individual') (formData.form_b || []).forEach(e => { if (e.client_name) add(e.client_name, 'form_b', e); });   // Form B made from an EA client
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  function serviceSummary(entries){
+    const counts = {}; entries.forEach(e => { const st = normStatus(e.status); counts[st] = (counts[st] || 0) + 1; });
+    const open = entries.filter(e => !isDone(normStatus(e.status)) && e.due_date).sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const nextDue = open.length ? open[0].due_date : null;
+    return { counts, nextDue };
+  }
+  function renderProfileTypes(){
+    const nc = buildProfiles('company').length, ni = buildProfiles('individual').length;
+    document.getElementById('pcCompanyCount').textContent = `${nc} ${nc === 1 ? 'company' : 'companies'} on record`;
+    document.getElementById('pcIndividualCount').textContent = `${ni} ${ni === 1 ? 'individual' : 'individuals'} on record`;
+  }
+  let plShown = 30;
+  function resetProfileSearch(){
+    ['plOverall', 'plName', 'plId'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('plStatus').value = '';
+    document.getElementById('plSpecific').classList.remove('open');
+    document.getElementById('plSpecificToggle').textContent = 'Specific search ▾';
+    plShown = 30;
+  }
+  function renderProfileList(){
+    const kind = profileType;
+    document.getElementById('plTitle').textContent = kind === 'company' ? 'Company profiles' : 'Individual profiles';
+    document.getElementById('plIdWrap').style.display = kind === 'individual' ? '' : 'none';
+    const keys = kind === 'company' ? COMPANY_FORMS : INDIVIDUAL_FORMS.concat('form_b');
+    const svcSel = document.getElementById('plService'), curSvc = svcSel.value;
+    svcSel.innerHTML = '<option value="">Any service</option>' + keys.map(k => `<option value="${k}">${escapeHtml(formNameOf(k))}</option>`).join('');
+    svcSel.value = keys.includes(curSvc) ? curSvc : '';
+
+    const overall = document.getElementById('plOverall').value.trim().toLowerCase();
+    const fName = document.getElementById('plName').value.trim().toLowerCase();
+    const fId = document.getElementById('plId').value.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+    const fSvc = svcSel.value, fSt = document.getElementById('plStatus').value;
+
+    let list = buildProfiles(kind).filter(p => {
+      const all = [...p.services.entries()];
+      if (overall) {
+        const hay = [p.name, p.idNo || '', ...all.map(([k, es]) => formNameOf(k) + ' ' + [...new Set(es.map(e => STATUS_LABELS[normStatus(e.status)]))].join(' '))].join(' ').toLowerCase();
+        if (!overall.split(/\s+/).every(t => hay.includes(t))) return false;
+      }
+      if (fName && !p.name.toLowerCase().includes(fName)) return false;
+      if (fId && !(p.idNo || '').toLowerCase().includes(fId)) return false;
+      if (fSvc && !p.services.has(fSvc)) return false;
+      if (fSt) {
+        const pool = fSvc ? (p.services.get(fSvc) || []) : all.flatMap(([, es]) => es);
+        if (!pool.some(e => normStatus(e.status) === fSt)) return false;
+      }
+      return true;
+    });
+    document.getElementById('plCount').textContent = `${list.length} ${kind === 'company' ? 'compan' + (list.length === 1 ? 'y' : 'ies') : 'individual' + (list.length === 1 ? '' : 's')} found`;
+    const shown = list.slice(0, plShown);
+    document.getElementById('plList').innerHTML = shown.length ? shown.map((p, i) => {
+      const svc = [...p.services.entries()];
+      const rows = svc.map(([k, es]) => {
+        const { counts, nextDue } = serviceSummary(es);
+        const sts = STATUSES.filter(st => counts[st]).map(st => `<span class="org-st ${st}">${STATUS_LABELS[st]}${es.length > 1 ? ' ×' + counts[st] : ''}</span>`).join('');
+        return `<tr class="pf-row" data-form="${k}" data-entry="${es[0].id}" title="Open in the ${escapeHtml(formNameOf(k))} list">
+          <td><b>${escapeHtml(formNameOf(k))}</b>${k === 'form_b' && kind === 'individual' ? ` <span class="pf-id">(via ${escapeHtml(es[0].company_name)})</span>` : ''}</td>
+          <td><span class="pf-sts">${sts}</span></td>
+          <td>${es.length} ${es.length === 1 ? 'entry' : 'entries'}</td>
+          <td>${nextDue ? 'Next due ' + formatDateDMY(nextDue) : '—'}</td></tr>`;
+      }).join('');
+      return `<div class="pf-card">
+        <div class="pf-head"><span class="pf-name">${escapeHtml(p.name)}</span>
+          <span class="pf-count">${svc.length} service${svc.length === 1 ? '' : 's'} applied</span>
+          ${p.idNo ? `<span class="pf-id">${ID_LABELS[p.idType] || 'ID'}: ${escapeHtml(p.idNo)}</span>` : ''}</div>
+        <table class="pf-table"><thead><tr><th>Service (Form)</th><th>Current status</th><th>Entries</th><th>Due</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+    }).join('') + (list.length > shown.length ? `<button type="button" class="pf-more" id="plMore">Show more (${list.length - shown.length} remaining)</button>` : '')
+      : '<div class="orgs-empty">No client matches your search.</div>';
+    const more = document.getElementById('plMore'); if (more) more.addEventListener('click', () => { plShown += 30; renderProfileList(); });
+    document.querySelectorAll('#plList .pf-row').forEach(r => r.addEventListener('click', () => { showScreen('dashboard'); goToForm(r.dataset.form, r.dataset.entry); }));
+  }
+  ['plOverall', 'plName', 'plId', 'plService', 'plStatus'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; renderProfileList(); }));
+  document.getElementById('plId').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/g, ''); });
+  document.getElementById('plSpecificToggle').addEventListener('click', () => {
+    const open = document.getElementById('plSpecific').classList.toggle('open');
+    document.getElementById('plSpecificToggle').textContent = open ? 'Specific search ▴' : 'Specific search ▾';
+  });
+  document.getElementById('plClear').addEventListener('click', () => { const o = document.getElementById('plOverall').value; resetProfileSearch(); document.getElementById('plOverall').value = o; document.getElementById('plSpecific').classList.add('open'); document.getElementById('plSpecificToggle').textContent = 'Specific search ▴'; renderProfileList(); });
+
   document.getElementById('navDashboard').addEventListener('click', () => setView('dashboard'));
   document.getElementById('navActivity').addEventListener('click', () => setView('activity'));
   document.getElementById('navOrgs').addEventListener('click', () => { if (roleOf() === 'hod') setView('orgs'); });
@@ -1101,8 +1348,12 @@
   function beForClient(name){ return (formData.form_be || []).find(e => normName(e.company_name) === normName(name)); }
   function renderOrgs(){
     const left = document.getElementById('orgsLeft'), right = document.getElementById('orgsRight');
+    const term = (document.getElementById('orgSearch').value || '').trim().toLowerCase();
+    const clientHit = c => term && c.name.toLowerCase().includes(term);
+    const shown = term ? orgsCache.filter(o => o.name.toLowerCase().includes(term) || orgClientsCache.some(c => c.org_id === o.id && clientHit(c))) : orgsCache;
+    if (term && shown.length === 1) selectedOrgId = shown[0].id;                     // single match: open it
     if (!orgsCache.some(o => o.id === selectedOrgId)) selectedOrgId = null;
-    left.innerHTML = orgsCache.length ? orgsCache.map(o => {
+    left.innerHTML = shown.length ? shown.map(o => {
       const n = orgClientsCache.filter(c => c.org_id === o.id).length;
       return `<div class="org-card${o.id === selectedOrgId ? ' active' : ''}" data-org="${o.id}">
         <div class="org-name">${escapeHtml(o.name)}</div>
@@ -1110,7 +1361,7 @@
         <button type="button" class="org-view-btn" data-view="${o.id}">${o.id === selectedOrgId ? 'Hide Clients' : 'View Clients'}</button>
         <button type="button" class="org-del" data-del-org="${o.id}" title="Delete company">✕</button>
       </div>`;
-    }).join('') : '<div class="orgs-empty">No companies yet. Click “+ Add Company” to add one.</div>';
+    }).join('') : (term ? `<div class="orgs-empty">No company or client matches “${escapeHtml(term)}”.</div>` : '<div class="orgs-empty">No companies yet. Click “+ Add Company” to add one.</div>');
 
     const org = orgsCache.find(o => o.id === selectedOrgId);
     if (!org) { right.innerHTML = ''; }
@@ -1124,7 +1375,7 @@
         ${clients.length ? clients.map(c => {
           const ea = eaForClient(c.name), be = beForClient(c.name);
           const badge = (lbl, e) => `<span class="org-st ${normStatus(e.status)}" title="Form ${lbl}">${lbl}: ${STATUS_LABELS[normStatus(e.status)]}</span>`;
-          return `<div class="client-row" data-client="${c.id}" data-name="${escapeHtml(c.name)}">
+          return `<div class="client-row${clientHit(c) ? ' match' : ''}" data-client="${c.id}" data-name="${escapeHtml(c.name)}">
             <span class="cl-name">${escapeHtml(c.name)}</span>
             ${ea || be ? (ea ? badge('EA', ea) : '') + (be ? badge('BE', be) : '') : '<span class="org-st none">Not in EA / BE yet</span>'}
             <span class="cl-go">${ea ? 'Form EA' : be ? 'Form BE' : 'Form EA'} ›</span>
@@ -1145,6 +1396,13 @@
       document.getElementById('newClientSaveBtn').addEventListener('click', () => addOrgClients(org.id));
     }
   }
+  document.getElementById('orgSearch').addEventListener('input', renderOrgs);
+  document.getElementById('orgSearchBtn').addEventListener('click', () => {
+    renderOrgs();
+    const t = document.getElementById('orgSearch').value.trim();
+    if (t && !selectedOrgId) { const first = document.querySelector('#orgsLeft .org-card'); if (first) { selectedOrgId = first.dataset.org; renderOrgs(); } }
+  });
+  document.getElementById('orgSearch').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('orgSearchBtn').click(); });
   // two-step delete: first click arms the button, second click confirms
   let armedDel = null;
   function armOrDelete(btn, doIt){
@@ -1289,7 +1547,7 @@
   });
 
   /* ---------------- Users (HOD): approve sign-ups, change roles ---------------- */
-  const ROLE_OPTIONS = [['admin', 'Admin'], ['hod', 'Head of Department'], ['staff', 'Staff']];
+  const ROLE_OPTIONS = [['admin', 'Executive Administrator'], ['hod', 'Head of Department'], ['staff', 'Viewer (Read-only)']];
   let usersCache = [];
   async function loadUsers(){
     if (roleOf() !== 'hod') return;
@@ -1311,7 +1569,7 @@
     document.getElementById('pendingBox').innerHTML = (pending.length || rejected.length) ? `
       <table class="users-table"><thead><tr><th>Name</th><th>Role requested</th><th>Role to give</th><th>Staff ID to give</th><th></th></tr></thead><tbody>
       ${pending.concat(rejected).map(u => `<tr>
-        <td>${escapeHtml(u.full_name || '')}${u.role === 'rejected' ? ' <span style="color:var(--red); font-size:12px; font-weight:600;">· Rejected</span>' : ''}</td><td>${escapeHtml((ROLE_LABELS[u.requested_role] || 'Staff'))}</td>
+        <td>${escapeHtml(u.full_name || '')}${u.role === 'rejected' ? ' <span style="color:var(--red); font-size:12px; font-weight:600;">· Rejected</span>' : ''}</td><td>${escapeHtml((ROLE_LABELS[u.requested_role] || ROLE_LABELS.staff))}</td>
         <td>${roleSel(u.id, ROLE_LABELS[u.requested_role] ? u.requested_role : 'staff')}</td>
         <td><input type="text" class="u-sid" data-uid="${u.id}" value="${suggestStaffId(ROLE_LABELS[u.requested_role] ? u.requested_role : 'staff')}" style="width:110px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:13px; text-transform:uppercase;"></td>
         <td><div class="u-actions"><button class="approve" data-uid="${u.id}">${u.role === 'rejected' ? 'Approve instead' : 'Approve'}</button>${u.role === 'rejected' ? '' : `<button class="reject" data-uid="${u.id}">Reject</button>`}</div></td></tr>`).join('')}
@@ -1339,7 +1597,7 @@
   }
   // Suggest the next free Staff ID for a role: AD1001, HD1001, ST1001 ... (HOD can type any ID)
   function suggestStaffId(role){
-    const prefix = { admin: 'AD', hod: 'HD', staff: 'ST' }[role] || 'ST';
+    const prefix = { admin: 'EA', hod: 'HD', staff: 'VW' }[role] || 'VW';
     let max = 1000;
     usersCache.forEach(u => {
       const m = new RegExp('^' + prefix + '(\\d+)$', 'i').exec(u.staff_id || '');
@@ -1860,7 +2118,8 @@
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     if (!canEdit()) {
-      body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Only Admin or HOD can do this'; });
+      body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Read-only account'; });
+      body.querySelectorAll('.status-select, .e-field-select, .e-date-input, .e-today-btn').forEach(el => { el.disabled = true; });
     }
     body.querySelectorAll('.e-today-btn').forEach(btn => btn.addEventListener('click', () => {
       const today = new Date().toISOString().slice(0, 10);
@@ -1869,6 +2128,7 @@
   }
 
   async function onStatusChange(entryId, newStatus){
+    if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
     const entry = findEntry(entryId);
     const oldStatus = entry ? normStatus(entry.status) : null;
     const { error } = await sb.from('form_entries')
@@ -1883,6 +2143,7 @@
   }
 
   async function onEFieldUpdate(entryId, field, value){
+    if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
     const entry = findEntry(entryId);
     const { error } = await sb.from('form_entries').update({ [field]: value }).eq('id', entryId);
     if (error) {
@@ -2017,10 +2278,10 @@
           ? cp204JumpCell(entry, status)
           : ''}</td>
         <td class="admin-col"><div class="admin-actions">
-          <button type="button" class="edit-btn" data-entry="${entry.id}" title="Edit ${entityOf(entry.form_type).toLowerCase()} name${CP204_FORMS.includes(entry.form_type) ? '' : ' / due date'} (Admin / HOD only)">
+          <button type="button" class="edit-btn" data-entry="${entry.id}" title="Edit ${entityOf(entry.form_type).toLowerCase()} name${CP204_FORMS.includes(entry.form_type) ? '' : ' / due date'} (HOD / Executive Administrator only)">
             <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
-          <button type="button" class="delete-btn" data-entry="${entry.id}" data-name="${escapeHtml(entry.company_name)}" title="Delete ${entityOf(entry.form_type).toLowerCase()} (Admin only)">
+          <button type="button" class="delete-btn" data-entry="${entry.id}" data-name="${escapeHtml(entry.company_name)}" title="Delete ${entityOf(entry.form_type).toLowerCase()} (HOD only)">
             <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
           </button>
         </div></td>
@@ -2046,6 +2307,7 @@
   }
 
   function onSubmitRemark(entryId){
+    if (!canEdit()) return;
     const textEl = document.getElementById(`composeText-${entryId}`);
     const body = textEl.value.trim();
     if (!body) { textEl.focus(); return; }
@@ -2053,7 +2315,7 @@
     document.getElementById('remarkConfirmBackdrop').classList.add('open');
   }
 
-  /* ---------------- Delete company/client (admin only) ---------------- */
+  /* ---------------- Delete company/client (HOD only) ---------------- */
   let pendingDelete = null;
   document.getElementById('deleteCancelBtn').addEventListener('click', () => {
     pendingDelete = null;
@@ -2216,8 +2478,20 @@
       const n = entries.filter(e => normStatus(e.status) === st).length;
       return `<label class="report-opt"><input type="checkbox" value="${st}" checked> ${STATUS_LABELS[st]}<span class="rcount">${n}</span></label>`;
     }).join('');
+    const dk = currentDataKey();
+    document.getElementById('reportMonthLabel').textContent = CP204_FORMS.includes(dk) ? 'FYE month' : 'Due month';
+    document.getElementById('reportMonthOptions').innerHTML = MONTHS.map((m, i) => {
+      const n = entries.filter(e => monthOf(e, dk) === i + 1).length;
+      return `<label><input type="checkbox" value="${i + 1}" checked> ${m.slice(0, 3)}<span class="rmc">${n}</span></label>`;
+    }).join('');
+    const syncAll = () => { const boxes = [...document.querySelectorAll('#reportMonthOptions input')]; document.getElementById('reportAllMonths').checked = boxes.every(b => b.checked); };
+    document.querySelectorAll('#reportMonthOptions input').forEach(b => b.addEventListener('change', syncAll));
+    document.getElementById('reportAllMonths').checked = true;
     document.getElementById('reportError').textContent = '';
     document.getElementById('reportBackdrop').classList.add('open');
+  });
+  document.getElementById('reportAllMonths').addEventListener('change', (e) => {
+    document.querySelectorAll('#reportMonthOptions input').forEach(b => { b.checked = e.target.checked; });
   });
   document.getElementById('reportCancelBtn').addEventListener('click', () => {
     document.getElementById('reportBackdrop').classList.remove('open');
@@ -2230,11 +2504,16 @@
     if (!chosen.length) { document.getElementById('reportError').textContent = 'Select at least one status.'; return; }
     const key = currentDataKey();
     const label = currentListLabel() + (showArchive ? ' (Archive)' : '');
-    const entries = reportScopeEntries();
+    const monthsChosen = [...document.querySelectorAll('#reportMonthOptions input:checked')].map(i => parseInt(i.value, 10));
+    if (!monthsChosen.length) { document.getElementById('reportError').textContent = 'Select at least one month.'; return; }
+    const allMonths = monthsChosen.length === 12;
+    let entries = reportScopeEntries();
+    if (!allMonths) entries = entries.filter(e => monthsChosen.includes(monthOf(e, key)));
+    const monthText = allMonths ? '' : monthsChosen.map(m => MONTHS[m - 1].slice(0, 3)).join(', ');
     const total = entries.filter(e => chosen.includes(normStatus(e.status))).length;
     document.getElementById('reportBackdrop').classList.remove('open');
-    openReportWindow(buildReportHtml(key, label, chosen, entries));   // must run straight from the click (popup rules)
-    logActivity(`Generated ${label} report (${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
+    openReportWindow(buildReportHtml(key, label, chosen, entries, monthText));   // must run straight from the click (popup rules)
+    logActivity(`Generated ${label} report (${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}${monthText ? '; ' + monthText : ''}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
   });
 
   function openReportWindow(html){
@@ -2269,7 +2548,7 @@
     return cols;
   }
 
-  function buildReportHtml(key, label, chosen, entries){
+  function buildReportHtml(key, label, chosen, entries, monthText){
     const cols = reportColumns(key);
     const order = STATUSES.filter(st => chosen.includes(st));
     const byDueThenName = (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.company_name.localeCompare(b.company_name);
@@ -2334,7 +2613,8 @@
   <div class="meta">
     Generated by: <b>${escapeHtml(who)}</b> &nbsp;·&nbsp; ${escapeHtml(formatTimeMeta(new Date().toISOString()))} &nbsp;&nbsp;|&nbsp;&nbsp;
     Statuses included: <b>${order.map(st => STATUS_LABELS[st]).join(', ')}</b> &nbsp;&nbsp;|&nbsp;&nbsp;
-    Total entries: <b>${grandTotal}</b>
+    ${monthText ? `Months: <b>${escapeHtml(monthText)}</b> &nbsp;&nbsp;|&nbsp;&nbsp;
+    ` : ''}Total entries: <b>${grandTotal}</b>
   </div>
   ${sections}
 </div></body></html>`;
@@ -2413,7 +2693,7 @@
   // PCB / CP205 / CP500 are paid again and again. When a period is done, the client "jumps" to the
   // next one: a new row with the next due date. The finished row stays behind as the payment history.
   async function onNextPeriodClick(entryId){
-    if (!canEdit()) { showToast('Only Admin or HOD can do this.'); return; }
+    if (!canEdit()) { showToast('Only HOD or Executive Administrator can do this.'); return; }
     const entry = findEntry(entryId);
     if (!entry || !entry.due_date || !isDone(entry.status) || !PCB_STYLE_FORMS.includes(entry.form_type)) return;
     const nextDue = entry.form_type === 'form_cp500' ? nextCP500After(entry.due_date) : nextMonthAfter(entry.due_date);
@@ -2521,7 +2801,7 @@
     const { data, error } = await sb.from('form_entries').update(patch).eq('id', entry.id).select();
     if (error || !data || !data.length) {
       btn.disabled = false; btn.textContent = 'Save';
-      errEl.textContent = 'Could not save: ' + (error ? error.message : 'the database refused it (Admin only). Run taxbase-admin-edit.sql if this keeps happening.');
+      errEl.textContent = 'Could not save: ' + (error ? error.message : 'the database refused it (HOD / Executive Administrator only). Run taxbase-roles-v2.sql if this keeps happening.');
       return;
     }
     let othersFailed = false;
@@ -2604,7 +2884,7 @@
   // CP204 (original) -> 1st Revised -> 2nd Revised -> Final Revised. Each step is its own row so the
   // dates of the finished step stay on record; the company "jumps" by getting a row in the next step.
   async function onCp204JumpClick(entryId){
-    if (!canEdit()) { showToast('Only Admin or HOD can do this.'); return; }
+    if (!canEdit()) { showToast('Only HOD or Executive Administrator can do this.'); return; }
     const entry = findEntry(entryId);
     if (!entry || !CP204_FORMS.includes(entry.form_type) || normStatus(entry.status) !== 'submitted') return;
     let nextRev = null;
@@ -2630,7 +2910,7 @@
   }
 
   async function onFinishClick(eaId, target){
-    if (!canEdit()) { showToast('Only Admin or HOD can do this.'); return; }
+    if (!canEdit()) { showToast('Only HOD or Executive Administrator can do this.'); return; }
     const ea = (formData.form_ea || []).find(e => e.id === eaId);
     if (!ea || ea.status !== 'completed' || !EA_TARGET_LABELS[target]) return;
 
@@ -3109,6 +3389,7 @@
 
   /* ---------------- Auth / init ---------------- */
   document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try { sessionStorage.removeItem('taxbase_mode'); } catch (e) {}
     await sb.auth.signOut();
     window.location.href = 'index.html';
   });
@@ -3127,7 +3408,7 @@
     currentProfile = profile;
     document.getElementById('userName').textContent = `Hello, ${profile.full_name}!`;
     document.getElementById('welcomeTitle').textContent = `Welcome, ${String(profile.full_name||'').trim()}!`;
-    if (profile.role === 'admin') document.getElementById('welcomeSub').textContent = 'Add new clients and companies here, so the HOD and staff are notified and can act before the due date.';
+    if (profile.role === 'admin') document.getElementById('welcomeSub').textContent = 'Add new clients and companies here, so the HOD and the team are notified and can act before the due date.';
     document.getElementById('userRole').textContent = ROLE_LABELS[profile.role];
     document.body.classList.add('role-' + profile.role);
 
@@ -3143,6 +3424,10 @@
     await loadProfiles();
     await loadFormEntries();
     initNotifications();
+
+    // Every login starts by choosing an action (the choice is remembered only until you log out / close the tab)
+    let mode = null; try { mode = sessionStorage.getItem('taxbase_mode'); } catch (e) {}
+    showScreen(mode === 'profile' ? 'profile' : mode === 'services' ? 'dashboard' : 'chooser', { noPush: true });
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   })();
