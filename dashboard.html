@@ -134,6 +134,19 @@
 
 
 
+
+  /* ---- Rotating building photos behind "Choose an action" and the Client Profile pages ---- */
+  .bg-slides{position:fixed; left:0; right:0; bottom:0; top:var(--header-h, 64px); z-index:0; display:none; background:#16233a;}
+  body.no-nav .bg-slides{display:block;}
+  .bg-slides::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,20,40,.35), rgba(10,20,40,.55));}
+  .bg-slide{position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity 1.6s ease;}
+  .bg-slide.on{opacity:1;}
+  #bgS1{background-image:url('bg-slide-1.jpg');} #bgS2{background-image:url('bg-slide-2.jpg');}
+  body.no-nav main{position:relative; z-index:1;}
+  body.no-nav .ch-title, body.no-nav .settings-title, body.no-nav .ch-sub, body.no-nav .pl-count{color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.45);}
+  body.no-nav .orgs-empty{color:#E6EAF2;}
+  body.no-nav .bp-btn{box-shadow:0 1px 4px rgba(0,0,0,.25);}
+
   /* ---- Back / Previous bar, chooser & client profile pages ---- */
   .bp-bar{display:flex; gap:8px; margin-bottom:16px;}
   .bp-btn{background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer; font-family:inherit; color:var(--navy);}
@@ -592,6 +605,7 @@
 <body>
 
 <div class="toast-stack" id="toastStack"></div>
+<div class="bg-slides" id="bgSlides" aria-hidden="true"><div class="bg-slide on" id="bgS1"></div><div class="bg-slide" id="bgS2"></div></div>
 
 <header>
   <h1>TaxBase <span style="opacity:.65; font-weight:400;">— Ascend Advisory Group</span></h1>
@@ -1195,6 +1209,12 @@
     if (name === 'profileList') renderProfileList();
     window.scrollTo(0, 0);
   }
+  // the two building photos swap every 30 seconds (cross-fade)
+  (function(){
+    const a = document.getElementById('bgS1'), b = document.getElementById('bgS2');
+    let first = true;
+    setInterval(() => { first = !first; a.classList.toggle('on', first); b.classList.toggle('on', !first); }, 30000);
+  })();
   document.getElementById('bpBack').addEventListener('click', () => { const p = parentOf(screenNow); if (p) showScreen(p); });
   document.getElementById('bpPrev').addEventListener('click', () => {
     const prev = screenHistory.pop();
