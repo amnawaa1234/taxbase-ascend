@@ -1,5 +1,5 @@
-const CACHE_NAME = 'fintrack-shell-v1';
-const SHELL_FILES = ['index.html', 'dashboard.html', 'manifest.json', 'icon.svg'];
+const CACHE_NAME = 'fintrack-shell-v3';
+const SHELL_FILES = ['index.html', 'dashboard.html', 'manifest.json', 'icon.svg', 'login-bg.png', 'bg-slide-1.jpg', 'bg-slide-2.jpg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
