@@ -267,7 +267,7 @@
   .client-row .cl-go{color:var(--muted); font-size:12px;}
   .org-st{display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.03em;}
   .org-st.pending{background:#EDF3FF; color:#2F6FED;} .org-st.in_progress{background:#FFD43B; color:#5C4300;}
-  .org-st.completed{background:#EBFBEE; color:#2F9E44;} .org-st.submitted{background:#1B6B3A; color:#fff;}
+  .org-st.pending_submit{background:#FF9A2E; color:#fff;} .org-st.completed{background:#EBFBEE; color:#2F9E44;} .org-st.submitted{background:#1B6B3A; color:#fff;}
   .org-st.none{background:#F1F2F5; color:var(--muted); font-weight:500;}
   .orgs-empty{color:var(--muted); font-size:13.5px; padding:14px 2px;}
   .org-client-inputs .oc-row{display:flex; gap:6px; margin-bottom:8px;}
@@ -502,6 +502,10 @@
     background-color:#FFD43B; color:#5C4300;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235C4300' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
+  .status-select.status-pending_submit{
+    background-color:#FF9A2E; color:#fff;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
   .status-select.status-submitted{
     background-color:#1B6B3A; color:#fff;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -546,6 +550,11 @@
   .list-table.show-finish-col .finish-col{display:table-cell;}
   .e-col{display:none;}
   .list-table.show-e-col .e-col{display:table-cell;}
+  .audit-col{display:none;}
+  .list-table.show-audit-col .audit-col{display:table-cell;}
+  .audit-box{display:flex; align-items:center; gap:7px; font-size:12.5px; cursor:pointer; white-space:nowrap;}
+  .audit-box input{width:17px; height:17px; accent-color:var(--green);}
+  .audit-ts{font-size:11px; color:var(--muted); margin-top:4px; white-space:normal;}
   .sst-col{display:none;}
   .list-table.show-sst-col .sst-col{display:table-cell;}
   .pcb-col{display:none;}
@@ -719,7 +728,7 @@
         <div><label for="plName">Name</label><input type="text" id="plName" placeholder="Name contains…"></div>
         <div id="plIdWrap"><label for="plId">IC / Passport No.</label><input type="text" id="plId" placeholder="Number (no dash)"></div>
         <div><label for="plService">Service (Form)</label><select id="plService"></select></div>
-        <div><label for="plStatus">Status</label><select id="plStatus"><option value="">Any status</option><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="submitted">Submitted</option></select></div>
+        <div><label for="plStatus">Status</label><select id="plStatus"><option value="">Any status</option><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="pending_submit">Pending Submit</option><option value="submitted">Submitted</option></select></div>
         <div class="pl-clear"><button type="button" id="plClear">Clear</button></div>
       </div>
       <div class="pl-count" id="plCount"></div>
@@ -730,7 +739,7 @@
       <h2 class="settings-title">Settings</h2>
       <div class="settings-card">
         <div class="settings-row">
-          <div><div class="settings-h">Password</div><div class="settings-d">Change the password you use to sign in.</div></div>
+          <div><div class="settings-h">Password</div><div class="settings-d" id="pwStateText">Change the password you use to sign in.</div></div>
           <button class="settings-btn" id="changePwBtn" type="button">Change password</button>
         </div>
       </div>
@@ -856,7 +865,8 @@
           <thead>
             <tr>
               <th style="width:16%;" id="thName">Company Name</th>
-              <th class="due-col" style="width:10%;">Due Date</th>
+              <th class="due-col" style="width:10%;" id="thDue">Due Date</th>
+              <th class="audit-col" style="width:13%;">Audit Report Received</th>
               <th class="pcb-col" style="width:14%;">Payment Received On</th>
               <th class="pcb-col" style="width:14%;">Paid to LHDN</th>
               <th class="cp204-col" style="width:14%;">Proposal Sent to Client</th>
@@ -920,6 +930,7 @@
 
     <div id="usersView" style="display:none;">
       <div class="list-panel-header"><h2>Users</h2></div>
+      <div id="pwReqBox"></div>
       <div class="users-section" id="pendingHeading">Waiting for approval</div>
       <div id="pendingBox"></div>
       <div class="users-section">All users</div>
@@ -1158,8 +1169,8 @@
   const isAdmin   = canEdit;     // legacy name used by the edit modal
 
   // Every form uses the same four statuses.
-  const STATUSES = ['pending', 'in_progress', 'completed', 'submitted'];
-  const STATUS_LABELS = { pending: 'PENDING', in_progress: 'IN PROGRESS', completed: 'COMPLETED', submitted: 'SUBMITTED' };
+  const STATUSES = ['pending', 'in_progress', 'completed', 'pending_submit', 'submitted'];
+  const STATUS_LABELS = { pending: 'PENDING', in_progress: 'IN PROGRESS', completed: 'COMPLETED', pending_submit: 'PENDING SUBMIT', submitted: 'SUBMITTED' };
   const normStatus = s => (STATUSES.includes(s) ? s : 'pending');
   const isDone = s => s === 'completed' || s === 'submitted';
 
@@ -1240,6 +1251,7 @@
     document.getElementById('bpPrev').disabled = !screenHistory.length;
     if (name === 'activity') openActivityView();
     if (name === 'users') loadUsers();
+    if (name === 'settings') refreshPwState();
     if (name === 'orgs') loadOrgs();
     if (name === 'profile') renderProfileTypes();
     if (name === 'profileList') renderProfileList();
@@ -1605,19 +1617,39 @@
 
   /* ---------------- Users (HOD): approve sign-ups, change roles ---------------- */
   const ROLE_OPTIONS = [['admin', 'Executive Administrator'], ['hod', 'Head of Department'], ['staff', 'Viewer (Read-only)']];
-  let usersCache = [];
+  let usersCache = [], pwRequests = [];
   async function loadUsers(){
     if (roleOf() !== 'hod') return;
     const { data, error } = await sb.from('profiles').select('id, full_name, staff_id, role, requested_role, created_at').order('created_at', { ascending: true });
     if (error) { showToast('Could not load users: ' + error.message); return; }
     usersCache = data || [];
+    const pr = await sb.from('password_requests').select('id,user_id,created_at').eq('status', 'pending').order('created_at', { ascending: true });
+    pwRequests = pr.error ? [] : (pr.data || []);
     renderUsers();
   }
   function renderUsers(){
     const pending = usersCache.filter(u => u.role === 'pending');
     const rejected = usersCache.filter(u => u.role === 'rejected');   // shown below the pending ones, can still be approved later
     const badge = document.getElementById('usersBadge');
-    badge.textContent = pending.length; badge.classList.toggle('on', pending.length > 0);
+    const badgeN = pending.length + pwRequests.length;
+    badge.textContent = badgeN; badge.classList.toggle('on', badgeN > 0);
+    const nameOf = id => (usersCache.find(u => u.id === id) || {}).full_name || 'Unknown';
+    document.getElementById('pwReqBox').innerHTML = pwRequests.length ? `
+      <div class="users-section">Password requests (${pwRequests.length})</div>
+      <table class="users-table"><thead><tr><th>Name</th><th>Requested</th><th></th></tr></thead><tbody>
+      ${pwRequests.map(q => `<tr><td>${escapeHtml(nameOf(q.user_id))}</td><td>${escapeHtml(formatTimeMeta(q.created_at))}</td>
+        <td><div class="u-actions"><button class="approve" data-pwset="${q.id}">Set new password</button><button class="reject" data-pwdismiss="${q.id}">Dismiss</button></div></td></tr>`).join('')}
+      </tbody></table>` : '';
+    document.querySelectorAll('#pwReqBox [data-pwset]').forEach(b => b.addEventListener('click', () => {
+      const q = pwRequests.find(x => x.id === b.dataset.pwset); if (q) { resetReqId = q.id; openResetPw(q.user_id); }
+    }));
+    document.querySelectorAll('#pwReqBox [data-pwdismiss]').forEach(b => b.addEventListener('click', async () => {
+      const q = pwRequests.find(x => x.id === b.dataset.pwdismiss);
+      const { error } = await sb.from('password_requests').update({ status: 'rejected', decided_at: new Date().toISOString() }).eq('id', b.dataset.pwdismiss);
+      if (error) { showToast('Could not update: ' + error.message); return; }
+      await logActivity(`Dismissed password request of ${nameOf(q.user_id)}`);
+      loadUsers();
+    }));
     document.getElementById('pendingHeading').textContent = `Waiting for approval (${pending.length})`;
     const roleSel = (id, cur, withPlaceholder) => `<select data-uid="${id}" class="u-role">
       ${withPlaceholder ? '' : ''}${ROLE_OPTIONS.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}
@@ -1681,7 +1713,7 @@
   }
 
   /* ---------------- HOD resets someone's password ---------------- */
-  let resetUid = null;
+  let resetUid = null, resetReqId = null;
   const rpBackdrop = document.getElementById('rpBackdrop');
   function openResetPw(uid){
     const u = usersCache.find(x => x.id === uid); if (!u) return;
@@ -1691,7 +1723,7 @@
     document.getElementById('rpError').textContent = '';
     rpBackdrop.classList.add('open'); document.getElementById('rpPass').focus();
   }
-  const closeRp = () => { rpBackdrop.classList.remove('open'); resetUid = null; };
+  const closeRp = () => { rpBackdrop.classList.remove('open'); resetUid = null; resetReqId = null; };
   document.getElementById('rpCancelBtn').addEventListener('click', closeRp);
   document.getElementById('rpSaveBtn').addEventListener('click', async () => {
     if (roleOf() !== 'hod' || !resetUid) return;
@@ -1703,7 +1735,8 @@
     const { error } = await sb.rpc('admin_reset_password', { p_user: resetUid, p_password: pw });
     btn.disabled = false; btn.textContent = 'Set password';
     if (error) { err.textContent = 'Could not reset: ' + error.message + ' (run taxbase-no-email.sql in Supabase)'; return; }
-    closeRp();
+    if (resetReqId) { await sb.from('password_requests').update({ status: 'used', decided_at: new Date().toISOString() }).eq('id', resetReqId); }
+    closeRp(); loadUsers();
     showToast(`Password reset for ${u ? u.full_name : 'user'}. Give them the temporary password.`);
     await logActivity(`Reset the password of ${u ? u.full_name : 'a user'}`);
   });
@@ -1711,7 +1744,30 @@
   /* ---------------- Change password ---------------- */
   const pwBackdrop = document.getElementById('pwBackdrop');
   const closePw = () => pwBackdrop.classList.remove('open');
-  document.getElementById('changePwBtn').addEventListener('click', () => {
+  // Only the HOD can change a password. Executive Administrator / Viewer send a request; the HOD sets the new password for them.
+  let myPwReq = null;   // latest request of this user: {id,status} or null
+  const needsApproval = () => roleOf() !== 'hod';
+  async function refreshPwState(){
+    const btn = document.getElementById('changePwBtn'), txt = document.getElementById('pwStateText');
+    if (!btn) return;
+    if (!needsApproval()) { btn.textContent = 'Change password'; btn.disabled = false; txt.textContent = 'Change the password you use to sign in.'; return; }
+    const { data } = await sb.from('password_requests').select('id,status').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(1);
+    myPwReq = (data && data[0]) || null;
+    const st = myPwReq ? myPwReq.status : null;
+    btn.disabled = false; btn.textContent = 'Request new password';
+    txt.textContent = 'Only the Head of Department can change passwords. Send a request and the HOD will give you a new password.';
+    if (st === 'pending') { btn.textContent = 'Request sent — waiting for HOD'; btn.disabled = true; txt.textContent = 'Your request was sent to the Head of Department. They will set a new password and give it to you.'; }
+    else if (st === 'used') txt.textContent = 'Your last request was done — the Head of Department has set a new password for you. You can send another request if needed.';
+    else if (st === 'rejected') txt.textContent = 'Your last request was dismissed by the Head of Department. You can send a new request.';
+  }
+  document.getElementById('changePwBtn').addEventListener('click', async () => {
+    if (needsApproval()) {
+      const { error } = await sb.from('password_requests').insert({ user_id: currentUser.id });
+      if (error) { showToast('Could not send request: ' + error.message + ' (run taxbase-password-approval.sql)'); return; }
+      await logActivity('Requested a new password from the Head of Department');
+      showToast('Request sent to the Head of Department.');
+      await refreshPwState(); return;
+    }
     ['pwCurrent', 'pwNew', 'pwNew2'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('pwError').textContent = '';
     pwBackdrop.classList.add('open'); document.getElementById('pwCurrent').focus();
@@ -1728,10 +1784,11 @@
     const btn = document.getElementById('pwSaveBtn'); btn.disabled = true; btn.textContent = 'Updating...';
     const { error: authErr } = await sb.auth.signInWithPassword({ email: currentUser.email, password: cur });
     if (authErr) { err.textContent = 'Current password is incorrect.'; btn.disabled = false; btn.textContent = 'Update password'; return; }
+    if (needsApproval()) { err.textContent = 'Only the Head of Department can change passwords.'; btn.disabled = false; btn.textContent = 'Update password'; return; }
     const { error } = await sb.auth.updateUser({ password: n1 });
     btn.disabled = false; btn.textContent = 'Update password';
     if (error) { err.textContent = 'Could not update: ' + error.message; return; }
-    closePw(); showToast('Password updated.');
+    closePw(); showToast('Password updated.'); refreshPwState();
   });
 
   /* ---------------- Profiles (for remark author names + admin's staff picker) ---------------- */
@@ -1925,7 +1982,7 @@
   let listMonthFilter = null;    // 1-12 (due-date month) or null
   let listPeriodFilter = null;   // 0-5 = Jan–Feb … Nov–Dec (CP500) or null
   const PERIODS = ['Jan–Feb', 'Mar–Apr', 'May–Jun', 'Jul–Aug', 'Sep–Oct', 'Nov–Dec'];
-  let statusFilter = null;       // null | 'pending' | 'in_progress' | 'completed' | 'submitted' (sidebar)
+  let statusFilter = null;       // null | 'pending' | 'in_progress' | 'completed' | 'pending_submit' | 'submitted' (sidebar)
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
   // --- Config -------------------------------------------------------------
@@ -2198,6 +2255,8 @@
     document.querySelector('.list-table').classList.toggle('hide-due-col', CP204_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
+    document.querySelector('.list-table').classList.toggle('show-audit-col', key === 'form_c');
+    document.getElementById('thDue').textContent = key === 'form_c' ? 'FYE' : 'Due Date';
     document.querySelector('.list-table').classList.toggle('show-pcb-col', PCB_STYLE_FORMS.includes(key));
     document.getElementById('listAddBtn').textContent =
       key === 'form_e' ? '+ Add Form E' : key === 'form_sst' ? '+ Add SST' : key === 'form_cp500' ? '+ Add CP500' : key === 'form_cp204' ? '+ Add company' : '+ Add client';
@@ -2256,10 +2315,11 @@
     body.querySelectorAll('.jump-btn').forEach(btn => btn.addEventListener('click', () => onCp204JumpClick(btn.dataset.entry)));
     body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
+    body.querySelectorAll('.audit-chk').forEach(c => c.addEventListener('change', () => onEFieldUpdate(c.dataset.entry, 'audit_received_at', c.checked ? new Date().toISOString() : null)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     if (!canEdit()) {
       body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Read-only account'; });
-      body.querySelectorAll('.status-select, .e-field-select, .e-date-input, .e-today-btn').forEach(el => { el.disabled = true; });
+      body.querySelectorAll('.status-select, .e-field-select, .e-date-input, .e-today-btn, .audit-chk').forEach(el => { el.disabled = true; });
     }
     body.querySelectorAll('.e-today-btn').forEach(btn => btn.addEventListener('click', () => {
       const today = new Date().toISOString().slice(0, 10);
@@ -2278,8 +2338,37 @@
       showToast('Could not update status: ' + error.message);
     } else if (entry && oldStatus !== newStatus) {
       await logActivity(`Changed status of "${entry.company_name}" (${formNameOf(entry.form_type)}) from ${STATUS_LABELS[oldStatus]} to ${STATUS_LABELS[newStatus]}`);
+      if (EMAIL_STATUSES.includes(newStatus)) sendStatusEmail(entry, oldStatus, newStatus);   // fire and forget
     }
     await loadFormEntries();
+  }
+
+  // COMPLETED / SUBMITTED set by HOD or Executive Administrator -> confirmation email to the Tax mailbox (HOD is copied).
+  // The email itself is sent by the Supabase Edge Function "status-email" (see taxbase-email-setup.md).
+  const EMAIL_STATUSES = ['completed', 'submitted'];
+  async function sendStatusEmail(entry, oldStatus, newStatus){
+    if (!['admin', 'hod'].includes(roleOf())) return;
+    try {
+      const latest = (entry.form_remarks || []).slice(-1)[0];
+      const isCp = CP204_FORMS.includes(entry.form_type);
+      const { error } = await sb.functions.invoke('status-email', { body: {
+        form: formNameOf(entry.form_type),
+        client: entry.company_name,
+        entity: entityOf(entry.form_type),
+        old_status: STATUS_LABELS[oldStatus], new_status: STATUS_LABELS[newStatus],
+        date_label: entry.form_type === 'form_c' || isCp ? 'FYE' : 'Due date',
+        date_value: formatDateDMY(isCp ? entry.fye_date : entry.due_date),
+        audit_report: entry.form_type === 'form_c' ? (entry.audit_received_at ? 'Received on ' + formatTimeMeta(entry.audit_received_at) : 'Not received yet') : '',
+        changed_by: currentProfile ? currentProfile.full_name : '', changed_role: ROLE_LABELS[roleOf()] || roleOf(),
+        changed_at: formatTimeMeta(new Date().toISOString()),
+        latest_remark: latest ? latest.body : '',
+        app_url: location.origin + location.pathname
+      } });
+      if (error) throw error;
+      showToast('Confirmation email sent to Tax and HOD.');
+    } catch (e) {
+      showToast('Status saved, but the confirmation email could not be sent (email service not set up yet).');
+    }
   }
 
   async function onEFieldUpdate(entryId, field, value){
@@ -2292,6 +2381,7 @@
       const label = FIELD_LABELS[field] || field;
       const shown = field === 'ea_received' || field === 'salary_received'
         ? (value === 'received' ? 'RECEIVED' : 'NOT RECEIVED')
+        : field === 'audit_received_at' ? (value ? 'RECEIVED' : 'NOT RECEIVED')
         : (value ? formatDateDMY(value) : 'cleared');
       await logActivity(`Set ${label} to ${shown} for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
     }
@@ -2379,6 +2469,7 @@
       <tr data-row="${entry.id}">
         <td class="company-cell">${escapeHtml(entry.company_name)}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
+        <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received_at ? 'checked' : ''}> Received</label>${entry.audit_received_at ? `<div class="audit-ts">${escapeHtml(formatTimeMeta(entry.audit_received_at))}</div>` : ''}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
         <td class="cp204-col">${simpleDateCell('proposal_sent_at', entry.proposal_sent_at)}</td>
@@ -2511,6 +2602,7 @@
     document.getElementById('addEntryTitle').textContent = `New ${currentListFormType === 'form_cp204' ? 'company' : 'client'} — ${f.label}`;
     document.getElementById('eCompanyName').value = '';
     document.getElementById('eDueDate').value = '';
+    document.querySelector('label[for="eDueDate"]').textContent = currentListFormType === 'form_c' ? 'FYE' : 'Due date';
     setupDueFields(currentListFormType);
     const entName = entityOf(currentListFormType);
     document.getElementById('eCompanyLabel').textContent = `${entName} name`;
@@ -2683,7 +2775,8 @@
     const dateOf = f => e => formatDateDMY(e[f]);
     const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
-    if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
+    if (!CP204_FORMS.includes(key)) cols.push({ h: key === 'form_c' ? 'FYE' : 'Due Date', v: dateOf('due_date') });
+    if (key === 'form_c') cols.push({ h: 'Audit Report Received', v: e => e.audit_received_at ? formatTimeMeta(e.audit_received_at) : '—' });
     else cols.push({ h: 'FYE', v: dateOf('fye_date') });
     if (key === 'form_ea') cols.push({ h: 'IC / Passport No.', v: e => e.id_number ? `${ID_LABELS[e.id_type] || ''} ${e.id_number}`.trim() : '' });
     if (key === 'form_b') cols.push({ h: 'Client', v: e => e.client_name || '' });
@@ -2728,6 +2821,9 @@
   * { box-sizing: border-box; }
   body { font-family: 'Inter', Arial, Helvetica, sans-serif; color: #1C1E26; margin: 0; padding: 0 0 24px; font-size: 10.5px; }
   .toolbar { position: sticky; top: 0; background: #2B4C7E; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .sizectl { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .sizectl button { padding: 5px 11px; font-size: 13px; }
+  .blocks { zoom: var(--z, 1); }
   .toolbar button { background: #fff; color: #2B4C7E; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 13px; }
   .page { padding: 18px 20px 0; }
   h1 { font-size: 20px; margin: 0 0 4px; }
@@ -2740,6 +2836,7 @@
   .badge.pending { background: #EDF3FF; color: #2F6FED; }
   .badge.in_progress { background: #FFD43B; color: #5C4300; }
   .badge.completed { background: #EBFBEE; color: #2F9E44; }
+  .badge.pending_submit { background: #FF9A2E; color: #fff; }
   .badge.submitted { background: #1B6B3A; color: #fff; }
   .blocks { display: flex; flex-wrap: wrap; gap: 10px 8px; align-items: flex-start; }
   table { width: auto; border-collapse: collapse; table-layout: auto; }
@@ -2758,7 +2855,9 @@
   body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(2){max-width:230px;}
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
 </style></head><body${namesOnly ? ' class="names"' : ''}>
-<div class="toolbar"><span>${namesOnly ? 'List' : 'Report'} preview</span><button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="toolbar"><span>${namesOnly ? 'List' : 'Report'} preview</span>
+  <span class="sizectl">Text size: <button type="button" onclick="zoomBy(-10)" title="Smaller text">A−</button> <b id="zv">100%</b> <button type="button" onclick="zoomBy(10)" title="Bigger text">A+</button> <button type="button" onclick="zoomBy(0)" title="Reset">Reset</button></span>
+  <button onclick="window.print()">Print / Save as PDF</button></div>
 <div class="page">
   <h1>${escapeHtml(label)} ${namesOnly ? '— Client / Company List' : 'Report'}</h1>
   <div class="org">TaxBase — Ascend Advisory Group</div>
@@ -2769,7 +2868,14 @@
     ` : ''}Total entries: <b>${grandTotal}</b>
   </div>
   ${sections}
-</div></body></html>`;
+</div>
+<script>
+  var KEY = 'taxbase_print_zoom', z = 100;
+  try { z = parseInt(localStorage.getItem(KEY), 10) || 100; } catch (e) {}
+  function zoomBy(d){ z = d === 0 ? 100 : Math.max(50, Math.min(250, z + d)); apply(); try { localStorage.setItem(KEY, z); } catch (e) {} }
+  function apply(){ document.querySelector('.blocks') && document.querySelector('.blocks').style.setProperty('--z', z / 100); document.getElementById('zv').textContent = z + '%'; }
+  apply();
+<\/script></body></html>`;
   }
 
   /* ---------------- Form EA -> BE workflow (inside the Form BE widget) ---------------- */
@@ -2890,6 +2996,7 @@
     const hasDue = !CP204_FORMS.includes(entry.form_type);          // CP204 has no due date
     document.getElementById('editDueWrap').style.display = hasDue ? '' : 'none';
     document.getElementById('editDue').value = entry.due_date || '';
+    document.querySelector('label[for="editDue"]').textContent = entry.form_type === 'form_c' ? 'FYE' : 'Due date';
     const isCp = CP204_FORMS.includes(entry.form_type);
     document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
     document.getElementById('editFye').value = entry.fye_date || '';
@@ -3246,7 +3353,7 @@
     salary_received: 'Summary Salary', salary_received_date: 'Summary Salary received date',
     process_date: 'Process date', client_paid_date: 'Client Paid On', customs_payment_date: 'Make Payment to Customs',
     payment_received_on: 'Payment Received On', paid_to_lhdn: 'Paid to LHDN',
-    proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
+    audit_received_at: 'Audit Report Received', proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
   };
   function formNameOf(formType){
     const fixed = { form_ea: 'Form EA', form_be: 'Form BE', form_pcb: 'PCB', form_cp205: 'CP205', form_cp204: 'CP204', form_cp204a: 'CP204A' };
@@ -3279,7 +3386,7 @@
     activitySearchEl.value = '';
   }
   function openActivityView(){
-    document.getElementById('activityTabs').style.display = 'flex';
+    document.getElementById('activityTabs').style.display = roleOf() === 'hod' ? 'flex' : 'none';   // only the HOD can look at other people's activity
     setActivityTab('mine');
     loadActivity();
   }
@@ -3299,7 +3406,7 @@
     activityEmptyMsg = 'No activity yet.';
     label.style.display = 'none';
 
-    if (activityTab === 'mine') {
+    if (activityTab === 'mine' || roleOf() !== 'hod') {
       query = query.eq('actor_id', currentUser.id);
     } else {
       const term = activitySearchEl.value.trim();
