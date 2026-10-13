@@ -2695,7 +2695,7 @@
 
     let grandTotal = 0;
     const multi = order.length > 1;
-    const ROWS_PER_BLOCK = 24;   // roughly one landscape A4 page; further blocks sit beside it when they fit
+    const ROWS_PER_BLOCK = 36;   // roughly one landscape A4 page; further blocks sit beside it when they fit
     const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th class="remcol">Remarks</th></tr></thead>`;
     const all = [];
     order.forEach(st => entries.filter(e => normStatus(e.status) === st).sort(byDueThenName).forEach(e => all.push({ e, st })));
@@ -2710,7 +2710,7 @@
     const who = currentProfile ? currentProfile.full_name : '';
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(label)} Report — TaxBase</title>
 <style>
-  @page { size: A4 landscape; margin: 12mm; }
+  @page { size: A4 landscape; margin: 8mm; }
   * { box-sizing: border-box; }
   body { font-family: 'Inter', Arial, Helvetica, sans-serif; color: #1C1E26; margin: 0; padding: 0 0 24px; font-size: 10.5px; }
   .toolbar { position: sticky; top: 0; background: #2B4C7E; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -2727,19 +2727,19 @@
   .badge.in_progress { background: #FFD43B; color: #5C4300; }
   .badge.completed { background: #EBFBEE; color: #2F9E44; }
   .badge.submitted { background: #1B6B3A; color: #fff; }
-  .blocks { display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: flex-start; }
+  .blocks { display: flex; flex-wrap: wrap; gap: 10px 8px; align-items: flex-start; }
   table { width: auto; border-collapse: collapse; table-layout: auto; }
   thead { display: table-header-group; }
-  th { text-align: left; background: #F1F2F5; font-size: 9.5px; padding: 6px 8px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  td { padding: 6px 8px; border: 1px solid #D9DCE3; vertical-align: top; font-size: 10px; }
+  th { text-align: left; background: #F1F2F5; font-size: 7.5px; padding: 3px 4px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  td { padding: 2.5px 4px; border: 1px solid #D9DCE3; vertical-align: top; font-size: 7.5px; }
   tr { page-break-inside: avoid; }
-  .num { width: 28px; text-align: center; color: #6B7180; }
-  .remcol { max-width: 240px; }
-  td { white-space: nowrap; } td.remcol { white-space: normal; }
-  .badge { padding: 2px 8px; font-size: 9px; }
-  .rm { margin-bottom: 6px; }
-  .rm i { font-size: 9.5px; line-height: 1.4; }
-  .rmeta { font-size: 8.5px; color: #6B7180; margin-top: 1px; }
+  .num { width: 20px; text-align: center; color: #6B7180; }
+  .remcol { max-width: 90px; }
+  td { white-space: nowrap; } td.remcol { white-space: normal; } td:nth-child(2){max-width:130px; white-space:normal;}
+  .badge { padding: 1px 6px; font-size: 7px; }
+  .rm { margin-bottom: 2px; }
+  .rm i { font-size: 7.5px; line-height: 1.3; }
+  .rmeta { font-size: 6.5px; color: #6B7180; margin-top: 1px; }
   .none, .empty { color: #6B7180; }
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
 </style></head><body>
