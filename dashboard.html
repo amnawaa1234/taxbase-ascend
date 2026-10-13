@@ -813,7 +813,7 @@
           <option value="za">Sort: Name Z–A</option>
         </select>
         <button id="listArchiveBtn">🗂 Archive</button>
-        <button id="listReportBtn">🖨 Generate list</button>
+        <button id="listReportBtn">🖨 Generate report</button>
         <button class="primary" id="listAddBtn">+ Add client</button>
       </div>
 
@@ -1074,9 +1074,10 @@
 <!-- Generate report modal -->
 <div class="modal-backdrop" id="reportBackdrop">
   <div class="modal" style="max-width:480px; max-height:92vh; overflow-y:auto;">
-    <h2 id="reportTitle">Generate list</h2>
-    <p class="modal-sub" style="margin-bottom:14px;">Choose which status lists to include. A printable list of client/company names (A–Z) opens — use <b>Print / Save as PDF</b> to print it or download it as a PDF.</p>
+    <h2 id="reportTitle">Generate report</h2>
+    <p class="modal-sub" style="margin-bottom:14px;">Choose which status lists to include. A printable report opens — use <b>Print / Save as PDF</b> to print it or download it as a PDF.</p>
     <div id="reportStatusOptions"></div>
+    <label class="report-opt" style="margin-top:6px; border-top:1px solid var(--line); padding-top:10px;"><input type="checkbox" id="reportNamesOnly"> <span><b>Client/company names only</b> — A–Z list, no due date or remarks, larger font</span></label>
     <div class="rm-head"><b id="reportMonthLabel">Due month</b><label class="rm-all"><input type="checkbox" id="reportAllMonths" checked> All months</label></div>
     <div id="reportMonthOptions" class="rm-grid"></div>
     <div class="modal-error" id="reportError"></div>
@@ -2611,7 +2612,7 @@
   document.getElementById('listReportBtn').addEventListener('click', () => {
     const entries = reportScopeEntries();
     document.getElementById('reportTitle').textContent =
-      `Generate list — ${currentListLabel()}${showArchive ? ' (Archive)' : ''}`;
+      `Generate report — ${currentListLabel()}${showArchive ? ' (Archive)' : ''}`;
     document.getElementById('reportStatusOptions').innerHTML = STATUSES.map(st => {
       const n = entries.filter(e => normStatus(e.status) === st).length;
       return `<label class="report-opt"><input type="checkbox" value="${st}" checked> ${STATUS_LABELS[st]}<span class="rcount">${n}</span></label>`;
@@ -2626,6 +2627,7 @@
     document.querySelectorAll('#reportMonthOptions input').forEach(b => b.addEventListener('change', syncAll));
     document.getElementById('reportAllMonths').checked = true;
     document.getElementById('reportError').textContent = '';
+    document.getElementById('reportNamesOnly').checked = false;
     document.getElementById('reportBackdrop').classList.add('open');
   });
   document.getElementById('reportAllMonths').addEventListener('change', (e) => {
@@ -2650,8 +2652,9 @@
     const monthText = allMonths ? '' : monthsChosen.map(m => MONTHS[m - 1].slice(0, 3)).join(', ');
     const total = entries.filter(e => chosen.includes(normStatus(e.status))).length;
     document.getElementById('reportBackdrop').classList.remove('open');
-    openReportWindow(buildReportHtml(key, label, chosen, entries, monthText));   // must run straight from the click (popup rules)
-    logActivity(`Generated ${label} report (${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}${monthText ? '; ' + monthText : ''}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
+    const namesOnly = document.getElementById('reportNamesOnly').checked;
+    openReportWindow(buildReportHtml(key, label, chosen, entries, monthText, namesOnly));   // must run straight from the click (popup rules)
+    logActivity(`Generated ${label} report (${namesOnly ? 'names only; ' : ''}${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}${monthText ? '; ' + monthText : ''}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
   });
 
   function openReportWindow(html){
@@ -2685,30 +2688,33 @@
     return cols;
   }
 
-  function buildReportHtml(key, label, chosen, entries, monthText){
-    const cols = [];   // name-only list
+  function buildReportHtml(key, label, chosen, entries, monthText, namesOnly){
+    const cols = namesOnly ? [] : reportColumns(key);
     const order = STATUSES.filter(st => chosen.includes(st));
-    const byDueThenName = (a, b) => a.company_name.localeCompare(b.company_name, undefined, {sensitivity:'base'});
+    const byDueThenName = namesOnly
+      ? (a, b) => a.company_name.localeCompare(b.company_name, undefined, {sensitivity:'base'})
+      : (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.company_name.localeCompare(b.company_name);
     const remarksHtml = e => (e.form_remarks || []).length
       ? e.form_remarks.slice(-1).map(r => `<div class="rm"><i>${escapeHtml(r.body)}</i><div class="rmeta">Updated by: ${escapeHtml(profilesMap[r.author_id] || 'Unknown')} at ${escapeHtml(formatTimeMeta(r.created_at))}</div></div>`).join('')
       : '<span class="none">—</span>';
 
     let grandTotal = 0;
-    const multi = false;
-    const ROWS_PER_BLOCK = 26;   // roughly one landscape A4 page; further blocks sit beside it when they fit
-    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th>Client / Company Name</th></tr></thead>`;
+    const multi = !namesOnly && order.length > 1;
+    const ROWS_PER_BLOCK = namesOnly ? 26 : 36;   // roughly one landscape A4 page; further blocks sit beside it when they fit
+    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}${namesOnly ? '<th>Client / Company Name</th>' : '<th class="remcol">Remarks</th>'}</tr></thead>`;
     const all = [];
-    entries.filter(e => order.includes(normStatus(e.status))).sort(byDueThenName).forEach(e => all.push({ e, st: normStatus(e.status) }));
+    if (namesOnly) entries.filter(e => order.includes(normStatus(e.status))).sort(byDueThenName).forEach(e => all.push({ e, st: normStatus(e.status) }));
+    else order.forEach(st => entries.filter(e => normStatus(e.status) === st).sort(byDueThenName).forEach(e => all.push({ e, st })));
     grandTotal = all.length;
     const blocks = [];
     for (let i = 0; i < all.length; i += ROWS_PER_BLOCK) {
       const part = all.slice(i, i + ROWS_PER_BLOCK);
-      blocks.push(`<table>${headRow}<tbody>${part.map(({ e, st }, j) => `<tr><td class="num">${i + j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}<td>${escapeHtml(e.company_name)}</td></tr>`).join('')}</tbody></table>`);
+      blocks.push(`<table>${headRow}<tbody>${part.map(({ e, st }, j) => `<tr><td class="num">${i + j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td>${escapeHtml(c.v(e))}</td>`).join('')}<td class="remcol">${remarksHtml(e)}</td>`}</tr>`).join('')}</tbody></table>`);
     }
     const sections = blocks.length ? `<div class="blocks">${blocks.join('')}</div>` : '<p class="empty">No entries.</p>';
 
     const who = currentProfile ? currentProfile.full_name : '';
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(label)} List — TaxBase</title>
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(label)} ${namesOnly ? 'List' : 'Report'} — TaxBase</title>
 <style>
   @page { size: A4 landscape; margin: 8mm; }
   * { box-sizing: border-box; }
@@ -2730,22 +2736,23 @@
   .blocks { display: flex; flex-wrap: wrap; gap: 10px 8px; align-items: flex-start; }
   table { width: auto; border-collapse: collapse; table-layout: auto; }
   thead { display: table-header-group; }
-  th { text-align: left; background: #F1F2F5; font-size: 11px; padding: 5px 8px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  td { padding: 4px 8px; border: 1px solid #D9DCE3; vertical-align: top; font-size: 11.5px; }
+  th { text-align: left; background: #F1F2F5; font-size: 7.5px; padding: 3px 4px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  td { padding: 2.5px 4px; border: 1px solid #D9DCE3; vertical-align: top; font-size: 7.5px; }
   tr { page-break-inside: avoid; }
-  .num { width: 28px; text-align: center; color: #6B7180; }
+  .num { width: 20px; text-align: center; color: #6B7180; }
   .remcol { max-width: 90px; }
-  td { white-space: nowrap; } td.remcol { white-space: normal; } td:nth-child(2){max-width:230px; white-space:normal;}
+  td { white-space: nowrap; } td.remcol { white-space: normal; } td:nth-child(2){max-width:130px; white-space:normal;}
   .badge { padding: 1px 6px; font-size: 7px; }
   .rm { margin-bottom: 2px; }
   .rm i { font-size: 7.5px; line-height: 1.3; }
   .rmeta { font-size: 6.5px; color: #6B7180; margin-top: 1px; }
   .none, .empty { color: #6B7180; }
+  body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(2){max-width:230px;}
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
-</style></head><body>
-<div class="toolbar"><span>List preview</span><button onclick="window.print()">Print / Save as PDF</button></div>
+</style></head><body${namesOnly ? ' class="names"' : ''}>
+<div class="toolbar"><span>${namesOnly ? 'List' : 'Report'} preview</span><button onclick="window.print()">Print / Save as PDF</button></div>
 <div class="page">
-  <h1>${escapeHtml(label)} — Client / Company List</h1>
+  <h1>${escapeHtml(label)} ${namesOnly ? '— Client / Company List' : 'Report'}</h1>
   <div class="org">TaxBase — Ascend Advisory Group</div>
   <div class="meta">
     Generated by: <b>${escapeHtml(who)}</b> &nbsp;·&nbsp; ${escapeHtml(formatTimeMeta(new Date().toISOString()))} &nbsp;&nbsp;|&nbsp;&nbsp;
