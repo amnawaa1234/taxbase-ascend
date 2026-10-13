@@ -813,7 +813,7 @@
           <option value="za">Sort: Name Z–A</option>
         </select>
         <button id="listArchiveBtn">🗂 Archive</button>
-        <button id="listReportBtn">🖨 Generate report</button>
+        <button id="listReportBtn">🖨 Generate list</button>
         <button class="primary" id="listAddBtn">+ Add client</button>
       </div>
 
@@ -1074,8 +1074,8 @@
 <!-- Generate report modal -->
 <div class="modal-backdrop" id="reportBackdrop">
   <div class="modal" style="max-width:480px; max-height:92vh; overflow-y:auto;">
-    <h2 id="reportTitle">Generate report</h2>
-    <p class="modal-sub" style="margin-bottom:14px;">Choose which status lists to include. A printable report opens — use <b>Print / Save as PDF</b> to print it or download it as a PDF.</p>
+    <h2 id="reportTitle">Generate list</h2>
+    <p class="modal-sub" style="margin-bottom:14px;">Choose which status lists to include. A printable list of client/company names (A–Z) opens — use <b>Print / Save as PDF</b> to print it or download it as a PDF.</p>
     <div id="reportStatusOptions"></div>
     <div class="rm-head"><b id="reportMonthLabel">Due month</b><label class="rm-all"><input type="checkbox" id="reportAllMonths" checked> All months</label></div>
     <div id="reportMonthOptions" class="rm-grid"></div>
@@ -2611,7 +2611,7 @@
   document.getElementById('listReportBtn').addEventListener('click', () => {
     const entries = reportScopeEntries();
     document.getElementById('reportTitle').textContent =
-      `Generate report — ${currentListLabel()}${showArchive ? ' (Archive)' : ''}`;
+      `Generate list — ${currentListLabel()}${showArchive ? ' (Archive)' : ''}`;
     document.getElementById('reportStatusOptions').innerHTML = STATUSES.map(st => {
       const n = entries.filter(e => normStatus(e.status) === st).length;
       return `<label class="report-opt"><input type="checkbox" value="${st}" checked> ${STATUS_LABELS[st]}<span class="rcount">${n}</span></label>`;
@@ -2686,29 +2686,29 @@
   }
 
   function buildReportHtml(key, label, chosen, entries, monthText){
-    const cols = reportColumns(key);
+    const cols = [];   // name-only list
     const order = STATUSES.filter(st => chosen.includes(st));
-    const byDueThenName = (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.company_name.localeCompare(b.company_name);
+    const byDueThenName = (a, b) => a.company_name.localeCompare(b.company_name, undefined, {sensitivity:'base'});
     const remarksHtml = e => (e.form_remarks || []).length
       ? e.form_remarks.slice(-1).map(r => `<div class="rm"><i>${escapeHtml(r.body)}</i><div class="rmeta">Updated by: ${escapeHtml(profilesMap[r.author_id] || 'Unknown')} at ${escapeHtml(formatTimeMeta(r.created_at))}</div></div>`).join('')
       : '<span class="none">—</span>';
 
     let grandTotal = 0;
-    const multi = order.length > 1;
-    const ROWS_PER_BLOCK = 36;   // roughly one landscape A4 page; further blocks sit beside it when they fit
-    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th class="remcol">Remarks</th></tr></thead>`;
+    const multi = false;
+    const ROWS_PER_BLOCK = 26;   // roughly one landscape A4 page; further blocks sit beside it when they fit
+    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}<th>Client / Company Name</th></tr></thead>`;
     const all = [];
-    order.forEach(st => entries.filter(e => normStatus(e.status) === st).sort(byDueThenName).forEach(e => all.push({ e, st })));
+    entries.filter(e => order.includes(normStatus(e.status))).sort(byDueThenName).forEach(e => all.push({ e, st: normStatus(e.status) }));
     grandTotal = all.length;
     const blocks = [];
     for (let i = 0; i < all.length; i += ROWS_PER_BLOCK) {
       const part = all.slice(i, i + ROWS_PER_BLOCK);
-      blocks.push(`<table>${headRow}<tbody>${part.map(({ e, st }, j) => `<tr><td class="num">${i + j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}${cols.map(c => `<td>${escapeHtml(c.v(e))}</td>`).join('')}<td class="remcol">${remarksHtml(e)}</td></tr>`).join('')}</tbody></table>`);
+      blocks.push(`<table>${headRow}<tbody>${part.map(({ e, st }, j) => `<tr><td class="num">${i + j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}<td>${escapeHtml(e.company_name)}</td></tr>`).join('')}</tbody></table>`);
     }
     const sections = blocks.length ? `<div class="blocks">${blocks.join('')}</div>` : '<p class="empty">No entries.</p>';
 
     const who = currentProfile ? currentProfile.full_name : '';
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(label)} Report — TaxBase</title>
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(label)} List — TaxBase</title>
 <style>
   @page { size: A4 landscape; margin: 8mm; }
   * { box-sizing: border-box; }
@@ -2730,12 +2730,12 @@
   .blocks { display: flex; flex-wrap: wrap; gap: 10px 8px; align-items: flex-start; }
   table { width: auto; border-collapse: collapse; table-layout: auto; }
   thead { display: table-header-group; }
-  th { text-align: left; background: #F1F2F5; font-size: 7.5px; padding: 3px 4px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  td { padding: 2.5px 4px; border: 1px solid #D9DCE3; vertical-align: top; font-size: 7.5px; }
+  th { text-align: left; background: #F1F2F5; font-size: 11px; padding: 5px 8px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  td { padding: 4px 8px; border: 1px solid #D9DCE3; vertical-align: top; font-size: 11.5px; }
   tr { page-break-inside: avoid; }
-  .num { width: 20px; text-align: center; color: #6B7180; }
+  .num { width: 28px; text-align: center; color: #6B7180; }
   .remcol { max-width: 90px; }
-  td { white-space: nowrap; } td.remcol { white-space: normal; } td:nth-child(2){max-width:130px; white-space:normal;}
+  td { white-space: nowrap; } td.remcol { white-space: normal; } td:nth-child(2){max-width:230px; white-space:normal;}
   .badge { padding: 1px 6px; font-size: 7px; }
   .rm { margin-bottom: 2px; }
   .rm i { font-size: 7.5px; line-height: 1.3; }
@@ -2743,9 +2743,9 @@
   .none, .empty { color: #6B7180; }
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
 </style></head><body>
-<div class="toolbar"><span>Report preview</span><button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="toolbar"><span>List preview</span><button onclick="window.print()">Print / Save as PDF</button></div>
 <div class="page">
-  <h1>${escapeHtml(label)} Report</h1>
+  <h1>${escapeHtml(label)} — Client / Company List</h1>
   <div class="org">TaxBase — Ascend Advisory Group</div>
   <div class="meta">
     Generated by: <b>${escapeHtml(who)}</b> &nbsp;·&nbsp; ${escapeHtml(formatTimeMeta(new Date().toISOString()))} &nbsp;&nbsp;|&nbsp;&nbsp;
