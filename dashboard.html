@@ -137,15 +137,30 @@
 
   /* ---- Rotating building photos behind "Choose an action" and the Client Profile pages ---- */
   .bg-slides{position:fixed; left:0; right:0; bottom:0; top:var(--header-h, 64px); z-index:0; display:none; background:#16233a;}
-  body.no-nav .bg-slides{display:block;}
+  body.has-bg .bg-slides{display:block;}
   .bg-slides::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,20,40,.35), rgba(10,20,40,.55));}
   .bg-slide{position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity 1.6s ease;}
   .bg-slide.on{opacity:1;}
   #bgS1{background-image:url('bg-slide-1.jpg');} #bgS2{background-image:url('bg-slide-2.jpg');}
-  body.no-nav main{position:relative; z-index:1;}
-  body.no-nav .ch-title, body.no-nav .settings-title, body.no-nav .ch-sub, body.no-nav .pl-count{color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.45);}
-  body.no-nav .orgs-empty{color:#E6EAF2;}
-  body.no-nav .bp-btn{box-shadow:0 1px 4px rgba(0,0,0,.25);}
+  body.has-bg main{position:relative; z-index:1;}
+  body.has-bg .ch-title, body.has-bg .ch-sub{color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.45);}
+  body.has-bg .bp-btn{box-shadow:0 1px 4px rgba(0,0,0,.25);}
+
+
+  /* ---- More details ---- */
+  .more-btn{background:#fff; border:1px solid var(--navy); color:var(--navy); border-radius:999px; padding:3px 12px; font-size:12px; cursor:pointer; font-family:inherit;}
+  .more-btn:hover{background:var(--navy); color:#fff;}
+  .widget-card .more-btn{margin-top:10px; padding:2px 10px; font-size:11.5px;}
+  .info-modal{max-width:620px; max-height:90vh; overflow-y:auto;}
+  .info-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .info-head h2{margin:0;}
+  .info-form{border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:12px;}
+  .info-form h3{margin:0 0 8px; font-size:15px; color:var(--navy);}
+  .info-row{margin:0 0 8px; font-size:13.5px; line-height:1.5;}
+  .info-row b{display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:.3px; color:var(--muted); margin-bottom:1px;}
+  .info-row.gov{background:#FFF1F0; border-left:3px solid #D92D20; padding:7px 10px; border-radius:0 6px 6px 0;}
+  .info-row.gov b{color:#B42318;}
+  .info-foot{font-size:11.5px; color:var(--muted); margin-top:4px;}
 
   /* ---- Back / Previous bar, chooser & client profile pages ---- */
   .bp-bar{display:flex; gap:8px; margin-bottom:16px;}
@@ -225,8 +240,16 @@
   .org-card.active{border-color:var(--navy); box-shadow:0 0 0 2px rgba(43,76,126,.15);}
   .org-card .org-name{font-weight:600; flex:1; min-width:0; overflow-wrap:anywhere;}
   .org-card .org-count{font-size:12px; color:var(--muted); white-space:nowrap;}
-  .org-view-btn{background:#fff; color:var(--navy); border:1px solid var(--navy); border-radius:8px; padding:6px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; white-space:nowrap;}
-  .org-card.active .org-view-btn{background:var(--navy); color:#fff;}
+  .org-count-btn{background:#fff; color:var(--navy); border:1px solid var(--navy); border-radius:999px; padding:5px 14px; font-size:12.5px; cursor:pointer; font-family:inherit; white-space:nowrap;}
+  .org-count-btn:hover{background:#EDF3FF;}
+  .org-card.active .org-count-btn{background:var(--navy); color:#fff;}
+  .org-del.org-bin{color:var(--red); display:inline-flex; align-items:center; justify-content:center;}
+  .org-bin .bin-ico{width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+  .org-bin.sure{font-size:12px;}
+  .cp-actions{display:flex; align-items:center; gap:8px;}
+  .cp-close{background:none; border:1px solid var(--line); border-radius:8px; width:32px; height:32px; cursor:pointer; font-size:15px; color:var(--muted); font-family:inherit;}
+  .cp-close:hover{background:var(--red-bg); color:var(--red); border-color:#F5C2C2;}
+  .orgs-right{position:sticky; top:calc(var(--header-h) + 14px); align-self:flex-start; max-height:calc(100vh - var(--header-h) - 28px); overflow-y:auto;}
   .org-del{background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:2px 6px; border-radius:6px; font-family:inherit;}
   .org-del:hover{color:var(--red); background:var(--red-bg);}
   .org-del.sure{color:#fff; background:var(--red); font-size:12px;}
@@ -732,7 +755,7 @@
     <!-- Inline list panel: appears here once a widget card is clicked -->
     <div class="list-panel" id="listPanel">
       <div class="list-panel-header">
-        <div class="lp-title"><h2 id="listPanelTitle">Form C</h2><span class="lp-note" id="listPanelNote"></span></div>
+        <div class="lp-title"><h2 id="listPanelTitle">Form C</h2><button type="button" class="more-btn" id="listInfoBtn">ℹ More details</button><span class="lp-note" id="listPanelNote"></span></div>
         <span class="close-x" id="closeListPanel" title="Collapse">&times;</span>
       </div>
 
@@ -864,7 +887,7 @@
         <h2>Organizations</h2>
         <button class="orgs-add-btn" id="addCompanyBtn" type="button">+ Add Company</button>
       </div>
-      <p class="orgs-sub">View companies and the clients fall under each of them. Click client to know more details and their current status.</p>
+      <p class="orgs-sub">This is the list of companies and the individuals (clients) who fall under each of them — the clients who have applied for the EA and BE services. Click the number of clients to see them, and click a client to know more details and their current status.</p>
       <div class="org-form" id="orgForm">
         <h3>New company</h3>
         <label for="orgName">Company name</label>
@@ -986,6 +1009,16 @@
       <button id="remarkCancelBtn">Cancel</button>
       <button class="primary" id="remarkConfirmBtn">Confirm</button>
     </div>
+  </div>
+</div>
+
+<!-- Form information (More details) -->
+<div class="modal-backdrop" id="infoBackdrop">
+  <div class="modal info-modal">
+    <div class="info-head"><h2 id="infoTitle">Form details</h2><span class="close-x" id="infoCloseX">&times;</span></div>
+    <div id="infoBody"></div>
+    <div class="info-foot">Dates follow LHDN (hasil.gov.my) and Royal Malaysian Customs announcements and can change from year to year — always confirm against the latest official notice.</div>
+    <div class="modal-actions"><button class="primary" id="infoCloseBtn">Close</button></div>
   </div>
 </div>
 
@@ -1198,6 +1231,7 @@
     });
     Object.entries(OTHER_SCREENS).forEach(([k, [view, disp]]) => { document.getElementById(view).style.display = k === name ? disp : 'none'; });
     document.body.classList.toggle('no-nav', NO_NAV_SCREENS.includes(name));
+    document.body.classList.toggle('has-bg', name === 'chooser' || name === 'profile');   // photo background only on these two pages
     const m = modeOf(name);
     try { if (m) sessionStorage.setItem('taxbase_mode', m); } catch (e) {}
     document.getElementById('bpBack').disabled = !parentOf(name);
@@ -1377,9 +1411,8 @@
       const n = orgClientsCache.filter(c => c.org_id === o.id).length;
       return `<div class="org-card${o.id === selectedOrgId ? ' active' : ''}" data-org="${o.id}">
         <div class="org-name">${escapeHtml(o.name)}</div>
-        <span class="org-count">${n} client${n === 1 ? '' : 's'}</span>
-        <button type="button" class="org-view-btn" data-view="${o.id}">${o.id === selectedOrgId ? 'Hide Clients' : 'View Clients'}</button>
-        <button type="button" class="org-del" data-del-org="${o.id}" title="Delete company">✕</button>
+        <button type="button" class="org-count-btn" data-view="${o.id}" title="Show the clients of this company">${n} client${n === 1 ? '' : 's'}</button>
+        <button type="button" class="org-del org-bin" data-del-org="${o.id}" title="Delete company"><svg class="bin-ico" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </div>`;
     }).join('') : (term ? `<div class="orgs-empty">No company or client matches “${escapeHtml(term)}”.</div>` : '<div class="orgs-empty">No companies yet. Click “+ Add Company” to add one.</div>');
 
@@ -1388,7 +1421,7 @@
     else {
       const clients = orgClientsCache.filter(c => c.org_id === org.id);
       right.innerHTML = `<div class="clients-panel">
-        <div class="cp-head"><span class="cp-count">${clients.length} client${clients.length === 1 ? '' : 's'}</span><button type="button" class="orgs-add-btn" id="newClientBtn">+ Add</button></div>
+        <div class="cp-head"><span class="cp-count">${clients.length} client${clients.length === 1 ? '' : 's'}</span><span class="cp-actions"><button type="button" class="orgs-add-btn" id="newClientBtn">+ Add</button><button type="button" class="cp-close" data-hide-clients="1" title="Hide clients">✕</button></span></div>
         <datalist id="eaNamesList">${eaClientNames().map(e => `<option value="${escapeHtml(e.company_name)}">`).join('')}</datalist>
         <div id="newClientRows"></div>
         <div class="cp-save" id="newClientSave" style="display:none;"><button type="button" id="newClientCancel">Cancel</button><button type="button" class="primary" id="newClientSaveBtn">Save</button></div>
@@ -1399,7 +1432,7 @@
             <span class="cl-name">${escapeHtml(c.name)}</span>
             ${ea || be ? (ea ? badge('EA', ea) : '') + (be ? badge('BE', be) : '') : '<span class="org-st none">Not in EA / BE yet</span>'}
             <span class="cl-go">${ea ? 'Form EA' : be ? 'Form BE' : 'Form EA'} ›</span>
-            <button type="button" class="org-del" data-del-client="${c.id}" title="Remove client">✕</button>
+            <button type="button" class="org-del org-bin" data-del-client="${c.id}" title="Delete client"><svg class="bin-ico" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
           </div>`;
         }).join('') : '<div class="orgs-empty">No clients under this company yet.</div>'}
       </div>`;
@@ -1424,12 +1457,13 @@
   });
   document.getElementById('orgSearch').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('orgSearchBtn').click(); });
   // two-step delete: first click arms the button, second click confirms
+  const BIN_SVG = '<svg class="bin-ico" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
   let armedDel = null;
   function armOrDelete(btn, doIt){
     if (armedDel && armedDel.btn === btn) { clearTimeout(armedDel.t); armedDel = null; doIt(); return; }
-    if (armedDel) { clearTimeout(armedDel.t); armedDel.btn.classList.remove('sure'); armedDel.btn.textContent = '✕'; }
+    if (armedDel) { clearTimeout(armedDel.t); armedDel.btn.classList.remove('sure'); armedDel.btn.innerHTML = BIN_SVG; }
     btn.classList.add('sure'); btn.textContent = 'Sure?';
-    armedDel = { btn, t: setTimeout(() => { btn.classList.remove('sure'); btn.textContent = '✕'; armedDel = null; }, 3000) };
+    armedDel = { btn, t: setTimeout(() => { btn.classList.remove('sure'); btn.innerHTML = BIN_SVG; armedDel = null; }, 3000) };
   }
   document.getElementById('orgsView').addEventListener('click', async (e) => {
     if (roleOf() !== 'hod') return;
@@ -1458,8 +1492,9 @@
       });
       return;
     }
-    const view = e.target.closest('[data-view]');
-    if (view) { selectedOrgId = selectedOrgId === view.dataset.view ? null : view.dataset.view; renderOrgs(); return; }
+    if (e.target.closest('[data-hide-clients]')) { selectedOrgId = null; renderOrgs(); return; }
+    const view = e.target.closest('.org-count-btn');
+    if (view) { selectedOrgId = view.dataset.view; renderOrgs(); return; }
     const row = e.target.closest('.client-row');
     if (row) openEAForClient(row.dataset.name);
   });
@@ -1734,6 +1769,87 @@
     renderBell();
   }
 
+
+  /* ---------------- More details: what each form is + its government (LHDN) due date ---------------- */
+  const FORM_INFO = {
+    form_c: [{ name: 'Form C — Company Income Tax Return',
+      what: 'The annual income tax return that a company files to declare its income, deductions and the tax payable for a year of assessment.',
+      who: 'Companies (e.g. Sdn Bhd).',
+      gov: 'Within 7 months after the company’s financial year-end (manual filing), or 8 months when filed through LHDN e-Filing. Example: financial year-end 31 December → e-Filing by 31 August of the next year.',
+      own: 'Every company has its own due date because it depends on that company’s financial year-end, so the due date is entered per company.' }],
+    form_be: [
+      { name: 'Form EA — Employee Remuneration Statement',
+        what: 'A yearly statement the employer gives each employee showing salary, allowances, benefits and the monthly tax deductions (PCB) for the year. The employee uses it to file their own tax return.',
+        who: 'Employers (issued to each employee).',
+        gov: 'By 28 February (29 in a leap year) of the following year.',
+        own: 'TaxBase sets the due date to 14 February for early finalisation.' },
+      { name: 'Form BE — Income Tax Return (individual, no business income)',
+        what: 'The annual tax return of an employed individual who has no business income.',
+        who: 'Resident individuals with employment income only.',
+        gov: '30 April of the following year (manual filing); 15 May when filed through LHDN e-Filing.',
+        own: 'TaxBase sets the due date to 20 April for early progress.' }],
+    form_e: [{ name: 'Form E — Employer’s Return',
+      what: 'The employer’s yearly return that lists its employees and their total remuneration and tax deductions for the year.',
+      who: 'Employers.',
+      gov: '31 March of the following year (manual filing). e-Filing is normally given extra time, up to 30 April — confirm each year’s LHDN announcement.',
+      own: 'TaxBase sets the due date to 2 March for early progress.' }],
+    form_sst: [{ name: 'SST — Sales and Service Tax Return (SST-02)',
+      what: 'The return that an SST-registered business files to report the sales tax / service tax it has charged and to pay it over. SST is handled by the Royal Malaysian Customs Department, not LHDN.',
+      who: 'SST-registered companies and businesses.',
+      gov: 'Filed for each taxable period (usually every two months) and due by the last day of the month after the taxable period ends, together with payment of the tax.',
+      own: 'The taxable period differs for each company, so the due date is entered per company.' }],
+    form_b: [{ name: 'Form B — Income Tax Return (individual with business income)',
+      what: 'The annual tax return of an individual who earns business income (sole proprietor, partner, freelancer), usually prepared with the business accounts.',
+      who: 'Resident individuals with business income.',
+      gov: '30 June of the following year (manual filing); 15 July when filed through LHDN e-Filing.',
+      own: 'In TaxBase, Form B is created from an EA client and the due date is set per entry.' }],
+    form_pcb: [
+      { name: 'PCB — Monthly Tax Deduction (MTD)',
+        what: 'The tax an employer deducts from each employee’s monthly salary and pays to LHDN on the employee’s behalf.',
+        who: 'Employers.',
+        gov: 'By the 15th of every month for the previous month’s deductions.',
+        own: 'TaxBase sets the due date to the 1st of every month as an early reminder.' },
+      { name: 'CP205 — Monthly instalment payment',
+        what: 'The monthly instalment payment of a company’s estimated tax (see CP204).',
+        who: 'Companies.',
+        gov: 'By the 15th of every month.',
+        own: 'TaxBase sets the due date to the 1st of every month as an early reminder.' }],
+    form_cp500: [{ name: 'CP500 — Tax Instalment Payments (individual with business income)',
+      what: 'Individuals with business income pay their income tax in advance through six instalments during the year instead of one lump sum.',
+      who: 'Individuals with business income (and certain other income).',
+      gov: 'Six instalments: 31 January, 31 March, 31 May, 31 July, 30 September and 30 November.',
+      own: 'TaxBase sets the due date to the 16th of those months as an early reminder.' }],
+    form_cp204: [
+      { name: 'CP204 — Estimate of Tax Payable',
+        what: 'A company’s estimate of its tax for the coming year of assessment. The monthly instalments are based on this estimate.',
+        who: 'Companies.',
+        gov: 'At least 30 days before the start of the company’s basis period (its financial year). For a new company: within 3 months from the date it begins operations. Monthly instalments are paid by the 15th of each month.',
+        own: 'Each company has a different financial year-end (FYE), so the dates are different for every company. TaxBase groups the list by the FYE month you choose when adding the company.' },
+      { name: 'CP204A — Revised Estimate',
+        what: 'A revision of the CP204 estimate when the company expects its tax to be different.',
+        who: 'Companies.',
+        gov: 'May be submitted in the 6th, 9th or 11th month of the basis period (or in all three).',
+        own: 'Counted from each company’s own FYE, so the dates are different for every company.' }]
+  };
+  const infoBackdrop = document.getElementById('infoBackdrop');
+  function openFormInfo(widgetKey){
+    const list = FORM_INFO[widgetKey]; if (!list) return;
+    const f = FORMS.find(x => x.key === widgetKey);
+    document.getElementById('infoTitle').textContent = `${f ? f.label : 'Form'} — More details`;
+    document.getElementById('infoBody').innerHTML = list.map(i => `<div class="info-form"><h3>${escapeHtml(i.name)}</h3>
+      <div class="info-row"><b>What it is</b>${escapeHtml(i.what)}</div>
+      <div class="info-row"><b>Who files it</b>${escapeHtml(i.who)}</div>
+      <div class="info-row gov"><b>Government due date</b>${escapeHtml(i.gov)}</div>
+      <div class="info-row"><b>In TaxBase</b>${escapeHtml(i.own)}</div></div>`).join('');
+    infoBackdrop.classList.add('open');
+    const im = infoBackdrop.querySelector('.info-modal'); if (im) im.scrollTop = 0;
+  }
+  const closeInfo = () => infoBackdrop.classList.remove('open');
+  ['infoCloseBtn', 'infoCloseX'].forEach(id => document.getElementById(id).addEventListener('click', closeInfo));
+  infoBackdrop.addEventListener('click', e => { if (e.target === infoBackdrop) closeInfo(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && infoBackdrop.classList.contains('open')) closeInfo(); });
+  document.getElementById('listInfoBtn').addEventListener('click', () => { if (currentListFormType) openFormInfo(currentListFormType); });
+
   /* ---------------- Widget cards (sortable drag & drop) ---------------- */
   let widgetOrder = JSON.parse(localStorage.getItem('taxbase_widget_order') || 'null') || FORMS.map(f => f.key);
   FORMS.forEach(f => { if (!widgetOrder.includes(f.key)) widgetOrder.push(f.key); });
@@ -1751,6 +1867,7 @@
         <div class="widget-card${activeCls}" draggable="true" data-form="${key}">
           <div class="widget-label">${escapeHtml(f.label.toUpperCase())}</div>
           <div class="widget-num">${count}</div>
+          <button type="button" class="more-btn" data-info="${key}">ℹ More details</button>
         </div>`;
     }).join('');
 
@@ -1769,6 +1886,7 @@
       };
       requestAnimationFrame(step);
     }
+    grid.querySelectorAll('.more-btn').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openFormInfo(b.dataset.info); }));
     grid.querySelectorAll('.widget-card').forEach(card => {
       card.addEventListener('click', () => openFormList(card.dataset.form));
       card.addEventListener('dragstart', (e) => {
