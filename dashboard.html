@@ -1076,6 +1076,7 @@
   <div class="modal" style="max-width:480px; max-height:92vh; overflow-y:auto;">
     <h2 id="reportTitle">Generate report</h2>
     <p class="modal-sub" style="margin-bottom:14px;">Choose which status lists to include. A printable report opens — use <b>Print / Save as PDF</b> to print it or download it as a PDF.</p>
+    <label class="report-opt"><input type="checkbox" id="reportAllStatus" checked> <b>All</b> — every company/client in this form<span class="rcount" id="reportAllCount"></span></label>
     <div id="reportStatusOptions"></div>
     <label class="report-opt" style="margin-top:6px; border-top:1px solid var(--line); padding-top:10px;"><input type="checkbox" id="reportNamesOnly"> <span><b>Client/company names only</b> — A–Z list, no due date or remarks, larger font</span></label>
     <div class="rm-head"><b id="reportMonthLabel">Due month</b><label class="rm-all"><input type="checkbox" id="reportAllMonths" checked> All months</label></div>
@@ -2617,6 +2618,10 @@
       const n = entries.filter(e => normStatus(e.status) === st).length;
       return `<label class="report-opt"><input type="checkbox" value="${st}" checked> ${STATUS_LABELS[st]}<span class="rcount">${n}</span></label>`;
     }).join('');
+    const syncStatus = () => { document.getElementById('reportAllStatus').checked = [...document.querySelectorAll('#reportStatusOptions input')].every(b => b.checked); };
+    document.querySelectorAll('#reportStatusOptions input').forEach(b => b.addEventListener('change', syncStatus));
+    document.getElementById('reportAllStatus').checked = true;
+    document.getElementById('reportAllCount').textContent = entries.length;
     const dk = currentDataKey();
     document.getElementById('reportMonthLabel').textContent = CP204_FORMS.includes(dk) ? 'FYE month' : 'Due month';
     document.getElementById('reportMonthOptions').innerHTML = MONTHS.map((m, i) => {
@@ -2629,6 +2634,9 @@
     document.getElementById('reportError').textContent = '';
     document.getElementById('reportNamesOnly').checked = false;
     document.getElementById('reportBackdrop').classList.add('open');
+  });
+  document.getElementById('reportAllStatus').addEventListener('change', (e) => {
+    document.querySelectorAll('#reportStatusOptions input').forEach(b => { b.checked = e.target.checked; });
   });
   document.getElementById('reportAllMonths').addEventListener('change', (e) => {
     document.querySelectorAll('#reportMonthOptions input').forEach(b => { b.checked = e.target.checked; });
