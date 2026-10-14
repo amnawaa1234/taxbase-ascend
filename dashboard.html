@@ -552,6 +552,7 @@
   .list-table.show-e-col .e-col{display:table-cell;}
   .audit-col{display:none;}
   .list-table.show-audit-col .audit-col{display:table-cell;}
+  .audit-col .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:6px;}
   .audit-box{display:flex; align-items:center; gap:7px; font-size:12.5px; cursor:pointer; white-space:nowrap;}
   .audit-box input{width:17px; height:17px; accent-color:var(--green);}
   .audit-ts{font-size:11px; color:var(--muted); margin-top:4px; white-space:normal;}
@@ -2315,7 +2316,7 @@
     body.querySelectorAll('.jump-btn').forEach(btn => btn.addEventListener('click', () => onCp204JumpClick(btn.dataset.entry)));
     body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
-    body.querySelectorAll('.audit-chk').forEach(c => c.addEventListener('change', () => onEFieldUpdate(c.dataset.entry, 'audit_received_at', c.checked ? new Date().toISOString() : null)));
+    body.querySelectorAll('.audit-chk').forEach(c => c.addEventListener('change', () => onAuditToggle(c.dataset.entry, c.checked)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     if (!canEdit()) {
       body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Read-only account'; });
@@ -2358,7 +2359,7 @@
         old_status: STATUS_LABELS[oldStatus], new_status: STATUS_LABELS[newStatus],
         date_label: entry.form_type === 'form_c' || isCp ? 'FYE' : 'Due date',
         date_value: formatDateDMY(isCp ? entry.fye_date : entry.due_date),
-        audit_report: entry.form_type === 'form_c' ? (entry.audit_received_at ? 'Received on ' + formatTimeMeta(entry.audit_received_at) : 'Not received yet') : '',
+        audit_report: entry.form_type === 'form_c' ? (entry.audit_received ? 'Received' + (entry.audit_received_date ? ' on ' + formatDateDMY(entry.audit_received_date) : '') : 'Not received yet') : '',
         changed_by: currentProfile ? currentProfile.full_name : '', changed_role: ROLE_LABELS[roleOf()] || roleOf(),
         changed_at: formatTimeMeta(new Date().toISOString()),
         latest_remark: latest ? latest.body : '',
@@ -2371,6 +2372,16 @@
     }
   }
 
+  // Form C "Audit Report Received": tick it, then a date box appears to fill in the date received.
+  async function onAuditToggle(entryId, on){
+    if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
+    const entry = findEntry(entryId);
+    const { error } = await sb.from('form_entries').update({ audit_received: on, audit_received_date: null }).eq('id', entryId);
+    if (error) showToast('Could not update: ' + error.message + ' (run taxbase-v7-updates.sql)');
+    else if (entry) await logActivity(`Set Audit Report Received to ${on ? 'RECEIVED' : 'NOT RECEIVED'} for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
+    await loadFormEntries();
+  }
+
   async function onEFieldUpdate(entryId, field, value){
     if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
     const entry = findEntry(entryId);
@@ -2381,7 +2392,6 @@
       const label = FIELD_LABELS[field] || field;
       const shown = field === 'ea_received' || field === 'salary_received'
         ? (value === 'received' ? 'RECEIVED' : 'NOT RECEIVED')
-        : field === 'audit_received_at' ? (value ? 'RECEIVED' : 'NOT RECEIVED')
         : (value ? formatDateDMY(value) : 'cleared');
       await logActivity(`Set ${label} to ${shown} for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
     }
@@ -2469,7 +2479,7 @@
       <tr data-row="${entry.id}">
         <td class="company-cell">${escapeHtml(entry.company_name)}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
-        <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received_at ? 'checked' : ''}> Received</label>${entry.audit_received_at ? `<div class="audit-ts">${escapeHtml(formatTimeMeta(entry.audit_received_at))}</div>` : ''}</td>
+        <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
         <td class="cp204-col">${simpleDateCell('proposal_sent_at', entry.proposal_sent_at)}</td>
@@ -2776,7 +2786,7 @@
     const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
     if (!CP204_FORMS.includes(key)) cols.push({ h: key === 'form_c' ? 'FYE' : 'Due Date', v: dateOf('due_date') });
-    if (key === 'form_c') cols.push({ h: 'Audit Report Received', v: e => e.audit_received_at ? formatTimeMeta(e.audit_received_at) : '—' });
+    if (key === 'form_c') cols.push({ h: 'Audit Report Received', v: e => e.audit_received ? 'RECEIVED' + (e.audit_received_date ? ' · ' + formatDateDMY(e.audit_received_date) : '') : 'NOT RECEIVED' });
     else cols.push({ h: 'FYE', v: dateOf('fye_date') });
     if (key === 'form_ea') cols.push({ h: 'IC / Passport No.', v: e => e.id_number ? `${ID_LABELS[e.id_type] || ''} ${e.id_number}`.trim() : '' });
     if (key === 'form_b') cols.push({ h: 'Client', v: e => e.client_name || '' });
@@ -3353,7 +3363,7 @@
     salary_received: 'Summary Salary', salary_received_date: 'Summary Salary received date',
     process_date: 'Process date', client_paid_date: 'Client Paid On', customs_payment_date: 'Make Payment to Customs',
     payment_received_on: 'Payment Received On', paid_to_lhdn: 'Paid to LHDN',
-    audit_received_at: 'Audit Report Received', proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
+    audit_received_date: 'Audit Report Received date', proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
   };
   function formNameOf(formType){
     const fixed = { form_ea: 'Form EA', form_be: 'Form BE', form_pcb: 'PCB', form_cp205: 'CP205', form_cp204: 'CP204', form_cp204a: 'CP204A' };
