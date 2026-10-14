@@ -2327,7 +2327,17 @@
     body.querySelectorAll('.jump-btn').forEach(btn => btn.addEventListener('click', () => onCp204JumpClick(btn.dataset.entry)));
     body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
-    body.querySelectorAll('.fye-month').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, 'fye_date', monthEnd(inp.value))));
+    // Typing a year in a month box passes through years like 0002 / 0020 / 0202 — ignore those and wait a moment,
+    // so the list does not reload (and steal focus) while the person is still typing.
+    body.querySelectorAll('.fye-month').forEach(inp => {
+      let t = null;
+      inp.addEventListener('change', () => {
+        clearTimeout(t);
+        const v = inp.value, y = parseInt(v.slice(0, 4), 10);
+        if (v && (!(y >= 2000 && y <= 2100))) return;
+        t = setTimeout(() => onEFieldUpdate(inp.dataset.entry, 'fye_date', monthEnd(v)), 700);
+      });
+    });
     body.querySelectorAll('.audit-chk').forEach(c => c.addEventListener('change', () => onAuditToggle(c.dataset.entry, c.checked)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     if (!canEdit()) {
