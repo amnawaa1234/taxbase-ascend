@@ -550,6 +550,11 @@
   .list-table.show-finish-col .finish-col{display:table-cell;}
   .e-col{display:none;}
   .list-table.show-e-col .e-col{display:table-cell;}
+  .fye-col{display:none;}
+  .list-table.show-audit-col .fye-col{display:table-cell;}
+  .fye-month{padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:12.5px; background:#fff; color:var(--ink); width:100%; max-width:150px;}
+  .fye-month:focus{outline:none; border-color:var(--navy);}
+  .fye-date{font-size:11.5px; color:var(--muted); margin-top:4px;}
   .audit-col{display:none;}
   .list-table.show-audit-col .audit-col{display:table-cell;}
   .audit-col .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:6px;}
@@ -845,6 +850,11 @@
             <input type="date" id="eFye">
             <div class="due-preview" style="margin-top:6px;">The month buttons for CP204 / CP204A follow this date.</div>
           </div>
+          <div id="eFyeMonthWrap" style="display:none;">
+            <label for="eFyeMonth">FYE — pick the month</label>
+            <input type="month" id="eFyeMonth">
+            <div class="due-preview" style="margin-top:6px;" id="eFyeMonthPrev">The last day of the month is saved as the FYE date.</div>
+          </div>
           <div id="eYAWrap" style="display:none;">
             <label for="eYA">Year of Assessment (YA)</label>
             <select id="eYA"></select>
@@ -867,6 +877,7 @@
             <tr>
               <th style="width:16%;" id="thName">Company Name</th>
               <th class="due-col" style="width:10%;" id="thDue">Due Date</th>
+              <th class="fye-col" style="width:12%;">FYE</th>
               <th class="audit-col" style="width:13%;">Audit Report Received</th>
               <th class="pcb-col" style="width:14%;">Payment Received On</th>
               <th class="pcb-col" style="width:14%;">Paid to LHDN</th>
@@ -2257,7 +2268,7 @@
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
     document.querySelector('.list-table').classList.toggle('show-audit-col', key === 'form_c');
-    document.getElementById('thDue').textContent = key === 'form_c' ? 'FYE' : 'Due Date';
+    document.getElementById('thDue').textContent = 'Due Date';
     document.querySelector('.list-table').classList.toggle('show-pcb-col', PCB_STYLE_FORMS.includes(key));
     document.getElementById('listAddBtn').textContent =
       key === 'form_e' ? '+ Add Form E' : key === 'form_sst' ? '+ Add SST' : key === 'form_cp500' ? '+ Add CP500' : key === 'form_cp204' ? '+ Add company' : '+ Add client';
@@ -2316,11 +2327,12 @@
     body.querySelectorAll('.jump-btn').forEach(btn => btn.addEventListener('click', () => onCp204JumpClick(btn.dataset.entry)));
     body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
+    body.querySelectorAll('.fye-month').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, 'fye_date', monthEnd(inp.value))));
     body.querySelectorAll('.audit-chk').forEach(c => c.addEventListener('change', () => onAuditToggle(c.dataset.entry, c.checked)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     if (!canEdit()) {
       body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Read-only account'; });
-      body.querySelectorAll('.status-select, .e-field-select, .e-date-input, .e-today-btn, .audit-chk').forEach(el => { el.disabled = true; });
+      body.querySelectorAll('.status-select, .e-field-select, .e-date-input, .e-today-btn, .audit-chk, .fye-month').forEach(el => { el.disabled = true; });
     }
     body.querySelectorAll('.e-today-btn').forEach(btn => btn.addEventListener('click', () => {
       const today = new Date().toISOString().slice(0, 10);
@@ -2357,8 +2369,9 @@
         client: entry.company_name,
         entity: entityOf(entry.form_type),
         old_status: STATUS_LABELS[oldStatus], new_status: STATUS_LABELS[newStatus],
-        date_label: entry.form_type === 'form_c' || isCp ? 'FYE' : 'Due date',
+        date_label: isCp ? 'FYE' : 'Due date',
         date_value: formatDateDMY(isCp ? entry.fye_date : entry.due_date),
+        fye: entry.form_type === 'form_c' ? formatDateDMY(entry.fye_date) : '',
         audit_report: entry.form_type === 'form_c' ? (entry.audit_received ? 'Received' + (entry.audit_received_date ? ' on ' + formatDateDMY(entry.audit_received_date) : '') : 'Not received yet') : '',
         changed_by: currentProfile ? currentProfile.full_name : '', changed_role: ROLE_LABELS[roleOf()] || roleOf(),
         changed_at: formatTimeMeta(new Date().toISOString()),
@@ -2372,6 +2385,13 @@
     }
   }
 
+  // "2026-12" -> "2026-12-31": FYE is always the last day of the chosen month
+  function monthEnd(ym){
+    const m = /^(\d{4})-(\d{2})$/.exec(ym || '');
+    if (!m) return null;
+    const last = new Date(parseInt(m[1], 10), parseInt(m[2], 10), 0).getDate();
+    return `${m[1]}-${m[2]}-${String(last).padStart(2, '0')}`;
+  }
   // Form C "Audit Report Received": tick it, then a date box appears to fill in the date received.
   async function onAuditToggle(entryId, on){
     if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
@@ -2479,6 +2499,7 @@
       <tr data-row="${entry.id}">
         <td class="company-cell">${escapeHtml(entry.company_name)}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
+        <td class="fye-col"><input type="month" class="fye-month" data-entry="${entry.id}" value="${entry.fye_date ? entry.fye_date.slice(0, 7) : ''}" title="Pick the month — the last day of that month is saved">${entry.fye_date ? `<div class="fye-date">${formatDateDMY(entry.fye_date)}</div>` : '<div class="fye-date" style="color:var(--red);">not set</div>'}</td>
         <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
@@ -2612,7 +2633,7 @@
     document.getElementById('addEntryTitle').textContent = `New ${currentListFormType === 'form_cp204' ? 'company' : 'client'} — ${f.label}`;
     document.getElementById('eCompanyName').value = '';
     document.getElementById('eDueDate').value = '';
-    document.querySelector('label[for="eDueDate"]').textContent = currentListFormType === 'form_c' ? 'FYE' : 'Due date';
+    document.querySelector('label[for="eDueDate"]').textContent = 'Due date';
     setupDueFields(currentListFormType);
     const entName = entityOf(currentListFormType);
     document.getElementById('eCompanyLabel').textContent = `${entName} name`;
@@ -2627,6 +2648,7 @@
     addEntryForm.classList.add('open');
     document.getElementById('eCompanyName').focus();
   });
+  document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); document.getElementById('eFyeMonthPrev').textContent = d ? `FYE date: ${formatDateDMY(d)}` : 'The last day of the month is saved as the FYE date.'; });
   function defaultYA(){
     const now = new Date();
     return now.getMonth() <= 3 ? now.getFullYear() - 1 : now.getFullYear(); // Jan–Apr still files for last year's YA
@@ -2640,6 +2662,9 @@
     document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500 || isCP204) ? 'none' : '';
     document.getElementById('eFyeWrap').style.display = isCP204 ? '' : 'none';
     document.getElementById('eFye').value = '';
+    document.getElementById('eFyeMonthWrap').style.display = formType === 'form_c' ? '' : 'none';
+    document.getElementById('eFyeMonth').value = '';
+    document.getElementById('eFyeMonthPrev').textContent = 'The last day of the month is saved as the FYE date.';
     document.getElementById('eYAWrap').style.display = isBE ? '' : 'none';
     if (!isBE) return;
     const d = defaultYA();
@@ -2667,7 +2692,7 @@
       : currentListFormType === 'form_cp204'
       ? null                                     // CP204 has no fixed due date — just the company name
       : (document.getElementById('eDueDate').value || null);
-    const fye_date = currentListFormType === 'form_cp204' ? (document.getElementById('eFye').value || null) : null;
+    const fye_date = currentListFormType === 'form_cp204' ? (document.getElementById('eFye').value || null) : currentListFormType === 'form_c' ? monthEnd(document.getElementById('eFyeMonth').value) : null;
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
     if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE (Final Year End) date.'; return; }
@@ -2785,7 +2810,8 @@
     const dateOf = f => e => formatDateDMY(e[f]);
     const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
-    if (!CP204_FORMS.includes(key)) cols.push({ h: key === 'form_c' ? 'FYE' : 'Due Date', v: dateOf('due_date') });
+    if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
+    if (key === 'form_c') cols.push({ h: 'FYE', v: dateOf('fye_date') });
     if (key === 'form_c') cols.push({ h: 'Audit Report Received', v: e => e.audit_received ? 'RECEIVED' + (e.audit_received_date ? ' · ' + formatDateDMY(e.audit_received_date) : '') : 'NOT RECEIVED' });
     else cols.push({ h: 'FYE', v: dateOf('fye_date') });
     if (key === 'form_ea') cols.push({ h: 'IC / Passport No.', v: e => e.id_number ? `${ID_LABELS[e.id_type] || ''} ${e.id_number}`.trim() : '' });
@@ -3006,7 +3032,7 @@
     const hasDue = !CP204_FORMS.includes(entry.form_type);          // CP204 has no due date
     document.getElementById('editDueWrap').style.display = hasDue ? '' : 'none';
     document.getElementById('editDue').value = entry.due_date || '';
-    document.querySelector('label[for="editDue"]').textContent = entry.form_type === 'form_c' ? 'FYE' : 'Due date';
+    document.querySelector('label[for="editDue"]').textContent = 'Due date';
     const isCp = CP204_FORMS.includes(entry.form_type);
     document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
     document.getElementById('editFye').value = entry.fye_date || '';
@@ -3363,7 +3389,7 @@
     salary_received: 'Summary Salary', salary_received_date: 'Summary Salary received date',
     process_date: 'Process date', client_paid_date: 'Client Paid On', customs_payment_date: 'Make Payment to Customs',
     payment_received_on: 'Payment Received On', paid_to_lhdn: 'Paid to LHDN',
-    audit_received_date: 'Audit Report Received date', proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
+    fye_date: 'FYE', audit_received_date: 'Audit Report Received date', proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
   };
   function formNameOf(formType){
     const fixed = { form_ea: 'Form EA', form_be: 'Form BE', form_pcb: 'PCB', form_cp205: 'CP205', form_cp204: 'CP204', form_cp204a: 'CP204A' };
