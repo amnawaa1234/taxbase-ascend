@@ -971,8 +971,8 @@
 <div class="modal-backdrop" id="rpBackdrop">
   <div class="modal">
     <h2>Reset password</h2>
-    <p class="modal-sub">Set a temporary password for <b id="rpWho"></b>. Tell them to change it after signing in.</p>
-    <label for="rpPass">Temporary password</label>
+    <p class="modal-sub">Set a new password for <b id="rpWho"></b> and give it to them. Only you (HOD) can change passwords — they cannot change it themselves.</p>
+    <label for="rpPass">New password</label>
     <input type="text" id="rpPass" autocomplete="off" placeholder="At least 8 characters">
     <div class="modal-error" id="rpError"></div>
     <div class="modal-actions">
@@ -1730,7 +1730,7 @@
     if (roleOf() !== 'hod' || !resetUid) return;
     const pw = document.getElementById('rpPass').value;
     const err = document.getElementById('rpError');
-    if (pw.length < 8) { err.textContent = 'Temporary password must be at least 8 characters.'; return; }
+    if (pw.length < 8) { err.textContent = 'New password must be at least 8 characters.'; return; }
     const u = usersCache.find(x => x.id === resetUid);
     const btn = document.getElementById('rpSaveBtn'); btn.disabled = true; btn.textContent = 'Saving...';
     const { error } = await sb.rpc('admin_reset_password', { p_user: resetUid, p_password: pw });
@@ -1738,7 +1738,7 @@
     if (error) { err.textContent = 'Could not reset: ' + error.message + ' (run taxbase-no-email.sql in Supabase)'; return; }
     if (resetReqId) { await sb.from('password_requests').update({ status: 'used', decided_at: new Date().toISOString() }).eq('id', resetReqId); }
     closeRp(); loadUsers();
-    showToast(`Password reset for ${u ? u.full_name : 'user'}. Give them the temporary password.`);
+    showToast(`Password reset for ${u ? u.full_name : 'user'}. Give them the new password — they cannot change it themselves.`);
     await logActivity(`Reset the password of ${u ? u.full_name : 'a user'}`);
   });
 
