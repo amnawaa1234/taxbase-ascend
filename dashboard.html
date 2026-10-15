@@ -322,12 +322,20 @@
   body.list-open .widget-hint{display:none;}
   body.list-open #widgetGrid{display:none;}   /* a form is open: the other form cards are hidden until Back */
   .widget-card{
-    flex:1; min-width:200px; max-width:280px; background:#fff; border:1px solid var(--line);
-    border-radius:10px; padding:18px 20px; cursor:pointer; user-select:none;
+    --tint:#2B4C7E; position:relative; overflow:hidden;
+    flex:1; min-width:200px; max-width:280px; border:1px solid var(--line); border-top:3px solid var(--tint);
+    background:linear-gradient(135deg, #fff 45%, color-mix(in srgb, var(--tint) 10%, #fff) 100%);
+    border-radius:10px; padding:16px 20px 18px; cursor:pointer; user-select:none;
     transition:box-shadow .12s, border-color .12s, opacity .12s;
   }
   .widget-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.07); border-color:#D3D7DE;}
   .widget-card.dragging{opacity:.4;}
+  .widget-card .w-head{display:flex; align-items:center; gap:10px;}
+  .widget-card .w-ico{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex:none; background:color-mix(in srgb, var(--tint) 14%, #fff); color:var(--tint);}
+  .widget-card .w-ico svg, .widget-card .w-art svg{width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .widget-card .w-ico svg{width:19px; height:19px;}
+  .widget-card .w-art{position:absolute; right:-10px; bottom:-12px; width:92px; height:92px; color:var(--tint); opacity:.08; pointer-events:none;}
+  .widget-card > *:not(.w-art){position:relative;}
   .widget-card .widget-label{font-size:16px; font-weight:700; color:var(--text,#1F2430); letter-spacing:.01em;}
   .widget-card .widget-num{font-size:22px; font-weight:700; margin-top:10px; color:#D92D20;}
 
@@ -729,6 +737,7 @@
       <h2 class="settings-title" id="plTitle">Company profiles</h2>
       <div class="pl-search">
         <input type="text" id="plOverall" placeholder="Overall search: name, IC / passport, service or status…" autocomplete="off">
+        <button type="button" class="orgs-add-btn" id="plViewAll">View all</button>
         <button type="button" class="orgs-add-btn" id="plSpecificToggle">Specific search ▾</button>
       </div>
       <div class="pl-specific" id="plSpecific">
@@ -1317,13 +1326,13 @@
     document.getElementById('pcCompanyCount').textContent = `${nc} ${nc === 1 ? 'company' : 'companies'} on record`;
     document.getElementById('pcIndividualCount').textContent = `${ni} ${ni === 1 ? 'individual' : 'individuals'} on record`;
   }
-  let plShown = 30;
+  let plShown = 30, plViewAll = false;   // the list stays empty until something is searched, or View all is pressed
   function resetProfileSearch(){
     ['plOverall', 'plName', 'plId'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('plStatus').value = '';
     document.getElementById('plSpecific').classList.remove('open');
     document.getElementById('plSpecificToggle').textContent = 'Specific search ▾';
-    plShown = 30;
+    plShown = 30; plViewAll = false;
   }
   function renderProfileList(){
     const kind = profileType;
@@ -1339,6 +1348,15 @@
     const fId = document.getElementById('plId').value.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
     const fSvc = svcSel.value, fSt = document.getElementById('plStatus').value;
 
+    const searching = !!(overall || fName || fId || fSvc || fSt);
+    const vaBtn = document.getElementById('plViewAll');
+    vaBtn.textContent = plViewAll ? 'Hide list' : 'View all';
+    vaBtn.classList.toggle('on', plViewAll);
+    if (!searching && !plViewAll) {
+      document.getElementById('plCount').textContent = '';
+      document.getElementById('plList').innerHTML = `<div class="orgs-empty">Search for a ${kind === 'company' ? 'company' : 'client'} above, or press <b>View all</b> to see everyone.</div>`;
+      return;
+    }
     let list = buildProfiles(kind).filter(p => {
       const all = [...p.services.entries()];
       if (overall) {
@@ -1380,6 +1398,7 @@
   }
   ['plOverall', 'plName', 'plId', 'plService', 'plStatus'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; renderProfileList(); }));
   document.getElementById('plId').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/g, ''); });
+  document.getElementById('plViewAll').addEventListener('click', () => { plViewAll = !plViewAll; plShown = 30; renderProfileList(); });
   document.getElementById('plSpecificToggle').addEventListener('click', () => {
     const open = document.getElementById('plSpecific').classList.toggle('open');
     document.getElementById('plSpecificToggle').textContent = open ? 'Specific search ▴' : 'Specific search ▾';
@@ -1936,15 +1955,28 @@
   let draggedKey = null;
 
   let countUpDone = false, loadedOnce = false;   // numbers count up from 0 once per login
+  // a small line icon + accent colour for every form card
+  const FORM_ART = {
+    form_c:     { tint: '#2B4C7E', svg: '<path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M2 21h20M8 8h2M8 12h2M8 16h2"/>' },
+    form_be:    { tint: '#0E8A7D', svg: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>' },
+    form_e:     { tint: '#6B4FBB', svg: '<circle cx="9" cy="8" r="3.5"/><path d="M2 21a7 7 0 0 1 14 0"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14a5 5 0 0 1 5 5"/>' },
+    form_sst:   { tint: '#D9730D', svg: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>' },
+    form_b:     { tint: '#C2417A', svg: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>' },
+    form_pcb:   { tint: '#2F9E44', svg: '<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M16 15h2"/>' },
+    form_cp500: { tint: '#3B5BDB', svg: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>' },
+    form_cp204: { tint: '#0B7285', svg: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>' }
+  };
   function renderWidgets(){
     const grid = document.getElementById('widgetGrid');
     grid.innerHTML = widgetOrder.map(key => {
       const f = FORMS.find(x => x.key === key);
       const count = activeEntries(key).filter(e => normStatus(e.status) === 'pending').length;
       const activeCls = key === currentListFormType ? ' active' : '';
+      const ic = FORM_ART[key] || FORM_ART.form_b;
       return `
-        <div class="widget-card${activeCls}" draggable="true" data-form="${key}">
-          <div class="widget-label">${escapeHtml(f.label.toUpperCase())}</div>
+        <div class="widget-card${activeCls}" draggable="true" data-form="${key}" style="--tint:${ic.tint}">
+          <span class="w-art"><svg viewBox="0 0 24 24">${ic.svg}</svg></span>
+          <div class="w-head"><span class="w-ico"><svg viewBox="0 0 24 24">${ic.svg}</svg></span><div class="widget-label">${escapeHtml(f.label.toUpperCase())}</div></div>
           <div class="widget-num">${count}</div>
           <button type="button" class="more-btn" data-info="${key}">ℹ More details</button>
         </div>`;
