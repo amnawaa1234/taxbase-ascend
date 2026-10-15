@@ -177,11 +177,18 @@
   .ch-ico{font-size:34px;}
   .ch-name{font-size:18px; font-weight:700; color:var(--navy);}
   .ch-desc{font-size:13px; color:var(--muted); line-height:1.5;}
-  .pl-search{display:flex; gap:8px; margin-bottom:10px; max-width:720px;}
+  @keyframes fadeIn{from{opacity:0} to{opacity:1}}
+  @keyframes fadeUp{from{opacity:0; transform:translateY(34px)} to{opacity:1; transform:none}}
+  .fade-in{animation:fadeIn .55s ease both;}
+  .fade-in .pl-search, .fade-in .pl-specific.open{animation:fadeUp .7s .12s cubic-bezier(.2,.7,.2,1) both;}
+  #profileListView{max-width:900px; margin:0 auto;}
+  #profileListView .settings-title{text-align:center;}
+  .pl-count{text-align:center;}
+  .pl-search{display:flex; gap:8px; margin:0 auto 12px; max-width:760px; justify-content:center;}
   .pl-search input{flex:1; padding:9px 16px; border:1px solid var(--line); border-radius:999px; font-size:14px; font-family:inherit; background:#fff;}
   .pl-search input:focus, .pl-specific input:focus{outline:none; border-color:var(--navy);}
   .pl-search .orgs-add-btn{border-radius:999px; white-space:nowrap;}
-  .pl-specific{display:none; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; max-width:900px; align-items:end;}
+  .pl-specific{display:none; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px; margin:0 auto 12px; max-width:900px; align-items:end;}
   .pl-specific.open{display:grid;}
   .pl-specific label{display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:var(--muted);}
   .pl-specific input, .pl-specific select{width:100%; padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; font-family:inherit; background:#fff;}
@@ -270,6 +277,7 @@
   .org-st.pending_submit{background:#FF9A2E; color:#fff;} .org-st.completed{background:#EBFBEE; color:#2F9E44;} .org-st.submitted{background:#1B6B3A; color:#fff;}
   .org-st.none{background:#F1F2F5; color:var(--muted); font-weight:500;}
   .orgs-empty{color:var(--muted); font-size:13.5px; padding:14px 2px;}
+  #plList .orgs-empty{text-align:center;}
   .org-client-inputs .oc-row{display:flex; gap:6px; margin-bottom:8px;}
   .org-client-inputs input{flex:1;}
   .id-row{display:flex; gap:8px;}
@@ -1277,6 +1285,8 @@
     if (name === 'orgs') loadOrgs();
     if (name === 'profile') renderProfileTypes();
     if (name === 'profileList') renderProfileList();
+    ['profileView','profileListView'].forEach(id => { const el = document.getElementById(id); el.classList.remove('fade-in'); });
+    if (name === 'profile' || name === 'profileList') { const el = document.getElementById(name === 'profile' ? 'profileView' : 'profileListView'); void el.offsetWidth; el.classList.add('fade-in'); }
     window.scrollTo(0, 0);
   }
   // the two building photos swap every 30 seconds (cross-fade)
