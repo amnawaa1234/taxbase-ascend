@@ -583,6 +583,7 @@
   .lo-tag{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; background:#f8c9c9; color:#9b1c1c; font-size:10.5px; font-weight:700; letter-spacing:.3px; vertical-align:middle;}
   .lo-check{display:flex; align-items:flex-start; gap:8px; margin:12px 0 4px; padding:9px 12px; border:1px dashed #e0a3a3; border-radius:10px; background:#fff6f6; font-size:13px; color:#7a1f1f; cursor:pointer;}
   .lo-check input{margin-top:3px;} .lo-check small{display:block; color:#a45; font-size:11.5px; margin-top:2px;}
+  .rc-grid{grid-template-columns:repeat(2,1fr) !important;} .rc-grid label{white-space:normal;}
   .fye-pick{display:flex; gap:4px; max-width:190px;}
   .fye-pick select, .fye-pick-add select{padding:6px 6px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:12.5px; background:#fff; color:var(--ink);}
   .fye-pick select:focus, .fye-pick-add select:focus{outline:none; border-color:var(--navy);}
@@ -1138,6 +1139,10 @@
     <label class="report-opt"><input type="checkbox" id="reportAllStatus"> <b>All</b> — every company/client in this form, regardless of status<span class="rcount" id="reportAllCount"></span></label>
     <div id="reportStatusOptions"></div>
     <label class="report-opt" style="margin-top:6px; border-top:1px solid var(--line); padding-top:10px;"><input type="checkbox" id="reportNamesOnly"> <span><b>Client/company names only</b> — A–Z list, no due date or remarks, larger font</span></label>
+    <div id="reportColsWrap">
+      <div class="rm-head"><b>Columns to include</b><label class="rm-all"><input type="checkbox" id="reportAllCols" checked> All columns</label></div>
+      <div id="reportColOptions" class="rm-grid rc-grid"></div>
+    </div>
     <div class="rm-head"><b id="reportMonthLabel">Due month</b><label class="rm-all"><input type="checkbox" id="reportAllMonths" checked> All months</label></div>
     <div id="reportMonthOptions" class="rm-grid"></div>
     <div id="reportFyeWrap" style="display:none;">
@@ -2916,6 +2921,16 @@
     }).join('');
     const syncAll = () => { const boxes = [...document.querySelectorAll('#reportMonthOptions input')]; document.getElementById('reportAllMonths').checked = boxes.every(b => b.checked); };
     document.querySelectorAll('#reportMonthOptions input').forEach(b => b.addEventListener('change', syncAll));
+    {
+      const cols = reportColumns(dk).slice(1).map(c => c.h);
+      if (showStatusColNeeded()) cols.unshift('Status');
+      cols.push('Remarks');
+      document.getElementById('reportColOptions').innerHTML = cols.map(h => `<label><input type="checkbox" value="${escapeHtml(h)}" checked> ${escapeHtml(h)}</label>`).join('');
+      const syncCols = () => { const bx = [...document.querySelectorAll('#reportColOptions input')]; document.getElementById('reportAllCols').checked = bx.every(b => b.checked); };
+      document.querySelectorAll('#reportColOptions input').forEach(b => b.addEventListener('change', syncCols));
+      document.getElementById('reportAllCols').checked = true;
+      applyNamesOnlyState();
+    }
     document.getElementById('reportAllMonths').checked = true;
     const isC = dk === 'form_c';
     document.getElementById('reportFyeWrap').style.display = isC ? '' : 'none';
@@ -2938,6 +2953,10 @@
   document.getElementById('reportAllMonths').addEventListener('change', (e) => {
     document.querySelectorAll('#reportMonthOptions input').forEach(b => { b.checked = e.target.checked; });
   });
+  const showStatusColNeeded = () => true;
+  function applyNamesOnlyState(){ const on = document.getElementById('reportNamesOnly').checked; const w = document.getElementById('reportColsWrap'); w.style.opacity = on ? '.45' : ''; w.style.pointerEvents = on ? 'none' : ''; }
+  document.getElementById('reportNamesOnly').addEventListener('change', applyNamesOnlyState);
+  document.getElementById('reportAllCols').addEventListener('change', (e) => { document.querySelectorAll('#reportColOptions input').forEach(b => { b.checked = e.target.checked; }); });
   document.getElementById('reportAllFye').addEventListener('change', (e) => { document.querySelectorAll('#reportFyeOptions input').forEach(b => { b.checked = e.target.checked; }); });
   document.getElementById('reportCancelBtn').addEventListener('click', () => {
     document.getElementById('reportBackdrop').classList.remove('open');
@@ -2968,8 +2987,10 @@
     const total = entries.filter(e => chosen.includes(normStatus(e.status))).length;
     document.getElementById('reportBackdrop').classList.remove('open');
     const namesOnly = document.getElementById('reportNamesOnly').checked;
-    openReportWindow(buildReportHtml(key, label, chosen, entries, monthText, namesOnly));   // must run straight from the click (popup rules)
-    logActivity(`Generated ${label} report (${namesOnly ? 'names only; ' : ''}${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}${monthText ? '; ' + monthText : ''}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
+    const unticked = new Set([...document.querySelectorAll('#reportColOptions input:not(:checked)')].map(i => i.value));
+    const opts = { hide: unticked, remarks: !unticked.has('Remarks'), status: !unticked.has('Status') };
+    openReportWindow(buildReportHtml(key, label, chosen, entries, monthText, namesOnly, opts));   // must run straight from the click (popup rules)
+    logActivity(`Generated ${label} report (${namesOnly ? 'names only; ' : ''}${!namesOnly && unticked.size ? 'without ' + [...unticked].join(', ') + '; ' : ''}${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}${monthText ? '; ' + monthText : ''}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
   });
 
   function openReportWindow(html){
@@ -3005,8 +3026,10 @@
     return cols;
   }
 
-  function buildReportHtml(key, label, chosen, entries, monthText, namesOnly){
-    const cols = namesOnly ? [] : reportColumns(key);
+  function buildReportHtml(key, label, chosen, entries, monthText, namesOnly, opts){
+    opts = opts || {};
+    const hide = opts.hide || new Set(), showRemarks = opts.remarks !== false, showStatusCol = opts.status !== false;
+    const cols = namesOnly ? [] : reportColumns(key).filter((c, i) => i === 0 || !hide.has(c.h));
     const order = STATUSES.filter(st => chosen.includes(st));
     const byDueThenName = namesOnly
       ? (a, b) => a.company_name.localeCompare(b.company_name, undefined, {sensitivity:'base'})
@@ -3016,9 +3039,9 @@
       : '<span class="none">—</span>';
 
     let grandTotal = 0;
-    const multi = !namesOnly && order.length > 1;
+    const multi = !namesOnly && order.length > 1 && showStatusCol;
     const ROWS_PER_BLOCK = namesOnly ? 26 : 36;   // roughly one landscape A4 page; further blocks sit beside it when they fit
-    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}${namesOnly ? '<th>Client / Company Name</th>' : '<th class="remcol">Remarks</th>'}</tr></thead>`;
+    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}${namesOnly ? '<th>Client / Company Name</th>' : (showRemarks ? '<th class="remcol">Remarks</th>' : '')}</tr></thead>`;
     const all = [];
     if (namesOnly) entries.filter(e => order.includes(normStatus(e.status))).sort(byDueThenName).forEach(e => all.push({ e, st: normStatus(e.status) }));
     else order.forEach(st => entries.filter(e => normStatus(e.status) === st).sort(byDueThenName).forEach(e => all.push({ e, st })));
@@ -3026,7 +3049,7 @@
     const blocks = [];
     for (let i = 0; i < all.length; i += ROWS_PER_BLOCK) {
       const part = all.slice(i, i + ROWS_PER_BLOCK);
-      blocks.push(`<table>${headRow}<tbody>${part.map(({ e, st }, j) => `<tr><td class="num">${i + j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td>${escapeHtml(c.v(e))}</td>`).join('')}<td class="remcol">${remarksHtml(e)}</td>`}</tr>`).join('')}</tbody></table>`);
+      blocks.push(`<table>${headRow}<tbody>${part.map(({ e, st }, j) => `<tr><td class="num">${i + j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td>${escapeHtml(c.v(e))}</td>`).join('')}${showRemarks ? `<td class="remcol">${remarksHtml(e)}</td>` : ''}`}</tr>`).join('')}</tbody></table>`);
     }
     const sections = blocks.length ? `<div class="blocks">${blocks.join('')}</div>` : '<p class="empty">No entries.</p>';
 
