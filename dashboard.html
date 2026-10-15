@@ -320,6 +320,7 @@
   .widget-grid{display:flex; gap:14px; flex-wrap:wrap;}
   .widget-hint{text-align:center; color:#8A8F9C; font-size:13.5px; margin:36px 0 4px;}
   body.list-open .widget-hint{display:none;}
+  body.list-open #widgetGrid{display:none;}   /* a form is open: the other form cards are hidden until Back */
   .widget-card{
     flex:1; min-width:200px; max-width:280px; background:#fff; border:1px solid var(--line);
     border-radius:10px; padding:18px 20px; cursor:pointer; user-select:none;
@@ -1275,7 +1276,10 @@
     let first = true;
     setInterval(() => { first = !first; a.classList.toggle('on', first); b.classList.toggle('on', !first); }, 30000);
   })();
-  document.getElementById('bpBack').addEventListener('click', () => { const p = parentOf(screenNow); if (p) showScreen(p); });
+  document.getElementById('bpBack').addEventListener('click', () => {
+    if (screenNow === 'dashboard' && currentListFormType) { closeListPanel(); window.scrollTo(0, 0); return; }   // a form list is open: Back brings all the form cards back
+    const p = parentOf(screenNow); if (p) showScreen(p);
+  });
   document.getElementById('bpPrev').addEventListener('click', () => {
     const prev = screenHistory.pop();
     if (prev) showScreen(prev, { noPush: true });
@@ -1382,7 +1386,11 @@
   });
   document.getElementById('plClear').addEventListener('click', () => { const o = document.getElementById('plOverall').value; resetProfileSearch(); document.getElementById('plOverall').value = o; document.getElementById('plSpecific').classList.add('open'); document.getElementById('plSpecificToggle').textContent = 'Specific search ▴'; renderProfileList(); });
 
-  document.getElementById('navDashboard').addEventListener('click', () => setView('dashboard'));
+  document.getElementById('navDashboard').addEventListener('click', (e) => {
+    // a real click on Dashboard while a form is open = back to all the form cards (program-made clicks, e.g. from a notification, keep the list)
+    if (e.isTrusted && screenNow === 'dashboard' && currentListFormType) closeListPanel();
+    setView('dashboard');
+  });
   document.getElementById('navActivity').addEventListener('click', () => setView('activity'));
   document.getElementById('navOrgs').addEventListener('click', () => { if (roleOf() === 'hod') setView('orgs'); });
   document.getElementById('navSettings').addEventListener('click', () => setView('settings'));
