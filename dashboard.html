@@ -895,7 +895,7 @@
             <div class="due-preview" id="eDuePreview" style="margin-top:8px;"></div>
           </div>
         </div>
-        <label class="lo-check"><input type="checkbox" id="eLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)<small>For a client / company that is already 2–3 years behind (e.g. no feedback from the client before).</small></span></label>
+        <label class="lo-check"><input type="checkbox" id="eLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)<small>For a client / company that is already 2–3 years behind (e.g. no feedback from the client before). The row stays pastel red until it is SUBMITTED.</small></span></label>
         <div class="ea-note" id="eFormNote" style="display:none; margin:12px 0 12px;"></div>
         <label for="eRemark">Remarks (optional)</label>
         <textarea id="eRemark" rows="2" placeholder="Optional remark..."></textarea>
@@ -1140,6 +1140,10 @@
     <label class="report-opt" style="margin-top:6px; border-top:1px solid var(--line); padding-top:10px;"><input type="checkbox" id="reportNamesOnly"> <span><b>Client/company names only</b> — A–Z list, no due date or remarks, larger font</span></label>
     <div class="rm-head"><b id="reportMonthLabel">Due month</b><label class="rm-all"><input type="checkbox" id="reportAllMonths" checked> All months</label></div>
     <div id="reportMonthOptions" class="rm-grid"></div>
+    <div id="reportFyeWrap" style="display:none;">
+      <div class="rm-head"><b>FYE month</b><label class="rm-all"><input type="checkbox" id="reportAllFye" checked> All FYE months</label></div>
+      <div id="reportFyeOptions" class="rm-grid"></div>
+    </div>
     <div class="modal-error" id="reportError"></div>
     <div class="modal-actions">
       <button id="reportCancelBtn">Cancel</button>
@@ -2086,6 +2090,7 @@
   let listSortMode = 'newest';   // 'newest' | 'due' | 'az' | 'za'
   let listLetterFilter = null;   // 'A'..'Z' or null
   let listMonthFilter = null;    // 1-12 (due-date month) or null
+  let listFyeFilter = null;      // 1-12 (FYE month, Form C) or null
   let listPeriodFilter = null;   // 0-5 = Jan–Feb … Nov–Dec (CP500) or null
   const PERIODS = ['Jan–Feb', 'Mar–Apr', 'May–Jun', 'Jul–Aug', 'Sep–Oct', 'Nov–Dec'];
   let statusFilter = null;       // null | 'pending' | 'in_progress' | 'completed' | 'pending_submit' | 'submitted' (sidebar)
@@ -2131,6 +2136,7 @@
     if (listSearchTerm) rows = rows.filter(e => (e.company_name + ' ' + (e.client_name || '')).toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
     if (listMonthFilter) rows = rows.filter(e => monthOf(e, formType) === listMonthFilter);
+    if (listFyeFilter && formType === 'form_c') rows = rows.filter(e => e.fye_date && parseInt(e.fye_date.slice(5, 7), 10) === listFyeFilter);
     if (listPeriodFilter !== null) rows = rows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === listPeriodFilter);
     if (statusFilter) {
       rows = rows.filter(e => normStatus(e.status) === statusFilter);
@@ -2194,6 +2200,17 @@
       }
     }
 
+    // FYE month counts (Form C only) follow the other filters but not the FYE filter itself.
+    const fyeCounts = { all: 0 };
+    const hasFye = key === 'form_c';
+    if (hasFye) {
+      const sv = listFyeFilter; listFyeFilter = null;
+      const fRows = getFilteredEntries(key);
+      listFyeFilter = sv;
+      fyeCounts.all = fRows.length;
+      for (let m = 1; m <= 12; m++) fyeCounts[m] = fRows.filter(e => e.fye_date && parseInt(e.fye_date.slice(5, 7), 10) === m).length;
+    }
+
     // Period counts follow the other filters (incl. status) but not the period filter itself.
     const periodCounts = { all: 0 };
     if (hasPeriods) {
@@ -2218,6 +2235,11 @@
         btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null, monthCounts.all) +
         MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1, monthCounts[i + 1])).join('');
     }
+    if (hasFye) {
+      html += `<div class="sidebar-section-label">FYE Month</div>` +
+        btn('fye-filter-btn', 'fye', '', 'All', listFyeFilter === null, fyeCounts.all) +
+        MONTHS.map((m, i) => btn('fye-filter-btn', 'fye', i + 1, m, listFyeFilter === i + 1, fyeCounts[i + 1])).join('');
+    }
     if (hasPeriods) {
       html += `<div class="sidebar-section-label">Period</div>` +
         btn('period-filter-btn', 'period', '', 'All', listPeriodFilter === null, periodCounts.all) +
@@ -2228,6 +2250,10 @@
     el.innerHTML = html;
     el.querySelectorAll('.month-filter-btn').forEach(b => b.addEventListener('click', () => {
       listMonthFilter = b.dataset.month ? parseInt(b.dataset.month, 10) : null;
+      renderListTable();
+    }));
+    el.querySelectorAll('.fye-filter-btn').forEach(b => b.addEventListener('click', () => {
+      listFyeFilter = b.dataset.fye ? parseInt(b.dataset.fye, 10) : null;
       renderListTable();
     }));
     el.querySelectorAll('.period-filter-btn').forEach(b => b.addEventListener('click', () => {
@@ -2254,6 +2280,7 @@
     document.getElementById('listSortSelect').value = 'newest';
     listLetterFilter = null;
     listMonthFilter = null;
+    listFyeFilter = null;
     listPeriodFilter = null;
     statusFilter = null;
     closeEntryForm();
@@ -2890,6 +2917,17 @@
     const syncAll = () => { const boxes = [...document.querySelectorAll('#reportMonthOptions input')]; document.getElementById('reportAllMonths').checked = boxes.every(b => b.checked); };
     document.querySelectorAll('#reportMonthOptions input').forEach(b => b.addEventListener('change', syncAll));
     document.getElementById('reportAllMonths').checked = true;
+    const isC = dk === 'form_c';
+    document.getElementById('reportFyeWrap').style.display = isC ? '' : 'none';
+    if (isC) {
+      document.getElementById('reportFyeOptions').innerHTML = MONTHS.map((m, i) => {
+        const n = entries.filter(e => e.fye_date && parseInt(e.fye_date.slice(5, 7), 10) === i + 1).length;
+        return `<label><input type="checkbox" value="${i + 1}" checked> ${m.slice(0, 3)}<span class="rmc">${n}</span></label>`;
+      }).join('');
+      const syncFye = () => { const bx = [...document.querySelectorAll('#reportFyeOptions input')]; document.getElementById('reportAllFye').checked = bx.every(b => b.checked); };
+      document.querySelectorAll('#reportFyeOptions input').forEach(b => b.addEventListener('change', syncFye));
+      document.getElementById('reportAllFye').checked = true;
+    }
     document.getElementById('reportError').textContent = '';
     document.getElementById('reportNamesOnly').checked = false;
     document.getElementById('reportBackdrop').classList.add('open');
@@ -2900,6 +2938,7 @@
   document.getElementById('reportAllMonths').addEventListener('change', (e) => {
     document.querySelectorAll('#reportMonthOptions input').forEach(b => { b.checked = e.target.checked; });
   });
+  document.getElementById('reportAllFye').addEventListener('change', (e) => { document.querySelectorAll('#reportFyeOptions input').forEach(b => { b.checked = e.target.checked; }); });
   document.getElementById('reportCancelBtn').addEventListener('click', () => {
     document.getElementById('reportBackdrop').classList.remove('open');
   });
@@ -2917,7 +2956,15 @@
     const allMonths = monthsChosen.length === 12;
     let entries = reportScopeEntries();
     if (!allMonths) entries = entries.filter(e => monthsChosen.includes(monthOf(e, key)));
-    const monthText = allMonths ? '' : monthsChosen.map(m => MONTHS[m - 1].slice(0, 3)).join(', ');
+    let monthText = allMonths ? '' : monthsChosen.map(m => MONTHS[m - 1].slice(0, 3)).join(', ');
+    if (key === 'form_c') {
+      const fyeChosen = [...document.querySelectorAll('#reportFyeOptions input:checked')].map(i => parseInt(i.value, 10));
+      if (!fyeChosen.length) { document.getElementById('reportError').textContent = 'Select at least one FYE month.'; return; }
+      if (fyeChosen.length < 12) {
+        entries = entries.filter(e => e.fye_date && fyeChosen.includes(parseInt(e.fye_date.slice(5, 7), 10)));
+        monthText += (monthText ? '; ' : '') + 'FYE ' + fyeChosen.map(m => MONTHS[m - 1].slice(0, 3)).join(', ');
+      }
+    }
     const total = entries.filter(e => chosen.includes(normStatus(e.status))).length;
     document.getElementById('reportBackdrop').classList.remove('open');
     const namesOnly = document.getElementById('reportNamesOnly').checked;
@@ -3790,7 +3837,7 @@
     if (widget === 'form_pcb') activeSubForm2 = formType;
     if (widget === 'form_cp204') activeSubForm3 = formType;
     listSearchTerm = ''; document.getElementById('listSearchInput').value = '';
-    statusFilter = null; listLetterFilter = null; listMonthFilter = null; listPeriodFilter = null;
+    statusFilter = null; listLetterFilter = null; listMonthFilter = null; listFyeFilter = null; listPeriodFilter = null;
     const target = entryId ? findEntry(entryId) : null;
     showArchive = target ? isArchived(target) : false;     // an old, finished entry lives in the Archive
     renderCurrentPanel();
