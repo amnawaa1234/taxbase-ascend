@@ -858,7 +858,9 @@
         <input type="text" id="listSearchInput" placeholder="Search company name...">
         <select id="listSortSelect">
           <option value="newest">Sort: Newest added</option>
-          <option value="due">Sort: Due date</option>
+          <option value="due">Sort: Due date (earliest first)</option>
+          <option value="dueNear">Sort: Due date (nearest to today)</option>
+          <option value="fyeNear" id="sortFyeOpt">Sort: FYE (nearest to today)</option>
           <option value="az">Sort: Name A–Z</option>
           <option value="za">Sort: Name Z–A</option>
         </select>
@@ -2136,7 +2138,14 @@
     return e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : null;
   }
 
+  function syncSortOptions(formType){
+    const has = formType === 'form_c' || CP204_FORMS.includes(formType);
+    const opt = document.getElementById('sortFyeOpt'); opt.hidden = !has; opt.disabled = !has;
+    if (!has && listSortMode === 'fyeNear') { listSortMode = 'newest'; }
+    document.getElementById('listSortSelect').value = listSortMode;
+  }
   function getFilteredEntries(formType){
+    syncSortOptions(formType);
     let rows = (formData[formType] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
     if (listSearchTerm) rows = rows.filter(e => (e.company_name + ' ' + (e.client_name || '')).toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
@@ -2150,6 +2159,11 @@
     rows = rows.slice();
     if (listSortMode === 'newest') {
       rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (listSortMode === 'dueNear' || listSortMode === 'fyeNear') {
+      // closest to today first, whether just passed or coming up; entries with no date go last
+      const f = listSortMode === 'dueNear' ? 'due_date' : 'fye_date', now = Date.now();
+      const dist = e => e[f] ? Math.abs(new Date(e[f] + 'T00:00:00').getTime() - now) : Infinity;
+      rows.sort((a, b) => { const da = dist(a), db = dist(b); return da === db ? a.company_name.localeCompare(b.company_name) : da - db; });
     } else if (listSortMode === 'az') {
       rows.sort((a, b) => a.company_name.localeCompare(b.company_name));
     } else if (listSortMode === 'za') {
@@ -3046,12 +3060,11 @@
     if (namesOnly) entries.filter(e => order.includes(normStatus(e.status))).sort(byDueThenName).forEach(e => all.push({ e, st: normStatus(e.status) }));
     else order.forEach(st => entries.filter(e => normStatus(e.status) === st).sort(byDueThenName).forEach(e => all.push({ e, st })));
     grandTotal = all.length;
-    const blocks = [];
-    for (let i = 0; i < all.length; i += ROWS_PER_BLOCK) {
-      const part = all.slice(i, i + ROWS_PER_BLOCK);
-      blocks.push(`<table>${headRow}<tbody>${part.map(({ e, st }, j) => `<tr><td class="num">${i + j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td>${escapeHtml(c.v(e))}</td>`).join('')}${showRemarks ? `<td class="remcol">${remarksHtml(e)}</td>` : ''}`}</tr>`).join('')}</tbody></table>`);
-    }
-    const sections = blocks.length ? `<div class="blocks">${blocks.join('')}</div>` : '<p class="empty">No entries.</p>';
+    // Rows are packed into columns when the report opens (see the script below), so each column fills the page
+    // right down to the bottom and the numbering carries on in the next column beside it, not on a new page.
+    const rowHtml = all.map(({ e, st }, j) => `<tr><td class="num">${j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td${c.cls === 'name' ? ' class="namecol"' : ''}>${escapeHtml(c.v(e))}</td>`).join('')}${showRemarks ? `<td class="remcol">${remarksHtml(e)}</td>` : ''}`}</tr>`);
+    const dataJson = JSON.stringify({ head: headRow, rows: rowHtml }).replace(/</g, '\\u003c');
+    const sections = rowHtml.length ? '<div class="blocks" id="blocks"></div>' : '<p class="empty">No entries.</p>';
 
     const who = currentProfile ? currentProfile.full_name : '';
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escapeHtml(label)} ${namesOnly ? 'List' : 'Report'} — TaxBase</title>
@@ -3077,7 +3090,8 @@
   .badge.completed { background: #EBFBEE; color: #2F9E44; }
   .badge.pending_submit { background: #FF9A2E; color: #fff; }
   .badge.submitted { background: #1B6B3A; color: #fff; }
-  .blocks { display: flex; flex-wrap: wrap; gap: 10px 8px; align-items: flex-start; }
+  .line { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; }
+  @media print { .line { break-after: page; margin-bottom: 0; } .line:last-child { break-after: auto; } }
   table { width: auto; border-collapse: collapse; table-layout: auto; }
   thead { display: table-header-group; }
   th { text-align: left; background: #F1F2F5; font-size: 7.5px; padding: 3px 4px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -3085,13 +3099,13 @@
   tr { page-break-inside: avoid; }
   .num { width: 20px; text-align: center; color: #6B7180; }
   .remcol { max-width: 90px; }
-  td { white-space: nowrap; } td.remcol { white-space: normal; } td:nth-child(2){max-width:130px; white-space:normal;}
+  td { white-space: nowrap; } td.remcol { white-space: normal; } td.namecol{max-width:130px; white-space:normal;}
   .badge { padding: 1px 6px; font-size: 7px; }
   .rm { margin-bottom: 2px; }
   .rm i { font-size: 7.5px; line-height: 1.3; }
   .rmeta { font-size: 6.5px; color: #6B7180; margin-top: 1px; }
   .none, .empty { color: #6B7180; }
-  body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(2){max-width:230px;}
+  body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(2){max-width:230px; white-space:normal;}
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
 </style></head><body${namesOnly ? ' class="names"' : ''}>
 <div class="toolbar"><span>${namesOnly ? 'List' : 'Report'} preview</span>
@@ -3113,7 +3127,42 @@
   try { z = parseInt(localStorage.getItem(KEY), 10) || 100; } catch (e) {}
   function zoomBy(d){ z = d === 0 ? 100 : Math.max(50, Math.min(250, z + d)); apply(); try { localStorage.setItem(KEY, z); } catch (e) {} }
   function apply(){ document.querySelector('.blocks') && document.querySelector('.blocks').style.setProperty('--z', z / 100); document.getElementById('zv').textContent = z + '%'; }
-  apply();
+  var DATA = ${dataJson};
+  var PAGE_W = 1062, PAGE_H = 725;   // A4 landscape minus 8mm margins, in CSS px
+  function pack(){
+    var host = document.getElementById('blocks'); if (!host) return;
+    var zf = z / 100;
+    host.style.setProperty('--z', 1); host.innerHTML = '';
+    var probe = document.createElement('table'); probe.innerHTML = DATA.head + '<tbody>' + DATA.rows.join('') + '</tbody>';
+    var line0 = document.createElement('div'); line0.className = 'line'; line0.appendChild(probe); host.appendChild(line0);
+    var trs = probe.querySelectorAll('tbody tr'), hs = [], i;
+    for (i = 0; i < trs.length; i++) hs.push(trs[i].getBoundingClientRect().height);
+    var headH = probe.querySelector('thead').getBoundingClientRect().height, tw = probe.getBoundingClientRect().width;
+    var topH = document.querySelector('.page').getBoundingClientRect().height - host.getBoundingClientRect().height;   // title + summary above the tables
+    var perLine = Math.max(1, Math.floor((PAGE_W / zf + 8) / (tw + 8)));
+    var cap1 = (PAGE_H - 24) / zf - topH - headH, capN = (PAGE_H - 4) / zf - headH;
+    var cols = [], cur = [], used = 0, lineNo = 0, colNo = 0;
+    var capFor = function(){ return Math.floor(colNo / perLine) === 0 ? cap1 : capN; };
+    for (i = 0; i < hs.length; i++) {
+      if (cur.length && used + hs[i] > capFor()) { cols.push(cur); cur = []; used = 0; colNo++; }
+      cur.push(i); used += hs[i];
+    }
+    if (cur.length) cols.push(cur);
+    host.innerHTML = '';
+    for (var c = 0; c < cols.length; c += perLine) {
+      var line = document.createElement('div'); line.className = 'line';
+      cols.slice(c, c + perLine).forEach(function(idx){
+        var t = document.createElement('table');
+        t.innerHTML = DATA.head + '<tbody>' + idx.map(function(k){ return DATA.rows[k]; }).join('') + '</tbody>';
+        line.appendChild(t);
+      });
+      host.appendChild(line);
+    }
+    host.style.setProperty('--z', zf);
+  }
+  apply(); pack();
+  window.addEventListener('load', pack);
+  var _apply = apply; apply = function(){ _apply(); pack(); };
 <\/script></body></html>`;
   }
 
