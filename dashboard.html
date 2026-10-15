@@ -185,7 +185,14 @@
   #profileListView .settings-title{text-align:center;}
   .pl-count{text-align:center;}
   .pl-search{display:flex; gap:8px; margin:0 auto 12px; max-width:760px; justify-content:center;}
-  .pl-search input{flex:1; padding:9px 16px; border:1px solid var(--line); border-radius:999px; font-size:14px; font-family:inherit; background:#fff;}
+  .pl-box{position:relative; flex:1; min-width:0;}
+  .pl-suggest{display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:30; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 28px rgba(20,40,80,.16); max-height:320px; overflow:auto; text-align:left;}
+  .pl-suggest.open{display:block; animation:fadeUp .22s ease both;}
+  .pl-sg{display:flex; justify-content:space-between; gap:10px; padding:9px 16px; cursor:pointer; font-size:14px;}
+  .pl-sg:hover, .pl-sg.act{background:#eef3fb;}
+  .pl-sg small{color:var(--muted); white-space:nowrap;}
+  .pl-sg-none{padding:10px 16px; font-size:13px; color:var(--muted);}
+  .pl-search input{width:100%; flex:1; padding:9px 16px; border:1px solid var(--line); border-radius:999px; font-size:14px; font-family:inherit; background:#fff;}
   .pl-search input:focus, .pl-specific input:focus{outline:none; border-color:var(--navy);}
   .pl-search .orgs-add-btn{border-radius:999px; white-space:nowrap;}
   .pl-specific{display:none; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px; margin:0 auto 12px; max-width:900px; align-items:end;}
@@ -744,7 +751,7 @@
     <div id="profileListView" style="display:none;">
       <h2 class="settings-title" id="plTitle">Company profiles</h2>
       <div class="pl-search">
-        <input type="text" id="plOverall" placeholder="Overall search: name, IC / passport, service or status…" autocomplete="off">
+        <div class="pl-box"><input type="text" id="plOverall" placeholder="Overall search: name, IC / passport, service or status…" autocomplete="off"><div class="pl-suggest" id="plSuggest"></div></div>
         <button type="button" class="orgs-add-btn" id="plViewAll">View all</button>
         <button type="button" class="orgs-add-btn" id="plSpecificToggle">Specific search ▾</button>
       </div>
@@ -1336,13 +1343,13 @@
     document.getElementById('pcCompanyCount').textContent = `${nc} ${nc === 1 ? 'company' : 'companies'} on record`;
     document.getElementById('pcIndividualCount').textContent = `${ni} ${ni === 1 ? 'individual' : 'individuals'} on record`;
   }
-  let plShown = 30, plViewAll = false;   // the list stays empty until something is searched, or View all is pressed
+  let plShown = 30, plViewAll = false, plPick = null, plCommit = false, plAct = -1;   // the list stays empty until something is searched, or View all is pressed
   function resetProfileSearch(){
     ['plOverall', 'plName', 'plId'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('plStatus').value = '';
     document.getElementById('plSpecific').classList.remove('open');
     document.getElementById('plSpecificToggle').textContent = 'Specific search ▾';
-    plShown = 30; plViewAll = false;
+    plShown = 30; plViewAll = false; plPick = null; plCommit = false; plAct = -1;
   }
   function renderProfileList(){
     const kind = profileType;
@@ -1362,6 +1369,21 @@
     const vaBtn = document.getElementById('plViewAll');
     vaBtn.textContent = plViewAll ? 'Hide list' : 'View all';
     vaBtn.classList.toggle('on', plViewAll);
+    const sg = document.getElementById('plSuggest');
+    const onlyOverall = !!overall && !fName && !fId && !fSvc && !fSt;
+    if (onlyOverall && !plViewAll && !plPick && !plCommit) {
+      // typing in the overall search: show matching names in a dropdown, not every client's forms
+      const m = buildProfiles(kind).filter(p => { const hay = (p.name + ' ' + (p.idNo || '')).toLowerCase(); return overall.split(/\s+/).every(t => hay.includes(t)); })
+        .sort((a, b) => a.name.localeCompare(b.name));
+      sg.innerHTML = m.length ? m.slice(0, 10).map((p, i) => `<div class="pl-sg${i === plAct ? ' act' : ''}" data-name="${escapeHtml(p.name)}"><span>${escapeHtml(p.name)}</span><small>${p.services.size} service${p.services.size === 1 ? '' : 's'}</small></div>`).join('') + (m.length > 10 ? `<div class="pl-sg-none">${m.length - 10} more… keep typing, or press Enter to list all ${m.length}</div>` : '')
+        : '<div class="pl-sg-none">No client matches. Try Specific search for service / status.</div>';
+      sg.classList.add('open');
+      sg.querySelectorAll('.pl-sg').forEach(el => el.addEventListener('mousedown', e => { e.preventDefault(); plPick = el.dataset.name; document.getElementById('plOverall').value = plPick; plShown = 30; renderProfileList(); }));
+      document.getElementById('plCount').textContent = '';
+      document.getElementById('plList').innerHTML = '<div class="orgs-empty">Pick a name from the dropdown to see their forms.</div>';
+      return;
+    }
+    sg.classList.remove('open');
     if (!searching && !plViewAll) {
       document.getElementById('plCount').textContent = '';
       document.getElementById('plList').innerHTML = `<div class="orgs-empty">Search for a ${kind === 'company' ? 'company' : 'client'} above, or press <b>View all</b> to see everyone.</div>`;
@@ -1369,7 +1391,8 @@
     }
     let list = buildProfiles(kind).filter(p => {
       const all = [...p.services.entries()];
-      if (overall) {
+      if (plPick && p.name !== plPick) return false;
+      if (overall && !plPick) {
         const hay = [p.name, p.idNo || '', ...all.map(([k, es]) => formNameOf(k) + ' ' + [...new Set(es.map(e => STATUS_LABELS[normStatus(e.status)]))].join(' '))].join(' ').toLowerCase();
         if (!overall.split(/\s+/).every(t => hay.includes(t))) return false;
       }
@@ -1406,7 +1429,15 @@
     const more = document.getElementById('plMore'); if (more) more.addEventListener('click', () => { plShown += 30; renderProfileList(); });
     document.querySelectorAll('#plList .pf-row').forEach(r => r.addEventListener('click', () => { showScreen('dashboard'); goToForm(r.dataset.form, r.dataset.entry); }));
   }
-  ['plOverall', 'plName', 'plId', 'plService', 'plStatus'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; renderProfileList(); }));
+  ['plOverall', 'plName', 'plId', 'plService', 'plStatus'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; plPick = null; plCommit = false; plAct = -1; renderProfileList(); }));
+  document.getElementById('plOverall').addEventListener('keydown', e => {
+    const items = [...document.querySelectorAll('#plSuggest .pl-sg')];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!items.length) return; e.preventDefault(); plAct = (plAct + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items.forEach((el, i) => el.classList.toggle('act', i === plAct)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (plAct >= 0 && items[plAct]) { plPick = items[plAct].dataset.name; document.getElementById('plOverall').value = plPick; } else plCommit = true; plShown = 30; renderProfileList(); }
+    else if (e.key === 'Escape') document.getElementById('plSuggest').classList.remove('open');
+  });
+  document.getElementById('plOverall').addEventListener('focus', () => { if (document.getElementById('plOverall').value.trim() && !plPick && !plCommit) renderProfileList(); });
+  document.getElementById('plOverall').addEventListener('blur', () => setTimeout(() => document.getElementById('plSuggest').classList.remove('open'), 120));
   document.getElementById('plId').addEventListener('input', e => { e.target.value = e.target.value.replace(/[^A-Za-z0-9]/g, ''); });
   document.getElementById('plViewAll').addEventListener('click', () => { plViewAll = !plViewAll; plShown = 30; renderProfileList(); });
   document.getElementById('plSpecificToggle').addEventListener('click', () => {
