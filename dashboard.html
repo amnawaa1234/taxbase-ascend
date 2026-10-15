@@ -578,6 +578,11 @@
   .list-table.show-audit-col .fye-col{display:table-cell;}
   .fye-month{padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:12.5px; background:#fff; color:var(--ink); width:100%; max-width:150px;}
   .fye-month:focus{outline:none; border-color:var(--navy);}
+  .list-table tbody tr.long-overdue > td{background:#fde7e7 !important;}
+  .list-table tbody tr.long-overdue > td.company-cell{box-shadow:inset 4px 0 0 #e57373;}
+  .lo-tag{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; background:#f8c9c9; color:#9b1c1c; font-size:10.5px; font-weight:700; letter-spacing:.3px; vertical-align:middle;}
+  .lo-check{display:flex; align-items:flex-start; gap:8px; margin:12px 0 4px; padding:9px 12px; border:1px dashed #e0a3a3; border-radius:10px; background:#fff6f6; font-size:13px; color:#7a1f1f; cursor:pointer;}
+  .lo-check input{margin-top:3px;} .lo-check small{display:block; color:#a45; font-size:11.5px; margin-top:2px;}
   .fye-pick{display:flex; gap:4px; max-width:190px;}
   .fye-pick select, .fye-pick-add select{padding:6px 6px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:12.5px; background:#fff; color:var(--ink);}
   .fye-pick select:focus, .fye-pick-add select:focus{outline:none; border-color:var(--navy);}
@@ -890,6 +895,7 @@
             <div class="due-preview" id="eDuePreview" style="margin-top:8px;"></div>
           </div>
         </div>
+        <label class="lo-check"><input type="checkbox" id="eLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)<small>For a client / company that is already 2–3 years behind (e.g. no feedback from the client before). The row stays pastel red until it is SUBMITTED.</small></span></label>
         <div class="ea-note" id="eFormNote" style="display:none; margin:12px 0 12px;"></div>
         <label for="eRemark">Remarks (optional)</label>
         <textarea id="eRemark" rows="2" placeholder="Optional remark..."></textarea>
@@ -1088,6 +1094,7 @@
       <label for="editFye">FYE — Final Year End date</label>
       <input type="date" id="editFye">
     </div>
+<label class="lo-check"><input type="checkbox" id="editLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)<small>For a client / company that is already 2–3 years behind (e.g. no feedback from the client before). The row stays pastel red until it is SUBMITTED.</small></span></label>
     <div id="editIdWrap" style="display:none;">
       <label for="editIdType">IC No. / Passport No.</label>
       <div class="id-row">
@@ -1906,7 +1913,9 @@
     formData.form_cp205 = await loadOneFormType('form_cp205');
     formData.form_cp204a = await loadOneFormType('form_cp204a');
 
+    const firstLoad = !loadedOnce;
     loadedOnce = true;
+    if (firstLoad) setTimeout(() => runRenewal(false), 800);
     renderWidgets();
     if (currentListFormType) renderCurrentPanel();
     renderBell();
@@ -2090,6 +2099,13 @@
   // Set to false to archive PENDING ones too (not recommended: unfinished work disappears).
   const KEEP_PENDING_ON_NEW_YEAR = true;
 
+  const isLongOverdue = e => !!e.long_overdue && normStatus(e.status) !== 'submitted';
+  // A renewed copy for a coming year stays out of the current list until that year starts.
+  function isUpcoming(e){
+    if (!e.renewed_from) return false;
+    const d = e.due_date || e.fye_date; if (!d) return false;
+    return parseInt(d.slice(0, 4), 10) > new Date().getFullYear();
+  }
   function isArchived(entry){
     if (!entry.due_date) return false;
     const dueYear = parseInt(entry.due_date.slice(0, 4), 10);
@@ -2097,7 +2113,7 @@
     if (KEEP_PENDING_ON_NEW_YEAR && !isDone(entry.status)) return false;
     return true;
   }
-  const activeEntries = key => (formData[key] || []).filter(e => !isArchived(e));
+  const activeEntries = key => (formData[key] || []).filter(e => !isArchived(e) && !isUpcoming(e));
   const expandedEarlier = new Set(); // entry ids whose earlier remarks are expanded
 
   // Which month an entry belongs to for the month buttons: its due-date month; for CP204 (no fixed
@@ -2111,7 +2127,7 @@
   }
 
   function getFilteredEntries(formType){
-    let rows = (formData[formType] || []).filter(e => isArchived(e) === showArchive);
+    let rows = (formData[formType] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
     if (listSearchTerm) rows = rows.filter(e => (e.company_name + ' ' + (e.client_name || '')).toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
     if (listMonthFilter) rows = rows.filter(e => monthOf(e, formType) === listMonthFilter);
@@ -2431,6 +2447,20 @@
     }));
   }
 
+  // Yearly renewal: a SUBMITTED entry is kept (it goes to the Archive when its year ends) and a fresh PENDING copy is
+  // created for next year — same day/month due date, FYE moved on a year. Done in the database (renew_submitted_entries()).
+  let renewing = false;
+  async function runRenewal(quiet){
+    if (renewing || !['admin', 'hod'].includes(roleOf())) return 0;
+    renewing = true;
+    try {
+      const { data, error } = await sb.rpc('renew_submitted_entries');
+      if (error) { console.warn('Renewal skipped:', error.message); return 0; }
+      const n = Number(data) || 0;
+      if (n > 0) { if (!quiet) showToast(`${n} ${n === 1 ? 'client' : 'clients'} renewed to next year (Pending).`); await logActivity(`Renewed ${n} submitted ${n === 1 ? 'entry' : 'entries'} to next year`); await loadFormEntries(); }
+      return n;
+    } finally { renewing = false; }
+  }
   async function onStatusChange(entryId, newStatus){
     if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
     const entry = findEntry(entryId);
@@ -2443,6 +2473,7 @@
     } else if (entry && oldStatus !== newStatus) {
       await logActivity(`Changed status of "${entry.company_name}" (${formNameOf(entry.form_type)}) from ${STATUS_LABELS[oldStatus]} to ${STATUS_LABELS[newStatus]}`);
       if (EMAIL_STATUSES.includes(newStatus)) sendStatusEmail(entry, oldStatus, newStatus);   // fire and forget
+      if (newStatus === 'submitted') { await runRenewal(false); return; }
     }
     await loadFormEntries();
   }
@@ -2595,8 +2626,8 @@
       </div>`;
 
     return `
-      <tr data-row="${entry.id}">
-        <td class="company-cell">${escapeHtml(entry.company_name)}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
+      <tr data-row="${entry.id}"${isLongOverdue(entry) ? ' class="long-overdue"' : ''}>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="fye-col">${(() => { const o = fyeOptions(entry.fye_date ? entry.fye_date.slice(0, 7) : ''); return `<div class="fye-pick" data-entry="${entry.id}" title="Pick the month and year — the last day of that month is saved"><select class="fye-m">${o.ms}</select><select class="fye-y">${o.ys}</select></div>`; })()}${entry.fye_date ? `<div class="fye-date">${formatDateDMY(entry.fye_date)}</div>` : '<div class="fye-date" style="color:var(--red);">not set</div>'}</td>
         <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
@@ -2731,6 +2762,7 @@
     const f = FORMS.find(x => x.key === currentListFormType);
     document.getElementById('addEntryTitle').textContent = `New ${currentListFormType === 'form_cp204' ? 'company' : 'client'} — ${f.label}`;
     document.getElementById('eCompanyName').value = '';
+    document.getElementById('eLongOverdue').checked = false;
     document.getElementById('eDueDate').value = '';
     document.querySelector('label[for="eDueDate"]').textContent = 'Due date';
     setupDueFields(currentListFormType);
@@ -2804,7 +2836,7 @@
     btn.disabled = true; btn.textContent = 'Saving...';
 
     const { data: newEntry, error } = await sb.from('form_entries')
-      .insert({ form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), created_by: currentUser.id })
+      .insert({ form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id })
       .select().single();
 
     if (error) {
@@ -2822,7 +2854,7 @@
     btn.disabled = false; btn.textContent = 'Save';
     closeEntryForm();
     showToast(`${company_name} added.`);
-    await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${remark ? ' with a remark' : ''}`);
+    await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${document.getElementById('eLongOverdue').checked ? ' [marked LONG OVERDUE]' : ''}${remark ? ' with a remark' : ''}`);
     await loadFormEntries();
   });
 
@@ -2836,7 +2868,7 @@
   const currentListLabel = () => formNameOf(currentDataKey());
   // The report covers the whole list being viewed (current list, or Archive when that is open),
   // regardless of the on-screen search / letter / month filters.
-  const reportScopeEntries = () => (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive);
+  const reportScopeEntries = () => (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
 
   document.getElementById('listReportBtn').addEventListener('click', () => {
     const entries = reportScopeEntries();
@@ -3137,6 +3169,7 @@
     const isCp = CP204_FORMS.includes(entry.form_type);
     document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
     document.getElementById('editFye').value = entry.fye_date || '';
+    document.getElementById('editLongOverdue').checked = !!entry.long_overdue;
     const others = relatedRows(entry);
     const wrap = document.getElementById('editAllWrap');
     wrap.style.display = others.length ? 'flex' : 'none';
@@ -3182,7 +3215,8 @@
       if (newIdType && !validIdNo(newIdType, newIdNo)) { errEl.textContent = newIdType === 'ic' ? 'IC No. must be 12 digits, no dash.' : 'Passport No. must be 5–15 letters/numbers, no dash.'; return; }
       idChanged = newIdType !== (entry.id_type || null) || newIdNo !== (entry.id_number || null);
     }
-    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged) { closeEditModal(); return; }
+    const loNew = document.getElementById('editLongOverdue').checked, loChanged = loNew !== !!entry.long_overdue;
+    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged) { closeEditModal(); return; }
 
     const others = ((nameChanged || fyeChanged) && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
       ? relatedRows(entry) : [];
@@ -3191,6 +3225,7 @@
     if (dueChanged) patch.due_date = due;
     if (fyeChanged) patch.fye_date = fye;
     if (idChanged) { patch.id_type = newIdType; patch.id_number = newIdNo; }
+    if (loChanged) patch.long_overdue = loNew;
 
     const btn = document.getElementById('editSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -3213,6 +3248,7 @@
     if (dueChanged) parts.push(`due date ${formatDateDMY(oldDue)} → ${formatDateDMY(due)}`);
     if (fyeChanged) parts.push(`FYE ${entry.fye_date ? formatDateDMY(entry.fye_date) : 'not set'} → ${formatDateDMY(fye)}`);
     if (idChanged) parts.push(newIdType ? `${ID_LABELS[newIdType]} set` : 'IC/Passport cleared');
+    if (loChanged) parts.push(loNew ? 'marked LONG OVERDUE' : 'LONG OVERDUE removed');
     closeEditModal();
     showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : `${name} updated.`);
     await logActivity(`Edited ${entityOf(entry.form_type).toLowerCase()} in ${formNameOf(entry.form_type)}: ${parts.join('; ')}`);
@@ -3655,7 +3691,7 @@
   function allNotifications(){
     const me = currentUser.id, list = [];
     Object.keys(formData).forEach(k => (formData[k] || []).forEach(e => {
-      if (e.created_by && e.created_by !== me) list.push(e);
+      if (e.created_by && e.created_by !== me && !e.renewed_from) list.push(e);
     }));
     list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return list.slice(0, NOTIF_MAX);
@@ -3776,7 +3812,7 @@
 
   // Live: somebody else just added a client / company -> ring the bell.
   function onEntryInserted(row){
-    if (!currentUser || !row || !row.created_by || row.created_by === currentUser.id) return;
+    if (!currentUser || !row || !row.created_by || row.created_by === currentUser.id || row.renewed_from) return;
     playRingtone();
     const bell = document.getElementById('bellBtn');
     bell.classList.remove('ring'); void bell.offsetWidth; bell.classList.add('ring');
