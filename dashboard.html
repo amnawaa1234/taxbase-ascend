@@ -470,7 +470,7 @@
 
   /* ---- Inline add-client form (inside the list panel) ---- */
   .add-entry-form{display:none; border:1px solid var(--line); border-radius:8px; padding:16px 18px; margin-bottom:16px; background:#FAFAF8;}
-  .add-entry-form.open{display:block;}
+  .add-entry-form.open{display:block; max-width:640px;}
   .add-entry-form h3{font-size:13px; font-weight:600; margin:0 0 12px;}
   .add-entry-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   .add-entry-form label{display:block; font-size:12px; font-weight:500; margin-bottom:5px; margin-top:10px;}
@@ -585,9 +585,12 @@
   .list-table tbody tr.long-overdue > td{background:#fde7e7 !important;}
   .list-table tbody tr.long-overdue > td.company-cell{box-shadow:inset 4px 0 0 #e57373;}
   .lo-tag{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; background:#f8c9c9; color:#9b1c1c; font-size:10.5px; font-weight:700; letter-spacing:.3px; vertical-align:middle;}
-  .lo-check{display:flex; align-items:flex-start; gap:8px; margin:12px 0 4px; padding:9px 12px; border:1px dashed #e0a3a3; border-radius:10px; background:#fff6f6; font-size:13px; color:#7a1f1f; cursor:pointer;}
-  .lo-check input{margin-top:3px;} .lo-check small{display:block; color:#a45; font-size:11.5px; margin-top:2px;}
+  .lo-check{display:flex; align-items:center; gap:8px; margin:12px 0 4px; padding:9px 12px; border:1px dashed #e0a3a3; border-radius:10px; background:#fff6f6; font-size:13px; color:#7a1f1f; cursor:pointer;}
+  label.lo-check{display:flex !important; align-items:center; gap:8px; margin-top:12px !important;}
+  .lo-check input{width:auto !important; flex:none; margin:2px 0 0; padding:0;} .lo-check span{line-height:1.3;}
+  .fixed-note{font-size:11.5px; color:var(--muted); margin:4px 0 0;}
   .rc-grid{grid-template-columns:repeat(2,1fr) !important;} .rc-grid label{white-space:normal;}
+  .fye-fixed{font-weight:600; color:var(--ink); font-size:13px;}
   .fye-pick{display:flex; gap:4px; max-width:190px;}
   .fye-pick select, .fye-pick-add select{padding:6px 6px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:12.5px; background:#fff; color:var(--ink);}
   .fye-pick select:focus, .fye-pick-add select:focus{outline:none; border-color:var(--navy);}
@@ -902,7 +905,7 @@
             <div class="due-preview" id="eDuePreview" style="margin-top:8px;"></div>
           </div>
         </div>
-        <label class="lo-check"><input type="checkbox" id="eLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)<small>For a client / company that is already 2–3 years behind (e.g. no feedback from the client before). The row stays pastel red until it is SUBMITTED.</small></span></label>
+        <label class="lo-check"><input type="checkbox" id="eLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)</span></label>
         <div class="ea-note" id="eFormNote" style="display:none; margin:12px 0 12px;"></div>
         <label for="eRemark">Remarks (optional)</label>
         <textarea id="eRemark" rows="2" placeholder="Optional remark..."></textarea>
@@ -1094,6 +1097,7 @@
     <h2 id="editTitle">Edit</h2>
     <label for="editName" id="editNameLabel">Name</label>
     <input type="text" id="editName">
+    <div class="fixed-note" id="editFixedNote" style="display:none;">Company name and FYE are fixed once added.</div>
     <div id="editDueWrap">
       <label for="editDue">Due date</label>
       <input type="date" id="editDue">
@@ -1102,7 +1106,7 @@
       <label for="editFye">FYE — Final Year End date</label>
       <input type="date" id="editFye">
     </div>
-<label class="lo-check"><input type="checkbox" id="editLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)<small>For a client / company that is already 2–3 years behind (e.g. no feedback from the client before). The row stays pastel red until it is SUBMITTED.</small></span></label>
+<label class="lo-check"><input type="checkbox" id="editLongOverdue"><span><b>Mark as LONG OVERDUE</b> (optional)</span></label>
     <div id="editIdWrap" style="display:none;">
       <label for="editIdType">IC No. / Passport No.</label>
       <div class="id-row">
@@ -2119,6 +2123,7 @@
   // --- Config -------------------------------------------------------------
   // Form BE due date is fixed each year: this day/month, in (YA + 1).
   // (Statutory manual-filing deadline is 30 April; 20 April is the internal target.)
+  const FIXED_ID_FORMS = ['form_c', 'form_cp204', 'form_cp204a'];   // company name + FYE cannot be edited once added
   const FORM_BE_DUE = { day: '20', month: '04' };
   // On 1 Jan, entries due in earlier years move to the Archive once COMPLETED.
   // Set to false to archive PENDING ones too (not recommended: unfinished work disappears).
@@ -2594,6 +2599,7 @@
   async function onEFieldUpdate(entryId, field, value){
     if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
     const entry = findEntry(entryId);
+    if (field === 'fye_date' && entry && entry.fye_date) { showToast('FYE is fixed once added.'); await loadFormEntries(); return; }
     const { error } = await sb.from('form_entries').update({ [field]: value }).eq('id', entryId);
     if (error) {
       showToast('Could not update: ' + error.message);
@@ -2688,7 +2694,7 @@
       <tr data-row="${entry.id}"${isLongOverdue(entry) ? ' class="long-overdue"' : ''}>
         <td class="company-cell">${escapeHtml(entry.company_name)}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
-        <td class="fye-col">${(() => { const o = fyeOptions(entry.fye_date ? entry.fye_date.slice(0, 7) : ''); return `<div class="fye-pick" data-entry="${entry.id}" title="Pick the month and year — the last day of that month is saved"><select class="fye-m">${o.ms}</select><select class="fye-y">${o.ys}</select></div>`; })()}${entry.fye_date ? `<div class="fye-date">${formatDateDMY(entry.fye_date)}</div>` : '<div class="fye-date" style="color:var(--red);">not set</div>'}</td>
+        <td class="fye-col">${entry.fye_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.fye_date)}</div>` : (() => { const o = fyeOptions(''); return `<div class="fye-pick" data-entry="${entry.id}" title="Pick the month and year — the last day of that month is saved, then it is fixed"><select class="fye-m">${o.ms}</select><select class="fye-y">${o.ys}</select></div><div class="fye-date" style="color:var(--red);">not set</div>`; })()}</td>
         <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
         <td class="pcb-col">${simpleDateCell('payment_received_on', entry.payment_received_on)}</td>
         <td class="pcb-col">${simpleDateCell('paid_to_lhdn', entry.paid_to_lhdn)}</td>
@@ -3302,6 +3308,10 @@
     document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
     document.getElementById('editFye').value = entry.fye_date || '';
     document.getElementById('editLongOverdue').checked = !!entry.long_overdue;
+    const fixedForm = FIXED_ID_FORMS.includes(entry.form_type);
+    document.getElementById('editName').disabled = fixedForm;
+    document.getElementById('editFye').disabled = fixedForm && !!entry.fye_date;
+    document.getElementById('editFixedNote').style.display = fixedForm ? '' : 'none';
     const others = relatedRows(entry);
     const wrap = document.getElementById('editAllWrap');
     wrap.style.display = others.length ? 'flex' : 'none';
@@ -3316,7 +3326,7 @@
     document.getElementById('editIdNo').value = isEa ? (entry.id_number || '') : '';
     document.getElementById('editError').textContent = '';
     editBackdrop.classList.add('open');
-    setTimeout(() => document.getElementById('editName').focus(), 40);
+    setTimeout(() => { const n = document.getElementById('editName'); if (!n.disabled) n.focus(); }, 40);
   }
   function closeEditModal(){ editBackdrop.classList.remove('open'); editingEntryId = null; }
   document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
