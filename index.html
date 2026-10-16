@@ -111,7 +111,7 @@
 <div class="card wide" id="card">
   <div class="mark"><img src="icon.svg" alt="TaxBase"></div>
   <h1>TaxBase</h1>
-  <p class="sub" id="subText">Ascend Advisory Group — choose how you sign in.</p>
+  <p class="sub" id="subText">Ascend Dynamic Advisory — choose how you sign in.</p>
 
   <div id="stageCards">
     <div class="role-grid">
@@ -197,7 +197,7 @@
   const stageCards = document.getElementById('stageCards');
   const stageForm = document.getElementById('stageForm');
   const STAGES = { cards: stageCards, form: stageForm, register: document.getElementById('stageRegister'), forgot: document.getElementById('stageForgot') };
-  const SUBS = { cards: 'Ascend Advisory Group — choose how you sign in.', form: 'Ascend Advisory Group', register: 'Ascend Advisory Group', forgot: 'Ascend Advisory Group' };
+  const SUBS = { cards: 'Ascend Dynamic Advisory — choose how you sign in.', form: 'Ascend Dynamic Advisory', register: 'Ascend Dynamic Advisory', forgot: 'Ascend Dynamic Advisory' };
   function showStage(name){
     Object.entries(STAGES).forEach(([k, el]) => el.style.display = k === name ? 'block' : 'none');
     document.getElementById('subText').textContent = SUBS[name];
@@ -335,5 +335,6 @@
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
+<div class="credit">Powered by Ascend Advisory Group 2026</div>
 </body>
 </html>
