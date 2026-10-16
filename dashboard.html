@@ -199,6 +199,7 @@
   .pl-specific.open{display:grid;}
   .pl-specific label{display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:var(--muted);}
   .pl-specific input, .pl-specific select{width:100%; padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; font-family:inherit; background:#fff;}
+  .pl-clear button.go{background:var(--navy); color:#fff; border-color:var(--navy); font-weight:600;}
   .pl-clear button{padding:7px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; font-family:inherit; font-size:13px;}
   .pl-count{font-size:13px; color:var(--muted); margin:6px 0 10px;}
   .pf-card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px; max-width:900px;}
@@ -335,6 +336,7 @@
   .widget-grid{display:flex; gap:14px; flex-wrap:wrap;}
   .widget-hint{text-align:center; color:#8A8F9C; font-size:13.5px; margin:36px 0 4px;}
   body.list-open .widget-hint{display:none;}
+  body.list-open .dash-top{display:none;}   /* a form is open: only the list shows (no Welcome / top search) */
   body.list-open #widgetGrid{display:none;}   /* a form is open: the other form cards are hidden until Back */
   .widget-card{
     --tint:#2B4C7E; position:relative; overflow:hidden;
@@ -770,7 +772,7 @@
         <div id="plIdWrap"><label for="plId">IC / Passport No.</label><input type="text" id="plId" placeholder="Number (no dash)"></div>
         <div><label for="plService">Service (Form)</label><select id="plService"></select></div>
         <div><label for="plStatus">Status</label><select id="plStatus"><option value="">Any status</option><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="pending_submit">Pending Submit</option><option value="submitted">Submitted</option></select></div>
-        <div class="pl-clear"><button type="button" id="plClear">Clear</button></div>
+        <div class="pl-clear"><button type="button" id="plSearchBtn" class="go">Search</button> <button type="button" id="plClear">Clear</button></div>
       </div>
       <div class="pl-count" id="plCount"></div>
       <div id="plList"></div>
@@ -1365,13 +1367,15 @@
     document.getElementById('pcCompanyCount').textContent = `${nc} ${nc === 1 ? 'company' : 'companies'} on record`;
     document.getElementById('pcIndividualCount').textContent = `${ni} ${ni === 1 ? 'individual' : 'individuals'} on record`;
   }
-  let plShown = 30, plViewAll = false, plPick = null, plCommit = false, plAct = -1;   // the list stays empty until something is searched, or View all is pressed
+  let plShown = 30, plViewAll = false, plPick = null, plCommit = false, plAct = -1;
+  let plSpec = { name: '', id: '', svc: '', st: '' };   // Specific search only applies when Search is pressed   // the list stays empty until something is searched, or View all is pressed
   function resetProfileSearch(){
     ['plOverall', 'plName', 'plId'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('plStatus').value = '';
     document.getElementById('plSpecific').classList.remove('open');
     document.getElementById('plSpecificToggle').textContent = 'Specific search ▾';
     plShown = 30; plViewAll = false; plPick = null; plCommit = false; plAct = -1;
+    plSpec = { name: '', id: '', svc: '', st: '' }; document.getElementById('plService').value = '';
   }
   function renderProfileList(){
     const kind = profileType;
@@ -1383,9 +1387,9 @@
     svcSel.value = keys.includes(curSvc) ? curSvc : '';
 
     const overall = document.getElementById('plOverall').value.trim().toLowerCase();
-    const fName = document.getElementById('plName').value.trim().toLowerCase();
-    const fId = document.getElementById('plId').value.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
-    const fSvc = svcSel.value, fSt = document.getElementById('plStatus').value;
+    const fName = plSpec.name.trim().toLowerCase();
+    const fId = plSpec.id.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+    const fSvc = keys.includes(plSpec.svc) ? plSpec.svc : '', fSt = plSpec.st;
 
     const searching = !!(overall || fName || fId || fSvc || fSt);
     const vaBtn = document.getElementById('plViewAll');
@@ -1451,7 +1455,7 @@
     const more = document.getElementById('plMore'); if (more) more.addEventListener('click', () => { plShown += 30; renderProfileList(); });
     document.querySelectorAll('#plList .pf-row').forEach(r => r.addEventListener('click', () => { showScreen('dashboard'); goToForm(r.dataset.form, r.dataset.entry); }));
   }
-  ['plOverall', 'plName', 'plId', 'plService', 'plStatus'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; plPick = null; plCommit = false; plAct = -1; renderProfileList(); }));
+  ['plOverall'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; plPick = null; plCommit = false; plAct = -1; renderProfileList(); }));
   document.getElementById('plOverall').addEventListener('keydown', e => {
     const items = [...document.querySelectorAll('#plSuggest .pl-sg')];
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!items.length) return; e.preventDefault(); plAct = (plAct + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items.forEach((el, i) => el.classList.toggle('act', i === plAct)); }
@@ -1466,6 +1470,12 @@
     const open = document.getElementById('plSpecific').classList.toggle('open');
     document.getElementById('plSpecificToggle').textContent = open ? 'Specific search ▴' : 'Specific search ▾';
   });
+  const commitSpecific = () => {
+    plSpec = { name: document.getElementById('plName').value, id: document.getElementById('plId').value, svc: document.getElementById('plService').value, st: document.getElementById('plStatus').value };
+    plShown = 30; plPick = null; plCommit = false; renderProfileList();
+  };
+  document.getElementById('plSearchBtn').addEventListener('click', commitSpecific);
+  ['plName', 'plId'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commitSpecific(); } }));
   document.getElementById('plClear').addEventListener('click', () => { const o = document.getElementById('plOverall').value; resetProfileSearch(); document.getElementById('plOverall').value = o; document.getElementById('plSpecific').classList.add('open'); document.getElementById('plSpecificToggle').textContent = 'Specific search ▴'; renderProfileList(); });
 
   document.getElementById('navDashboard').addEventListener('click', (e) => {
@@ -1836,7 +1846,7 @@
     const btn = document.getElementById('rpSaveBtn'); btn.disabled = true; btn.textContent = 'Saving...';
     const { error } = await sb.rpc('admin_reset_password', { p_user: resetUid, p_password: pw });
     btn.disabled = false; btn.textContent = 'Set password';
-    if (error) { err.textContent = 'Could not reset: ' + error.message + ' (run taxbase-no-email.sql in Supabase)'; return; }
+    if (error) { err.textContent = 'Could not reset: ' + error.message + ' (if this says the function is missing, run taxbase-reset-password.sql in Supabase)'; return; }
     if (resetReqId) { await sb.from('password_requests').update({ status: 'used', decided_at: new Date().toISOString() }).eq('id', resetReqId); }
     closeRp(); loadUsers();
     showToast(`Password reset for ${u ? u.full_name : 'user'}. Give them the new password — they cannot change it themselves.`);
@@ -3949,6 +3959,9 @@
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { window.location.href = 'index.html'; return; }
     currentUser = session.user;
+    // Show the "Choose an action" screen straight away, so nothing of the dashboard (Welcome / widgets) flashes while data loads.
+    let bootMode = null; try { bootMode = sessionStorage.getItem('taxbase_mode'); } catch (e) {}
+    if (!bootMode) showScreen('chooser', { noPush: true });
 
     const { data: profile } = await sb.from('profiles').select('full_name, role').eq('id', currentUser.id).single();
     if (!profile || !VALID_ROLES.includes(profile.role)) {
