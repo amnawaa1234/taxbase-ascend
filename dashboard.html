@@ -1775,11 +1775,12 @@
       ${cur === 'rejected' ? '<option value="rejected" selected>Rejected</option>' : ''}
     </select>`;
     document.getElementById('pendingBox').innerHTML = (pending.length || rejected.length) ? `
-      <table class="users-table"><thead><tr><th>Name</th><th>Role requested</th><th>Role to give</th><th>Staff ID to give</th><th></th></tr></thead><tbody>
+      <table class="users-table"><thead><tr><th>Name</th><th>Role requested</th><th>Role to give</th><th>Staff ID to give</th><th>Password to give</th><th></th></tr></thead><tbody>
       ${pending.concat(rejected).map(u => `<tr>
         <td>${escapeHtml(u.full_name || '')}${u.role === 'rejected' ? ' <span style="color:var(--red); font-size:12px; font-weight:600;">· Rejected</span>' : ''}</td><td>${escapeHtml((ROLE_LABELS[u.requested_role] || ROLE_LABELS.staff))}</td>
         <td>${roleSel(u.id, ROLE_LABELS[u.requested_role] ? u.requested_role : 'staff')}</td>
         <td><input type="text" class="u-sid" data-uid="${u.id}" value="${suggestStaffId(ROLE_LABELS[u.requested_role] ? u.requested_role : 'staff')}" style="width:110px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:13px; text-transform:uppercase;"></td>
+        <td><div style="display:flex; gap:4px; align-items:center;"><input type="text" class="u-pw" data-uid="${u.id}" placeholder="min 8 characters" autocomplete="off" style="width:130px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:13px;"><button type="button" class="u-gen" data-uid="${u.id}" title="Generate a password" style="padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer;">🎲</button></div></td>
         <td><div class="u-actions"><button class="approve" data-uid="${u.id}">${u.role === 'rejected' ? 'Approve instead' : 'Approve'}</button>${u.role === 'rejected' ? '' : `<button class="reject" data-uid="${u.id}">Reject</button>`}</div></td></tr>`).join('')}
       </tbody></table>` : '<div class="users-empty">No one is waiting for approval.</div>';
     const others = usersCache.filter(u => u.role !== 'pending' && u.role !== 'rejected');
@@ -1798,7 +1799,13 @@
       const inp = rowSid(sel.dataset.uid);
       if (inp && inp.dataset.touched !== '1') inp.value = suggestStaffId(sel.value);
     }));
-    document.querySelectorAll('#pendingBox .approve').forEach(b => b.addEventListener('click', () => setUserRole(b.dataset.uid, rowRole(b.dataset.uid), 'Approved', rowSid(b.dataset.uid).value)));
+    const rowPw = (uid) => document.querySelector(`#pendingBox input.u-pw[data-uid="${uid}"]`);
+    document.querySelectorAll('#pendingBox .u-gen').forEach(b => b.addEventListener('click', () => {
+      const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let pw = '';
+      const arr = new Uint32Array(10); crypto.getRandomValues(arr); arr.forEach(n => { pw += chars[n % chars.length]; });
+      rowPw(b.dataset.uid).value = pw;
+    }));
+    document.querySelectorAll('#pendingBox .approve').forEach(b => b.addEventListener('click', () => setUserRole(b.dataset.uid, rowRole(b.dataset.uid), 'Approved', rowSid(b.dataset.uid).value, rowPw(b.dataset.uid).value)));
     document.querySelectorAll('#pendingBox .reject').forEach(b => b.addEventListener('click', () => setUserRole(b.dataset.uid, 'rejected', 'Rejected')));
     document.querySelectorAll('#allUsersBox .reset-pw').forEach(b => b.addEventListener('click', () => openResetPw(b.dataset.uid)));
     document.querySelectorAll('#allUsersBox select.u-role').forEach(sel => sel.addEventListener('change', () => setUserRole(sel.dataset.uid, sel.value, 'Changed role of')));
@@ -1813,7 +1820,7 @@
     });
     return prefix + (max + 1);
   }
-  async function setUserRole(uid, role, verb, staffId){
+  async function setUserRole(uid, role, verb, staffId, password){
     if (roleOf() !== 'hod' || uid === currentUser.id) return;
     const u = usersCache.find(x => x.id === uid);
     const patch = { role };
@@ -1821,6 +1828,14 @@
       const sid = (staffId || '').trim().toUpperCase();
       if (!/^[A-Z0-9]{3,20}$/.test(sid)) { showToast('Enter a Staff ID (3–20 letters or numbers) before approving.'); return; }
       patch.staff_id = sid;
+      if ((password || '').length < 8) { showToast('Give the new user a password of at least 8 characters.'); return; }
+      const r = await sb.rpc('approve_user', { p_user: uid, p_role: role, p_staff_id: sid, p_password: password });
+      if (r.error) { showToast('Could not approve: ' + r.error.message + (/function|schema cache/i.test(r.error.message) ? ' (run taxbase-v9-register.sql in Supabase)' : '')); return; }
+      const lbl = ROLE_LABELS[role];
+      showToast(`Approved: ${u ? u.full_name : ''} → ${lbl}. Give them Staff ID ${sid} and the password you set.`);
+      await logActivity(`Approved ${u ? u.full_name : 'a user'} as ${lbl} (Staff ID ${sid}) and set their password`);
+      await loadUsers(); await loadProfiles();
+      return;
     }
     const { data, error } = await sb.from('profiles').update(patch).eq('id', uid).select();
     if (error && /duplicate|unique/i.test(error.message)) { showToast('That Staff ID is already used by someone else.'); return; }
