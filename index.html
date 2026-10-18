@@ -154,7 +154,7 @@
 
   <div class="panel" id="stageRegister">
     <h2>Create an account</h2>
-    <p class="hint">Your account stays inactive until the Head of Department approves it and gives you your Staff ID. You then sign in with that Staff ID and your password.</p>
+    <p class="hint">Enter your full name and choose your role. Your account stays inactive until the Head of Department approves it and gives you your <b>Staff ID and password</b>. You then sign in with those.</p>
     <div class="error" id="regError"></div>
     <div class="ok" id="regOk"></div>
     <form id="registerForm">
@@ -166,10 +166,6 @@
         <option value="admin">Executive Administrator</option>
         <option value="hod">Head of Department</option>
       </select>
-      <label for="regPass">Password</label>
-      <input type="password" id="regPass" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
-      <label for="regPass2">Confirm password</label>
-      <input type="password" id="regPass2" required minlength="8" autocomplete="new-password">
       <button type="submit" id="regBtn">Register</button>
     </form>
     <button type="button" class="back-link" data-back="cards">← Back to sign in</button>
@@ -217,11 +213,9 @@
     const requested_role = document.getElementById('regRole').value;
     const nameKey = full_name.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (!nameKey) { note('regError', 'Your name must contain letters or numbers (A–Z).'); return; }
-    const p1 = document.getElementById('regPass').value, p2 = document.getElementById('regPass2').value;
-    if (p1 !== p2) { note('regError', 'Passwords do not match.'); return; }
     const btn = document.getElementById('regBtn');
     btn.disabled = true; btn.textContent = 'Registering...';
-    const { error } = await sb.rpc('register_user', { p_name: full_name, p_role: requested_role, p_password: p1 });
+    const { error } = await sb.rpc('register_user', { p_name: full_name, p_role: requested_role });
     btn.disabled = false; btn.textContent = 'Register';
     if (error) {
       const m = (error.message || '').toLowerCase();
@@ -231,7 +225,7 @@
       return;
     }
     document.getElementById('registerForm').reset();
-    note('regOk', 'Registration sent. Once the Head of Department approves it, they will give you your Staff ID. Use that ID and your password to sign in.');
+    note('regOk', 'Registration sent. Please wait for the Head of Department to give you your Staff ID and password. Use them to sign in.');
   });
 
   document.querySelectorAll('.role-card').forEach(c => c.addEventListener('click', () => {
