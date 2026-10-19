@@ -904,6 +904,10 @@
             <label for="eCompanyName" id="eCompanyLabel">Company name</label>
             <input type="text" id="eCompanyName" placeholder="e.g. Meridian Holdings Sdn Bhd">
           </div>
+          <div id="eClientWrap" style="display:none;">
+            <label for="eClientName">Client name (optional)</label>
+            <input type="text" id="eClientName" placeholder="e.g. Wang Shyh Chnan">
+          </div>
           <div id="eDueWrap">
             <label for="eDueDate">Due date</label>
             <input type="date" id="eDueDate">
@@ -1116,6 +1120,7 @@
     <h2 id="editTitle">Edit</h2>
     <label for="editName" id="editNameLabel">Name</label>
     <input type="text" id="editName">
+    <div id="editClientWrap" style="display:none;"><label for="editClient">Client name (optional)</label><input type="text" id="editClient" placeholder="e.g. Wang Shyh Chnan"></div>
     <div class="fixed-note" id="editFixedNote" style="display:none;">Company name and FYE are fixed once added.</div>
     <div id="editDueWrap">
       <label for="editDue">Due date</label>
@@ -2922,6 +2927,8 @@
     document.getElementById('addEntryTitle').textContent = `New ${currentListFormType === 'form_cp204' ? 'company' : 'client'} — ${f.label}`;
     document.getElementById('eCompanyName').value = '';
     document.getElementById('eLongOverdue').checked = false;
+    document.getElementById('eClientName').value = '';
+    document.getElementById('eClientWrap').style.display = currentListFormType === 'form_b' ? '' : 'none';
     document.getElementById('eDueDate').value = '';
     document.querySelector('label[for="eDueDate"]').textContent = 'Due date';
     setupDueFields(currentListFormType);
@@ -2985,6 +2992,7 @@
       ? null                                     // CP204 has no fixed due date — just the company name
       : (document.getElementById('eDueDate').value || null);
     const fye_date = currentListFormType === 'form_cp204' ? (document.getElementById('eFye').value || null) : currentListFormType === 'form_c' ? monthEnd(document.getElementById('eFyeMonth').value) : null;
+    const client_name = document.getElementById('eClientName').value.trim();
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
     if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE (Final Year End) date.'; return; }
@@ -2995,7 +3003,7 @@
     btn.disabled = true; btn.textContent = 'Saving...';
 
     const { data: newEntry, error } = await sb.from('form_entries')
-      .insert({ form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id })
+      .insert({ form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(currentListFormType === 'form_b' && client_name ? { client_name } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id })
       .select().single();
 
     if (error) {
@@ -3402,6 +3410,8 @@
     document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
     document.getElementById('editFye').value = entry.fye_date || '';
     document.getElementById('editLongOverdue').checked = !!entry.long_overdue;
+    document.getElementById('editClientWrap').style.display = entry.form_type === 'form_b' ? '' : 'none';
+    document.getElementById('editClient').value = entry.client_name || '';
     const fixedForm = FIXED_ID_FORMS.includes(entry.form_type);
     document.getElementById('editName').disabled = fixedForm;
     document.getElementById('editFye').disabled = fixedForm && !!entry.fye_date;
@@ -3452,7 +3462,8 @@
       idChanged = newIdType !== (entry.id_type || null) || newIdNo !== (entry.id_number || null);
     }
     const loNew = document.getElementById('editLongOverdue').checked, loChanged = loNew !== !!entry.long_overdue;
-    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged) { closeEditModal(); return; }
+    const isB = entry.form_type === 'form_b', clientNew = isB ? document.getElementById('editClient').value.trim() : '', clientChanged = isB && clientNew !== (entry.client_name || '');
+    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged && !clientChanged) { closeEditModal(); return; }
 
     const others = ((nameChanged || fyeChanged) && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
       ? relatedRows(entry) : [];
@@ -3462,6 +3473,7 @@
     if (fyeChanged) patch.fye_date = fye;
     if (idChanged) { patch.id_type = newIdType; patch.id_number = newIdNo; }
     if (loChanged) patch.long_overdue = loNew;
+    if (clientChanged) patch.client_name = clientNew || null;
 
     const btn = document.getElementById('editSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -3484,6 +3496,7 @@
     if (dueChanged) parts.push(`due date ${formatDateDMY(oldDue)} → ${formatDateDMY(due)}`);
     if (fyeChanged) parts.push(`FYE ${entry.fye_date ? formatDateDMY(entry.fye_date) : 'not set'} → ${formatDateDMY(fye)}`);
     if (idChanged) parts.push(newIdType ? `${ID_LABELS[newIdType]} set` : 'IC/Passport cleared');
+    if (clientChanged) parts.push(`client name → "${clientNew || 'none'}"`);
     if (loChanged) parts.push(loNew ? 'marked LONG OVERDUE' : 'LONG OVERDUE removed');
     closeEditModal();
     showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : `${name} updated.`);
