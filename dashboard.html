@@ -628,6 +628,8 @@
   /* long company names wrap onto a second line instead of stretching the whole table */
   .list-table tbody td.company-cell{white-space:normal; max-width:240px; min-width:190px;}
   .inst-tag{display:inline-block; margin-left:7px; padding:1px 8px; border-radius:10px; background:#EDF3FF; color:var(--navy); font-size:11px; font-weight:700; vertical-align:middle;}
+  .cl-list{display:flex; flex-direction:column; gap:6px;} .cl-row{display:flex; gap:6px;} .cl-row input{flex:1;} .cl-row button{border:1px solid var(--line); background:#fff; border-radius:6px; width:34px; cursor:pointer; color:var(--muted);}
+  .cl-add{margin-top:6px; background:none; border:none; color:var(--navy); font-size:12.5px; font-weight:600; cursor:pointer; padding:2px 0;}
   .client-sub{font-size:12px; color:var(--muted); font-weight:500; margin-top:3px; white-space:normal;}
   .client-sub b{color:var(--ink); font-weight:600;}
   .stage-tag{display:inline-block; margin-top:4px; padding:2px 9px; border-radius:10px; background:#EDF3FF; color:var(--navy); font-size:11px; font-weight:700; white-space:nowrap;}
@@ -905,8 +907,9 @@
             <input type="text" id="eCompanyName" placeholder="e.g. Meridian Holdings Sdn Bhd">
           </div>
           <div id="eClientWrap" style="display:none;">
-            <label for="eClientName">Client name (optional)</label>
-            <input type="text" id="eClientName" placeholder="e.g. Wang Shyh Chnan">
+            <label>Client name (optional)</label>
+            <div class="cl-list" id="eClientList"></div>
+            <button type="button" class="cl-add" id="eClientAdd">+ Add another client</button>
           </div>
           <div id="eDueWrap">
             <label for="eDueDate">Due date</label>
@@ -1120,7 +1123,7 @@
     <h2 id="editTitle">Edit</h2>
     <label for="editName" id="editNameLabel">Name</label>
     <input type="text" id="editName">
-    <div id="editClientWrap" style="display:none;"><label for="editClient">Client name (optional)</label><input type="text" id="editClient" placeholder="e.g. Wang Shyh Chnan"></div>
+    <div id="editClientWrap" style="display:none;"><label>Client name (optional)</label><div class="cl-list" id="editClientList"></div><button type="button" class="cl-add" id="editClientAdd">+ Add another client</button></div>
     <div class="fixed-note" id="editFixedNote" style="display:none;">Company name and FYE are fixed once added.</div>
     <div id="editDueWrap">
       <label for="editDue">Due date</label>
@@ -1385,7 +1388,7 @@
       if (formKey === 'form_ea' && entry.id_number && !p.idNo) { p.idType = entry.id_type; p.idNo = entry.id_number; }
     };
     (kind === 'company' ? COMPANY_FORMS : INDIVIDUAL_FORMS).forEach(k => (formData[k] || []).forEach(e => add(e.company_name, k, e)));
-    if (kind === 'individual') (formData.form_b || []).forEach(e => { if (e.client_name) add(e.client_name, 'form_b', e); });   // Form B made from an EA client
+    if (kind === 'individual') (formData.form_b || []).forEach(e => clientsOf(e.client_name).forEach(c => add(c, 'form_b', e)));   // Form B made from an EA client
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
   function serviceSummary(entries){
@@ -2218,6 +2221,23 @@
   // --- Config -------------------------------------------------------------
   // Form BE due date is fixed each year: this day/month, in (YA + 1).
   // (Statutory manual-filing deadline is 30 April; 20 April is the internal target.)
+  /* Form B can have several clients: stored in one text column, separated by " ; " */
+  const CLIENT_SEP = ' ; ';
+  const clientsOf = str => String(str || '').split(';').map(x => x.trim()).filter(Boolean);
+  function clientRows(listId, names){
+    const box = document.getElementById(listId); box.innerHTML = '';
+    (names.length ? names : ['']).forEach(n => addClientRow(listId, n));
+  }
+  function addClientRow(listId, val){
+    const box = document.getElementById(listId), row = document.createElement('div'); row.className = 'cl-row';
+    row.innerHTML = '<input type="text" placeholder="e.g. Wang Shyh Chnan"><button type="button" title="Remove" aria-label="Remove">×</button>';
+    row.querySelector('input').value = val || '';
+    row.querySelector('button').addEventListener('click', () => { if (box.children.length > 1) row.remove(); else row.querySelector('input').value = ''; });
+    box.appendChild(row); return row;
+  }
+  const readClients = listId => [...document.querySelectorAll('#' + listId + ' input')].map(i => i.value.replace(/;/g, ',').trim()).filter(Boolean).join(CLIENT_SEP);
+  document.getElementById('eClientAdd').addEventListener('click', () => addClientRow('eClientList').querySelector('input').focus());
+  document.getElementById('editClientAdd').addEventListener('click', () => addClientRow('editClientList').querySelector('input').focus());
   const FIXED_ID_FORMS = ['form_c', 'form_cp204', 'form_cp204a'];   // company name + FYE cannot be edited once added
   const FORM_BE_DUE = { day: '20', month: '04' };
   // Form B due date is fixed each year: 20 June in (YA + 1) as the early-progress target.
@@ -2754,7 +2774,7 @@
 
     // Form B rows made from an EA client keep that client's name, shown under the company name
     const clientTag = (entry.form_type === 'form_b' && entry.client_name)
-      ? `<div class="client-sub">Client: <b>${escapeHtml(entry.client_name)}</b></div>` : '';
+      ? clientsOf(entry.client_name).map(c => `<div class="client-sub">Client: <b>${escapeHtml(c)}</b></div>`).join('') : '';
 
     const idTag = (entry.form_type === 'form_ea' && entry.id_number)
       ? `<div class="id-tag">${ID_LABELS[entry.id_type] || 'ID'}: ${escapeHtml(entry.id_number)}</div>` : (entry.form_type === 'form_ea' ? `<div class="id-tag" style="color:var(--red);">IC / Passport not set</div>` : '');
@@ -2927,7 +2947,7 @@
     document.getElementById('addEntryTitle').textContent = `New ${currentListFormType === 'form_cp204' ? 'company' : 'client'} — ${f.label}`;
     document.getElementById('eCompanyName').value = '';
     document.getElementById('eLongOverdue').checked = false;
-    document.getElementById('eClientName').value = '';
+    clientRows('eClientList', []);
     document.getElementById('eClientWrap').style.display = currentListFormType === 'form_b' ? '' : 'none';
     document.getElementById('eDueDate').value = '';
     document.querySelector('label[for="eDueDate"]').textContent = 'Due date';
@@ -2992,7 +3012,7 @@
       ? null                                     // CP204 has no fixed due date — just the company name
       : (document.getElementById('eDueDate').value || null);
     const fye_date = currentListFormType === 'form_cp204' ? (document.getElementById('eFye').value || null) : currentListFormType === 'form_c' ? monthEnd(document.getElementById('eFyeMonth').value) : null;
-    const client_name = document.getElementById('eClientName').value.trim();
+    const client_name = readClients('eClientList');
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
     if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE (Final Year End) date.'; return; }
@@ -3151,7 +3171,7 @@
     if (key === 'form_c') cols.push({ h: 'Audit Report Received', v: e => e.audit_received ? 'RECEIVED' + (e.audit_received_date ? ' · ' + formatDateDMY(e.audit_received_date) : '') : 'NOT RECEIVED' });
     else cols.push({ h: 'FYE', v: dateOf('fye_date') });
     if (key === 'form_ea') cols.push({ h: 'IC / Passport No.', v: e => e.id_number ? `${ID_LABELS[e.id_type] || ''} ${e.id_number}`.trim() : '' });
-    if (key === 'form_b') cols.push({ h: 'Client', v: e => e.client_name || '' });
+    if (key === 'form_b') cols.push({ h: 'Client', v: e => clientsOf(e.client_name).join(', ') });
     if (['form_cp500', 'form_pcb', 'form_cp205'].includes(key)) cols.push({ h: key === 'form_cp500' ? 'Instalment' : 'Payment', v: e => { const b = paymentBadge(e); return b ? `${b.no}/${b.total}` : ''; } });
     if (key === 'form_cp204a') cols.push({ h: 'Revision', v: e => CP204_REV_LABELS[e.revision] || '' });
     if (CP204_FORMS.includes(key)) cols.push({ h: 'Proposal Sent to Client', v: dateOf('proposal_sent_at') }, { h: 'Proposal Signed', v: dateOf('proposal_signed_at') }, { h: 'Submitted to LHDN', v: dateOf('lhdn_submitted_at') });
@@ -3411,7 +3431,7 @@
     document.getElementById('editFye').value = entry.fye_date || '';
     document.getElementById('editLongOverdue').checked = !!entry.long_overdue;
     document.getElementById('editClientWrap').style.display = entry.form_type === 'form_b' ? '' : 'none';
-    document.getElementById('editClient').value = entry.client_name || '';
+    clientRows('editClientList', clientsOf(entry.client_name));
     const fixedForm = FIXED_ID_FORMS.includes(entry.form_type);
     document.getElementById('editName').disabled = fixedForm;
     document.getElementById('editFye').disabled = fixedForm && !!entry.fye_date;
@@ -3462,7 +3482,7 @@
       idChanged = newIdType !== (entry.id_type || null) || newIdNo !== (entry.id_number || null);
     }
     const loNew = document.getElementById('editLongOverdue').checked, loChanged = loNew !== !!entry.long_overdue;
-    const isB = entry.form_type === 'form_b', clientNew = isB ? document.getElementById('editClient').value.trim() : '', clientChanged = isB && clientNew !== (entry.client_name || '');
+    const isB = entry.form_type === 'form_b', clientNew = isB ? readClients('editClientList') : '', clientChanged = isB && clientNew !== (entry.client_name || '');
     if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged && !clientChanged) { closeEditModal(); return; }
 
     const others = ((nameChanged || fyeChanged) && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
