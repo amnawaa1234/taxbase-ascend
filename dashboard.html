@@ -202,6 +202,20 @@
   .pl-clear button.go{background:var(--navy); color:#fff; border-color:var(--navy); font-weight:600;}
   .pl-clear button{padding:7px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; font-family:inherit; font-size:13px;}
   .pl-count{font-size:13px; color:var(--muted); margin:6px 0 10px;}
+  #profileDetailView{max-width:1100px; margin:0 auto;}
+  .pd-title{font-size:22px; margin:6px 0 2px; text-align:center;} .pd-sub{text-align:center; color:var(--muted); font-size:13.5px; margin:0 0 16px;}
+  .pd-sentence{background:#fff; border:1px solid var(--line); border-left:4px solid var(--navy); border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:14px; line-height:1.5;}
+  .pd-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-bottom:14px;}
+  .pd-card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
+  .pd-card .k{font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); margin-bottom:6px;}
+  .pd-card .v{font-size:18px; font-weight:700;} .pd-card .v.red{color:var(--red);} .pd-card .s{font-size:12px; color:var(--muted); margin-top:3px;}
+  .pd-h{font-size:14px; margin:18px 0 8px;}
+  .pd-prog{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px;}
+  .pd-bar{height:7px; background:#E7EAF0; border-radius:99px; overflow:hidden; margin-top:7px;} .pd-bar i{display:block; height:100%; background:#2F9E44;}
+  .pd-tablewrap{background:#fff; border:1px solid var(--line); border-radius:10px; overflow-x:auto;}
+  .pd-table{width:100%; border-collapse:collapse; font-size:13px;} .pd-table th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
+  .pd-table td{padding:9px 10px; border-bottom:1px solid #F0F1F4; vertical-align:top;} .pd-table tr:last-child td{border-bottom:none;}
+  .pd-table tr.pd-late td{background:#fde7e7;} .pd-none{color:var(--muted);} .pd-actions{margin-top:14px; display:flex; gap:8px; justify-content:center;}
   .pf-card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px; max-width:900px;}
   .pf-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
   .pf-name{font-weight:700; font-size:15px;}
@@ -765,6 +779,11 @@
     </div>
 
     <!-- Client profile list (company / individual) -->
+    <!-- Client x form summary page (opened from a service row in Client Profile Consultation) -->
+    <div id="profileDetailView" style="display:none;">
+      <div id="pdBody"></div>
+    </div>
+
     <div id="profileListView" style="display:none;">
       <h2 class="settings-title" id="plTitle">Company profiles</h2>
       <div class="pl-search">
@@ -1293,12 +1312,12 @@
 
   /* ---------------- Screens: choose action -> Services & Operational / Client Profile; Back & Previous ---------------- */
   const SERVICE_SCREENS = { dashboard: ['navDashboard', 'dashboardView', ''], activity: ['navActivity', 'activityView', 'block'], users: ['navUsers', 'usersView', 'block'], settings: ['navSettings', 'settingsView', 'block'], orgs: ['navOrgs', 'orgsView', 'block'] };
-  const OTHER_SCREENS = { chooser: ['chooserView', 'block'], profile: ['profileView', 'block'], profileList: ['profileListView', 'block'] };
-  const NO_NAV_SCREENS = ['chooser', 'profile', 'profileList'];
+  const OTHER_SCREENS = { chooser: ['chooserView', 'block'], profile: ['profileView', 'block'], profileList: ['profileListView', 'block'], profileDetail: ['profileDetailView', 'block'] };
+  const NO_NAV_SCREENS = ['chooser', 'profile', 'profileList', 'profileDetail'];
   let screenNow = null, profileType = 'company';
   const screenHistory = [];                       // screens visited before the current one (for "Previous")
-  const parentOf = n => n === 'chooser' ? null : n === 'profileList' ? 'profile' : 'chooser';   // for "Back"
-  function modeOf(n){ return (n === 'profile' || n === 'profileList') ? 'profile' : n === 'chooser' ? null : 'services'; }
+  const parentOf = n => n === 'chooser' ? null : n === 'profileList' ? 'profile' : n === 'profileDetail' ? 'profileList' : 'chooser';   // for "Back"
+  function modeOf(n){ return (n === 'profile' || n === 'profileList' || n === 'profileDetail') ? 'profile' : n === 'chooser' ? null : 'services'; }
   function setView(name, opts){ showScreen(name, opts); }      // kept for older callers
   function showScreen(name, opts){
     opts = opts || {};
@@ -1323,8 +1342,9 @@
     if (name === 'orgs') loadOrgs();
     if (name === 'profile') renderProfileTypes();
     if (name === 'profileList') renderProfileList();
-    ['profileView','profileListView'].forEach(id => { const el = document.getElementById(id); el.classList.remove('fade-in'); });
-    if (name === 'profile' || name === 'profileList') { const el = document.getElementById(name === 'profile' ? 'profileView' : 'profileListView'); void el.offsetWidth; el.classList.add('fade-in'); }
+    if (name === 'profileDetail') renderProfileDetail();
+    ['profileView','profileListView','profileDetailView'].forEach(id => { const el = document.getElementById(id); el.classList.remove('fade-in'); });
+    if (name === 'profile' || name === 'profileList' || name === 'profileDetail') { const el = document.getElementById(name === 'profile' ? 'profileView' : name === 'profileList' ? 'profileListView' : 'profileDetailView'); void el.offsetWidth; el.classList.add('fade-in'); }
     window.scrollTo(0, 0);
   }
   // the two building photos swap every 30 seconds (cross-fade)
@@ -1445,7 +1465,7 @@
       const rows = svc.map(([k, es]) => {
         const { counts, nextDue } = serviceSummary(es);
         const sts = STATUSES.filter(st => counts[st]).map(st => `<span class="org-st ${st}">${STATUS_LABELS[st]}${es.length > 1 ? ' ×' + counts[st] : ''}</span>`).join('');
-        return `<tr class="pf-row" data-form="${k}" data-entry="${es[0].id}" title="Open in the ${escapeHtml(formNameOf(k))} list">
+        return `<tr class="pf-row" data-form="${k}" data-entry="${es[0].id}" data-pname="${escapeHtml(p.name)}" title="View the ${escapeHtml(formNameOf(k))} summary">
           <td><b>${escapeHtml(formNameOf(k))}</b>${k === 'form_b' && kind === 'individual' ? ` <span class="pf-id">(via ${escapeHtml(es[0].company_name)})</span>` : ''}</td>
           <td><span class="pf-sts">${sts}</span></td>
           <td>${es.length} ${es.length === 1 ? 'entry' : 'entries'}</td>
@@ -1460,7 +1480,62 @@
     }).join('') + (list.length > shown.length ? `<button type="button" class="pf-more" id="plMore">Show more (${list.length - shown.length} remaining)</button>` : '')
       : '<div class="orgs-empty">No client matches your search.</div>';
     const more = document.getElementById('plMore'); if (more) more.addEventListener('click', () => { plShown += 30; renderProfileList(); });
-    document.querySelectorAll('#plList .pf-row').forEach(r => r.addEventListener('click', () => { showScreen('dashboard'); goToForm(r.dataset.form, r.dataset.entry); }));
+    document.querySelectorAll('#plList .pf-row').forEach(r => r.addEventListener('click', () => { pdCtx = { name: r.dataset.pname, form: r.dataset.form, entry: r.dataset.entry }; showScreen('profileDetail'); }));
+  }
+  /* ---------------- Client x form summary page ---------------- */
+  let pdCtx = null;
+  const isEmptyVal = v => v == null || v === '' || v === '—' || v === '-' || /^NOT RECEIVED$/i.test(String(v));
+  function renderProfileDetail(){
+    const box = document.getElementById('pdBody');
+    const prof = pdCtx && buildProfiles(profileType).find(p => p.name === pdCtx.name);
+    const entries = prof && prof.services.get(pdCtx.form);
+    if (!entries || !entries.length) { box.innerHTML = '<div class="orgs-empty">Nothing to show for this client and form.</div>'; return; }
+    const key = pdCtx.form, formName = formNameOf(key), today = new Date().toISOString().slice(0, 10);
+    const list = entries.slice().sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
+    const total = list.length, doneN = list.filter(e => isDone(normStatus(e.status))).length, openN = total - doneN;
+    const late = list.filter(e => !isDone(normStatus(e.status)) && e.due_date && e.due_date < today);
+    const { counts, nextDue } = serviceSummary(list);
+    const stChips = STATUSES.filter(st => counts[st]).map(st => `<span class="org-st ${st}">${STATUS_LABELS[st]}${total > 1 ? ' ×' + counts[st] : ''}</span>`).join(' ');
+    const lastChange = list.map(e => e.status_changed_at).filter(Boolean).sort().slice(-1)[0];
+    const cols = reportColumns(key).slice(1);
+    const skip = new Set(['Due Date', 'Client', 'Revision', 'IC / Passport No.']);
+    const progCols = cols.filter(c => !skip.has(c.h) && c.h !== 'Instalment' && c.h !== 'Payment');
+    const prog = progCols.map(c => { const n = list.filter(e => !isEmptyVal(c.v(e))).length; return { h: c.h, n }; });
+
+    const sentence = [
+      `${total} ${total === 1 ? 'entry' : 'entries'} for ${formName}: ${openN ? `<b>${openN} still open</b>` : '<b>all finished</b>'}${doneN ? `, ${doneN} completed / submitted` : ''}.`,
+      nextDue ? `Next due date: <b>${formatDateDMY(nextDue)}</b>.` : '',
+      late.length ? `<b style="color:var(--red);">${late.length} overdue</b> (oldest due ${formatDateDMY(late[0].due_date)}).` : '',
+      prog.length ? prog.map(p => `${escapeHtml(p.h)}: ${p.n} of ${total}`).join(' · ') + '.' : ''
+    ].filter(Boolean).join(' ');
+
+    const cardsHtml = `
+      <div class="pd-cards">
+        <div class="pd-card"><div class="k">Current status</div><div class="v" style="font-size:13px;">${stChips}</div></div>
+        <div class="pd-card"><div class="k">Entries</div><div class="v">${total}</div><div class="s">${openN} open · ${doneN} done</div></div>
+        <div class="pd-card"><div class="k">Next due</div><div class="v">${nextDue ? formatDateDMY(nextDue) : '—'}</div><div class="s">${nextDue ? '' : 'Nothing open'}</div></div>
+        <div class="pd-card"><div class="k">Overdue</div><div class="v ${late.length ? 'red' : ''}">${late.length}</div><div class="s">${late.length ? 'open and past due' : 'none'}</div></div>
+        <div class="pd-card"><div class="k">Last status change</div><div class="v" style="font-size:14px;">${lastChange ? escapeHtml(formatTimeMeta(lastChange)) : '—'}</div></div>
+      </div>`;
+    const progHtml = prog.length ? `<h3 class="pd-h">Progress</h3><div class="pd-prog">${prog.map(p => `<div class="pd-card"><div class="k">${escapeHtml(p.h)}</div><div class="v">${p.n} <span style="font-size:13px; font-weight:500; color:var(--muted);">of ${total}</span></div><div class="pd-bar"><i style="width:${Math.round(p.n / total * 100)}%"></i></div></div>`).join('')}</div>` : '';
+
+    const head = ['Due Date', ...cols.filter(c => c.h !== 'Due Date').map(c => c.h), 'Status', 'Remarks'];
+    const rowsHtml = list.map(e => {
+      const st = normStatus(e.status), isLate = !isDone(st) && e.due_date && e.due_date < today;
+      const rem = (e.form_remarks || []).slice(-2).map(r => `<div style="margin-bottom:3px;"><i>${escapeHtml(r.body)}</i><div style="font-size:11px; color:var(--muted);">${escapeHtml(profilesMap[r.author_id] || '')} · ${escapeHtml(formatTimeMeta(r.created_at))}</div></div>`).join('') || '<span class="pd-none">—</span>';
+      const cells = cols.filter(c => c.h !== 'Due Date').map(c => { const v = c.v(e); return `<td>${isEmptyVal(v) && !/^NOT RECEIVED$/i.test(v || '') ? '<span class="pd-none">—</span>' : escapeHtml(v)}</td>`; }).join('');
+      return `<tr class="${isLate ? 'pd-late' : ''}"><td>${formatDateDMY(e.due_date)}${isLate ? ' <b style="color:var(--red); font-size:11px;">OVERDUE</b>' : ''}${isLongOverdue(e) ? ' <span class="lo-tag">LONG OVERDUE</span>' : ''}</td>${cells}<td><span class="org-st ${st}">${STATUS_LABELS[st]}</span>${e.status_changed_at ? `<div style="font-size:11px; color:var(--muted); margin-top:3px;">${escapeHtml(formatTimeMeta(e.status_changed_at))}</div>` : ''}</td><td>${rem}</td></tr>`;
+    }).join('');
+
+    box.innerHTML = `
+      <h2 class="pd-title">${escapeHtml(prof.name)}</h2>
+      <p class="pd-sub">${escapeHtml(formName)} — summary${prof.idNo ? ` · ${ID_LABELS[prof.idType] || 'ID'}: ${escapeHtml(prof.idNo)}` : ''}</p>
+      <div class="pd-sentence">${sentence}</div>
+      ${cardsHtml}${progHtml}
+      <h3 class="pd-h">All entries</h3>
+      <div class="pd-tablewrap"><table class="pd-table"><thead><tr>${head.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>
+      <div class="pd-actions"><button type="button" class="orgs-add-btn" id="pdOpenList">Open in the ${escapeHtml(formName)} list</button></div>`;
+    document.getElementById('pdOpenList').addEventListener('click', () => { showScreen('dashboard'); goToForm(pdCtx.form, pdCtx.entry); });
   }
   ['plOverall'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; plPick = null; plCommit = false; plAct = -1; renderProfileList(); }));
   document.getElementById('plOverall').addEventListener('keydown', e => {
@@ -1997,7 +2072,7 @@
       what: 'The annual tax return of an individual who earns business income (sole proprietor, partner, freelancer), usually prepared with the business accounts.',
       who: 'Resident individuals with business income.',
       gov: '30 June of the following year (manual filing); 15 July when filed through LHDN e-Filing.',
-      own: 'In TaxBase, Form B is created from an EA client and the due date is set per entry.' }],
+      own: 'In TaxBase, Form B is created from an EA client or added directly. The due date is set automatically to 20 June of the following year as an early-progress target, ahead of the 30 June manual / 15 July e-Filing deadlines.' }],
     form_pcb: [
       { name: 'PCB — Monthly Tax Deduction (MTD)',
         what: 'The tax an employer deducts from each employee’s monthly salary and pays to LHDN on the employee’s behalf.',
@@ -2140,6 +2215,10 @@
   // (Statutory manual-filing deadline is 30 April; 20 April is the internal target.)
   const FIXED_ID_FORMS = ['form_c', 'form_cp204', 'form_cp204a'];   // company name + FYE cannot be edited once added
   const FORM_BE_DUE = { day: '20', month: '04' };
+  // Form B due date is fixed each year: 20 June in (YA + 1) as the early-progress target.
+  // (Statutory: 30 June manual / paper filing; 15 July e-Filing via MyTax, grace period included.)
+  const FORM_B_DUE = { day: '20', month: '06' };
+  const dueForYA = (formType, ya) => formType === 'form_b' ? `${ya + 1}-${FORM_B_DUE.month}-${FORM_B_DUE.day}` : beDueDate(ya);
   // On 1 Jan, entries due in earlier years move to the Archive once COMPLETED.
   // Set to false to archive PENDING ones too (not recommended: unfinished work disappears).
   const KEEP_PENDING_ON_NEW_YEAR = true;
@@ -2868,7 +2947,7 @@
   }
   function beDueDate(ya){ return `${ya + 1}-${FORM_BE_DUE.month}-${FORM_BE_DUE.day}`; }
   function setupDueFields(formType){
-    const isBE = formType === 'form_be';
+    const isBE = formType === 'form_be' || formType === 'form_b';   // both pick a Year of Assessment; the due date follows
     const isE = formType === 'form_e';
     const isCP500 = formType === 'form_cp500';
     const isCP204 = formType === 'form_cp204';
@@ -2887,7 +2966,7 @@
   }
   function updateDuePreview(){
     const ya = parseInt(document.getElementById('eYA').value, 10);
-    document.getElementById('eDuePreview').textContent = `Due date: ${formatDateDMY(beDueDate(ya))}`;
+    document.getElementById('eDuePreview').textContent = `Due date: ${formatDateDMY(dueForYA(currentListFormType, ya))}` + (currentListFormType === 'form_b' ? ' (early target — statutory: 30 June manual, 15 July e-Filing)' : '');
   }
   document.getElementById('eYA').addEventListener('change', updateDuePreview);
   function closeEntryForm(){ addEntryForm.classList.remove('open'); }
@@ -2896,8 +2975,8 @@
   document.getElementById('saveEntryBtn').addEventListener('click', async () => {
     if (!canAdd()) return;
     const company_name = document.getElementById('eCompanyName').value.trim();
-    const due_date = currentListFormType === 'form_be'
-      ? beDueDate(parseInt(document.getElementById('eYA').value, 10))
+    const due_date = (currentListFormType === 'form_be' || currentListFormType === 'form_b')
+      ? dueForYA(currentListFormType, parseInt(document.getElementById('eYA').value, 10))
       : currentListFormType === 'form_e'
       ? nextMarch2()
       : currentListFormType === 'form_cp500'
@@ -3447,8 +3526,8 @@
 
     const btn = document.getElementById('formBSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
-    // Form B has no due-date rule of its own yet — it keeps the EA entry's due date, as before.
-    const row = { form_type: 'form_b', company_name: company, client_name: ea.company_name, due_date: ea.due_date, created_by: currentUser.id };
+    // Form B due date: 20 June of the year the EA entry falls due (YA + 1).
+    const row = { form_type: 'form_b', company_name: company, client_name: ea.company_name, due_date: `${ea.due_date.slice(0, 4)}-${FORM_B_DUE.month}-${FORM_B_DUE.day}`, created_by: currentUser.id };
     let { data, error } = await sb.from('form_entries').insert(row).select().single();
     let clientNameMissing = false;
     if (error && /client_name/i.test(error.message)) {
@@ -3521,8 +3600,7 @@
       } else if (target === 'form_e') {
         due_date = nextMarch2();
       } else {
-        // Form B has no due-date rule of its own yet — default to the EA entry's own due date.
-        due_date = ea.due_date;
+        due_date = `${ea.due_date.slice(0, 4)}-${FORM_B_DUE.month}-${FORM_B_DUE.day}`;   // Form B: 20 June of YA + 1
       }
       const { error } = await sb.from('form_entries').insert({
         form_type: target, company_name: ea.company_name, due_date, created_by: currentUser.id, ...extra
@@ -3557,6 +3635,7 @@
   };
   // Notes for the generic "add" form (shown in red italic, like the ones above)
   const ADD_FORM_NOTES = {
+    form_b: () => 'Deadline is set to 20 June of the following year (YA + 1) as an early progress, as Form B government due is 30 June for manual / paper filing and 15 July for e-Filing via MyTax (grace period included).',
     form_cp500: () => `Deadline is set to the 16th of every two months (January, March, May, July, September and November) as an early progress as Form CP500 government due is on the 31st of the same month (30th for September and November). Next deadline: ${formatDateDMY(nextCP500Due())}.`
   };
   const TRIPLE_LABELS = { ea: 'Client name', both: 'Client name', pcb: 'Client name', cp205: 'Company name' };
