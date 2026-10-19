@@ -918,7 +918,7 @@
           <div id="eFyeWrap" style="display:none;">
             <label for="eFye">FYE — Final Year End date</label>
             <input type="date" id="eFye">
-            <div class="due-preview" style="margin-top:6px;">The month buttons for CP204 / CP204A follow this date.</div>
+            
           </div>
           <div id="eFyeMonthWrap" style="display:none;">
             <label for="eFyeMonth">FYE — pick the month</label>
@@ -2979,9 +2979,9 @@
     const isCP500 = formType === 'form_cp500';
     const isCP204 = formType === 'form_cp204';
     document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500 || isCP204) ? 'none' : '';
-    document.getElementById('eFyeWrap').style.display = isCP204 ? '' : 'none';
+    document.getElementById('eFyeWrap').style.display = 'none';
     document.getElementById('eFye').value = '';
-    document.getElementById('eFyeMonthWrap').style.display = formType === 'form_c' ? '' : 'none';
+    document.getElementById('eFyeMonthWrap').style.display = (formType === 'form_c' || isCP204) ? '' : 'none';
     document.getElementById('eFyeMonth').value = ''; { const o = fyeOptions(''); document.getElementById('eFyeM').innerHTML = o.ms; document.getElementById('eFyeY').innerHTML = o.ys; }
     document.getElementById('eFyeMonthPrev').textContent = 'The last day of the month is saved as the FYE date.';
     document.getElementById('eYAWrap').style.display = isBE ? '' : 'none';
@@ -3011,11 +3011,11 @@
       : currentListFormType === 'form_cp204'
       ? null                                     // CP204 has no fixed due date — just the company name
       : (document.getElementById('eDueDate').value || null);
-    const fye_date = currentListFormType === 'form_cp204' ? (document.getElementById('eFye').value || null) : currentListFormType === 'form_c' ? monthEnd(document.getElementById('eFyeMonth').value) : null;
+    const fye_date = (currentListFormType === 'form_cp204' || currentListFormType === 'form_c') ? monthEnd(document.getElementById('eFyeMonth').value) : null;
     const client_name = readClients('eClientList');
     const remark = document.getElementById('eRemark').value.trim();
     const errEl = document.getElementById('entryModalError');
-    if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE (Final Year End) date.'; return; }
+    if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE month and year.'; return; }
     if (!company_name) { errEl.textContent = 'Enter a company name.'; return; }
     if (!due_date && currentListFormType !== 'form_cp204') { errEl.textContent = 'Choose a due date.'; return; }
 
@@ -3469,7 +3469,8 @@
     if (hasDue && !due) { errEl.textContent = 'Choose a due date.'; return; }
 
     const isCp = CP204_FORMS.includes(entry.form_type);
-    const fye = isCp ? (document.getElementById('editFye').value || null) : null;
+    const fyeRaw = isCp ? (document.getElementById('editFye').value || null) : null;
+    const fye = fyeRaw ? monthEnd(fyeRaw.slice(0, 7)) : null;   // FYE is always the last day of its month
     if (isCp && !fye) { errEl.textContent = 'Choose the FYE (Final Year End) date.'; return; }
     const nameChanged = name !== entry.company_name;
     const dueChanged = hasDue && due !== (entry.due_date || null);
