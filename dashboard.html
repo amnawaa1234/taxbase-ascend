@@ -628,6 +628,11 @@
   /* long company names wrap onto a second line instead of stretching the whole table */
   .list-table tbody td.company-cell{white-space:normal; max-width:240px; min-width:190px;}
   .inst-tag{display:inline-block; margin-left:7px; padding:1px 8px; border-radius:10px; background:#EDF3FF; color:var(--navy); font-size:11px; font-weight:700; vertical-align:middle;}
+  .sst-tabs{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px;}
+  .sst-tab{border:1px solid var(--line); background:#fff; border-radius:8px 8px 0 0; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; color:var(--ink); font-family:inherit;}
+  .sst-tab span{margin-left:7px; font-size:11px; font-weight:600; color:var(--muted); background:#EEF0F4; border-radius:99px; padding:1px 7px;}
+  .sst-tab.active{background:var(--navy); color:#fff; border-color:var(--navy);} .sst-tab.active span{background:rgba(255,255,255,.22); color:#fff;}
+  tr.sst-locked td{opacity:.45; pointer-events:none; background:#F4F4F2;} .lock-tag{display:inline-block; margin-top:4px; font-size:11px; font-weight:600; color:var(--muted); white-space:normal;}
   .cl-list{display:flex; flex-direction:column; gap:6px;} .cl-row{display:flex; gap:6px;} .cl-row input{flex:1;} .cl-row button{border:1px solid var(--line); background:#fff; border-radius:6px; width:34px; cursor:pointer; color:var(--muted);}
   .cl-add{margin-top:6px; background:none; border:none; color:var(--navy); font-size:12.5px; font-weight:600; cursor:pointer; padding:2px 0;}
   .client-sub{font-size:12px; color:var(--muted); font-weight:500; margin-top:3px; white-space:normal;}
@@ -942,6 +947,7 @@
         </div>
       </div>
 
+      <div class="sst-tabs" id="sstTabs" style="display:none;"></div>
       <div class="list-table-wrap">
         <table class="list-table">
           <thead>
@@ -2213,6 +2219,7 @@
   let listLetterFilter = null;   // 'A'..'Z' or null
   let listMonthFilter = null;    // 1-12 (due-date month) or null
   let listFyeFilter = null;      // 1-12 (FYE month, Form C) or null
+  let listSstTab = null;         // 1-6 = SST period folder (1/6 … 6/6) or null = all
   let listPeriodFilter = null;   // 0-5 = Jan–Feb … Nov–Dec (CP500) or null
   const PERIODS = ['Jan–Feb', 'Mar–Apr', 'May–Jun', 'Jul–Aug', 'Sep–Oct', 'Nov–Dec'];
   let statusFilter = null;       // null | 'pending' | 'in_progress' | 'completed' | 'pending_submit' | 'submitted' (sidebar)
@@ -2238,6 +2245,40 @@
   const readClients = listId => [...document.querySelectorAll('#' + listId + ' input')].map(i => i.value.replace(/;/g, ',').trim()).filter(Boolean).join(CLIENT_SEP);
   document.getElementById('eClientAdd').addEventListener('click', () => addClientRow('eClientList').querySelector('input').focus());
   document.getElementById('editClientAdd').addEventListener('click', () => addClientRow('editClientList').querySelector('input').focus());
+  /* ---- SST: 6 periods a year (every 2 months). Each company gets 6 rows at once; a period stays locked until the one before it is SUBMITTED. ---- */
+  const addMonthsYM = (ym, k) => { const y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10) - 1 + k; const yy = y + Math.floor(m / 12), mm = ((m % 12) + 12) % 12; return `${yy}-${String(mm + 1).padStart(2, '0')}`; };
+  const sstBaseMonth = {};   // company -> month (1-12) of its first period, rebuilt on every render
+  function rebuildSstBase(){
+    Object.keys(sstBaseMonth).forEach(k => delete sstBaseMonth[k]);
+    const first = {};
+    (formData.form_sst || []).forEach(e => { if (!e.due_date) return; const k = normName(e.company_name); if (!first[k] || e.due_date < first[k]) first[k] = e.due_date; });
+    Object.keys(first).forEach(k => { sstBaseMonth[k] = parseInt(first[k].slice(5, 7), 10); });
+  }
+  function sstIndex(e){   // 1..6
+    if (!e.due_date) return null;
+    const base = sstBaseMonth[normName(e.company_name)] || parseInt(e.due_date.slice(5, 7), 10);
+    const diff = ((parseInt(e.due_date.slice(5, 7), 10) - base) % 12 + 12) % 12;
+    return Math.floor(diff / 2) + 1;
+  }
+  // The earlier period of the same company that is not SUBMITTED yet (null = this one is open)
+  function sstBlocker(e){
+    if (e.form_type !== 'form_sst' || !e.due_date) return null;
+    const k = normName(e.company_name);
+    return (formData.form_sst || []).filter(o => o.id !== e.id && normName(o.company_name) === k && o.due_date && o.due_date < e.due_date && normStatus(o.status) !== 'submitted')
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null;
+  }
+  function renderSstTabs(){
+    const el = document.getElementById('sstTabs');
+    if (currentListFormType !== 'form_sst' || showArchive) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    rebuildSstBase();
+    const saved = listSstTab; listSstTab = null;
+    const rows = getFilteredEntries('form_sst'); listSstTab = saved;
+    const cnt = n => rows.filter(e => sstIndex(e) === n).length;
+    el.style.display = '';
+    el.innerHTML = `<button type="button" class="sst-tab${listSstTab === null ? ' active' : ''}" data-tab="">All<span>${rows.length}</span></button>` +
+      [1, 2, 3, 4, 5, 6].map(n => `<button type="button" class="sst-tab${listSstTab === n ? ' active' : ''}" data-tab="${n}">${n}/6<span>${cnt(n)}</span></button>`).join('');
+    el.querySelectorAll('.sst-tab').forEach(b => b.addEventListener('click', () => { listSstTab = b.dataset.tab ? parseInt(b.dataset.tab, 10) : null; renderListTable(); }));
+  }
   const FIXED_ID_FORMS = ['form_c', 'form_cp204', 'form_cp204a'];   // company name + FYE cannot be edited once added
   const FORM_BE_DUE = { day: '20', month: '04' };
   // Form B due date is fixed each year: 20 June in (YA + 1) as the early-progress target.
@@ -2288,6 +2329,7 @@
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
     if (listMonthFilter) rows = rows.filter(e => monthOf(e, formType) === listMonthFilter);
     if (listFyeFilter && formType === 'form_c') rows = rows.filter(e => e.fye_date && parseInt(e.fye_date.slice(5, 7), 10) === listFyeFilter);
+    if (listSstTab !== null && formType === 'form_sst') { rebuildSstBase(); rows = rows.filter(e => sstIndex(e) === listSstTab); }
     if (listPeriodFilter !== null) rows = rows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === listPeriodFilter);
     if (statusFilter) {
       rows = rows.filter(e => normStatus(e.status) === statusFilter);
@@ -2437,7 +2479,7 @@
     listLetterFilter = null;
     listMonthFilter = null;
     listFyeFilter = null;
-    listPeriodFilter = null;
+    listPeriodFilter = null; listSstTab = null;
     statusFilter = null;
     closeEntryForm();
     closeTripleForm();
@@ -2516,7 +2558,7 @@
       document.getElementById('listSortSelect').value = 'newest';
       listLetterFilter = null;
       listMonthFilter = null;
-      listPeriodFilter = null;
+      listPeriodFilter = null; listSstTab = null;
       statusFilter = null;
       showArchive = false;
       closeEntryForm();
@@ -2582,6 +2624,7 @@
 
   function renderListTable(){
     renderSidebar();
+    renderSstTabs();
     const body = document.getElementById('listTableBody');
     const rows = getFilteredEntries(currentDataKey());
     body.innerHTML = rows.length
@@ -2744,6 +2787,7 @@
   }
 
   function entryRowHtml(entry){
+    const sstLock = sstBlocker(entry);
     const due = formatDateDMY(entry.due_date);
     const status = normStatus(entry.status);
     const remarks = entry.form_remarks || [];
@@ -2810,8 +2854,8 @@
       </div>`;
 
     return `
-      <tr data-row="${entry.id}"${isLongOverdue(entry) ? ' class="long-overdue"' : ''}>
-        <td class="company-cell">${escapeHtml(entry.company_name)}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
+      <tr data-row="${entry.id}"${(() => { const cls = [isLongOverdue(entry) ? 'long-overdue' : '', sstLock ? 'sst-locked' : ''].filter(Boolean).join(' '); return (cls ? ` class="${cls}"` : '') + (sstLock ? ` title="Locked until ${escapeHtml(formatDateDMY(sstLock.due_date))} is Submitted"` : ''); })()}>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${entry.form_type === 'form_sst' && sstIndex(entry) ? `<span class="stage-tag" style="margin-left:6px;">${sstIndex(entry)}/6</span>` : ''}${sstLock ? `<div class="lock-tag">🔒 Locked — waiting for ${escapeHtml(formatDateDMY(sstLock.due_date))} to be Submitted</div>` : ''}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="fye-col">${entry.fye_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.fye_date)}</div>` : (() => { const o = fyeOptions(''); return `<div class="fye-pick" data-entry="${entry.id}" title="Pick the month and year — the last day of that month is saved, then it is fixed"><select class="fye-m">${o.ms}</select><select class="fye-y">${o.ys}</select></div><div class="fye-date" style="color:var(--red);">not set</div>`; })()}</td>
         <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
@@ -2967,7 +3011,10 @@
   });
   const syncFye = () => { const m = document.getElementById('eFyeM').value, y = document.getElementById('eFyeY').value; document.getElementById('eFyeMonth').value = (m && y) ? `${y}-${m}` : ''; document.getElementById('eFyeMonth').dispatchEvent(new Event('change')); };
   document.getElementById('eFyeM').addEventListener('change', syncFye); document.getElementById('eFyeY').addEventListener('change', syncFye);
-  document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); document.getElementById('eFyeMonthPrev').textContent = d ? `FYE date: ${formatDateDMY(d)}` : 'The last day of the month is saved as the FYE date.'; });
+  document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); const sst = currentListFormType === 'form_sst', ym = e.target.value;
+    document.getElementById('eFyeMonthPrev').textContent = sst
+      ? (d ? '6 periods will be created: ' + [0, 2, 4, 6, 8, 10].map(k => formatDateDMY(monthEnd(addMonthsYM(ym, k)))).join(' · ') : 'Pick the first month; the last day of each month is the due date.')
+      : (d ? `FYE date: ${formatDateDMY(d)}` : 'The last day of the month is saved as the FYE date.'); });
   function defaultYA(){
     const now = new Date();
     return now.getMonth() <= 3 ? now.getFullYear() - 1 : now.getFullYear(); // Jan–Apr still files for last year's YA
@@ -2978,10 +3025,12 @@
     const isE = formType === 'form_e';
     const isCP500 = formType === 'form_cp500';
     const isCP204 = formType === 'form_cp204';
-    document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500 || isCP204) ? 'none' : '';
+    const isSST = formType === 'form_sst';
+    document.getElementById('eDueWrap').style.display = (isBE || isE || isCP500 || isCP204 || isSST) ? 'none' : '';
+    document.querySelector('label[for="eFyeMonth"]').textContent = isSST ? 'First due month (the 6 periods follow, every 2 months)' : 'FYE — pick the month';
     document.getElementById('eFyeWrap').style.display = 'none';
     document.getElementById('eFye').value = '';
-    document.getElementById('eFyeMonthWrap').style.display = (formType === 'form_c' || isCP204) ? '' : 'none';
+    document.getElementById('eFyeMonthWrap').style.display = (formType === 'form_c' || isCP204 || isSST) ? '' : 'none';
     document.getElementById('eFyeMonth').value = ''; { const o = fyeOptions(''); document.getElementById('eFyeM').innerHTML = o.ms; document.getElementById('eFyeY').innerHTML = o.ys; }
     document.getElementById('eFyeMonthPrev').textContent = 'The last day of the month is saved as the FYE date.';
     document.getElementById('eYAWrap').style.display = isBE ? '' : 'none';
@@ -3008,6 +3057,8 @@
       ? nextMarch2()
       : currentListFormType === 'form_cp500'
       ? nextCP500Due()
+      : currentListFormType === 'form_sst'
+      ? monthEnd(document.getElementById('eFyeMonth').value)   // first of the 6 periods
       : currentListFormType === 'form_cp204'
       ? null                                     // CP204 has no fixed due date — just the company name
       : (document.getElementById('eDueDate').value || null);
@@ -3017,14 +3068,19 @@
     const errEl = document.getElementById('entryModalError');
     if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE month and year.'; return; }
     if (!company_name) { errEl.textContent = 'Enter a company name.'; return; }
-    if (!due_date && currentListFormType !== 'form_cp204') { errEl.textContent = 'Choose a due date.'; return; }
+    if (!due_date && currentListFormType !== 'form_cp204') { errEl.textContent = currentListFormType === 'form_sst' ? 'Choose the first due month and year.' : 'Choose a due date.'; return; }
 
     const btn = document.getElementById('saveEntryBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
 
-    const { data: newEntry, error } = await sb.from('form_entries')
-      .insert({ form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(currentListFormType === 'form_b' && client_name ? { client_name } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id })
-      .select().single();
+    const isSst = currentListFormType === 'form_sst';
+    const baseRow = { form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(currentListFormType === 'form_b' && client_name ? { client_name } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id };
+    const payload = isSst ? [0, 2, 4, 6, 8, 10].map(k => ({ ...baseRow, due_date: monthEnd(addMonthsYM(due_date.slice(0, 7), k)) })) : [baseRow];
+    const { data: insData, error } = await sb.from('form_entries')
+      .insert(payload)
+      
+      .select();
+    const newEntry = insData && insData[0];
 
     if (error) {
       btn.disabled = false; btn.textContent = 'Save';
@@ -3040,7 +3096,7 @@
 
     btn.disabled = false; btn.textContent = 'Save';
     closeEntryForm();
-    showToast(`${company_name} added.`);
+    showToast(currentListFormType === 'form_sst' ? `${company_name} added with 6 SST periods.` : `${company_name} added.`);
     await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${document.getElementById('eLongOverdue').checked ? ' [marked LONG OVERDUE]' : ''}${remark ? ' with a remark' : ''}`);
     await loadFormEntries();
   });
@@ -4060,7 +4116,7 @@
     if (widget === 'form_pcb') activeSubForm2 = formType;
     if (widget === 'form_cp204') activeSubForm3 = formType;
     listSearchTerm = ''; document.getElementById('listSearchInput').value = '';
-    statusFilter = null; listLetterFilter = null; listMonthFilter = null; listFyeFilter = null; listPeriodFilter = null;
+    statusFilter = null; listLetterFilter = null; listMonthFilter = null; listFyeFilter = null; listPeriodFilter = null; listSstTab = null;
     const target = entryId ? findEntry(entryId) : null;
     showArchive = target ? isArchived(target) : false;     // an old, finished entry lives in the Archive
     renderCurrentPanel();
