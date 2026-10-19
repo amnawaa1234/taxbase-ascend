@@ -930,6 +930,11 @@
             <input type="hidden" id="eFyeMonth"><div class="fye-pick-add"><select id="eFyeM"></select><select id="eFyeY"></select></div>
             <div class="due-preview" style="margin-top:6px;" id="eFyeMonthPrev">The last day of the month is saved as the FYE date.</div>
           </div>
+          <div id="eDueMYWrap" style="display:none;">
+            <label for="eDueM">Due date — pick the month</label>
+            <div class="fye-pick-add"><select id="eDueM"></select><select id="eDueY"></select></div>
+            <div class="due-preview" style="margin-top:6px;" id="eDueMYPrev"></div>
+          </div>
           <div id="eYAWrap" style="display:none;">
             <label for="eYA">Year of Assessment (YA)</label>
             <select id="eYA"></select>
@@ -2152,11 +2157,13 @@
     form_cp500: { tint: '#3B5BDB', svg: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>' },
     form_cp204: { tint: '#0B7285', svg: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>' }
   };
+  // CP204 widget also covers its revisions (CP204A); locked future SST periods / revisions are not counted
+  const pendingFor = key => (key === 'form_cp204' ? activeEntries('form_cp204').concat(activeEntries('form_cp204a')) : activeEntries(key)).filter(countsAsPending).length;
   function renderWidgets(){
     const grid = document.getElementById('widgetGrid');
     grid.innerHTML = widgetOrder.map(key => {
       const f = FORMS.find(x => x.key === key);
-      const count = activeEntries(key).filter(e => normStatus(e.status) === 'pending').length;
+      const count = pendingFor(key);
       const activeCls = key === currentListFormType ? ' active' : '';
       const ic = FORM_ART[key] || FORM_ART.form_b;
       return `
@@ -2168,7 +2175,7 @@
         </div>`;
     }).join('');
 
-    const totalPending = widgetOrder.reduce((n, k) => n + activeEntries(k).filter(e => normStatus(e.status) === 'pending').length, 0);
+    const totalPending = widgetOrder.reduce((n, k) => n + pendingFor(k), 0);
     const wc = document.getElementById('welcomeCount'); if (wc) wc.textContent = totalPending;
     if (!countUpDone && loadedOnce) {
       countUpDone = true;
@@ -2267,16 +2274,44 @@
     return (formData.form_sst || []).filter(o => o.id !== e.id && normName(o.company_name) === k && o.due_date && o.due_date < e.due_date && normStatus(o.status) !== 'submitted')
       .sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null;
   }
+  // CP204A: each revision is locked until the step before it (its parent) is SUBMITTED
+  function cp204aBlocker(e){
+    if (e.form_type !== 'form_cp204a' || !e.parent_id) return null;
+    const par = findEntry(e.parent_id);
+    return par && normStatus(par.status) !== 'submitted' ? par : null;
+  }
+  const lockOf = e => e.form_type === 'form_sst' ? sstBlocker(e) : e.form_type === 'form_cp204a' ? cp204aBlocker(e) : null;
+  const lockWhy = b => b.form_type === 'form_cp204' ? 'CP204' : b.form_type === 'form_cp204a' ? (CP204_REV_LABELS[b.revision] || 'the previous step') : formatDateDMY(b.due_date);
+  const REV_LEAD = { 1: 6, 2: 3, 3: 1 };   // months before FYE: 1st Revised (6th month), 2nd Revised (9th), Final Revised (11th)
+  const revDue = (fye, rev) => fye ? monthEnd(addMonthsYM(fye.slice(0, 7), -REV_LEAD[rev])) : null;
+  // Creates the CP204A rows startRev..3 for a CP204 / CP204A row, chained by parent_id (each waits for the one before)
+  async function createRevisionChain(parent, startRev){
+    let par = parent, first = null;
+    for (let rev = startRev; rev <= 3; rev++) {
+      const { data, error } = await sb.from('form_entries')
+        .insert({ form_type: 'form_cp204a', company_name: parent.company_name, revision: rev, parent_id: par.id, due_date: revDue(parent.fye_date, rev), ...(parent.fye_date ? { fye_date: parent.fye_date } : {}), created_by: currentUser.id })
+        .select().single();
+      if (error) return { first, error };
+      if (!first) first = data; par = data;
+    }
+    return { first, error: null };
+  }
+  // Dashboard "pending" numbers skip periods / revisions that are still locked (they would only duplicate the count)
+  const countsAsPending = e => normStatus(e.status) === 'pending' && !lockOf(e);
   function renderSstTabs(){
     const el = document.getElementById('sstTabs');
-    if (currentListFormType !== 'form_sst' || showArchive) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const dk = currentListFormType ? currentDataKey() : null;
+    if ((dk !== 'form_sst' && dk !== 'form_cp204a') || showArchive) { el.style.display = 'none'; el.innerHTML = ''; return; }
     rebuildSstBase();
     const saved = listSstTab; listSstTab = null;
-    const rows = getFilteredEntries('form_sst'); listSstTab = saved;
-    const cnt = n => rows.filter(e => sstIndex(e) === n).length;
+    const rows = getFilteredEntries(dk); listSstTab = saved;
+    const isRev = dk === 'form_cp204a';
+    const idx = e => isRev ? e.revision : sstIndex(e);
+    const cnt = n => rows.filter(e => idx(e) === n).length;
+    const tabs = isRev ? [[1, '1st Revised'], [2, '2nd Revised'], [3, 'Final Revised']] : [1, 2, 3, 4, 5, 6].map(n => [n, n + '/6']);
     el.style.display = '';
     el.innerHTML = `<button type="button" class="sst-tab${listSstTab === null ? ' active' : ''}" data-tab="">All<span>${rows.length}</span></button>` +
-      [1, 2, 3, 4, 5, 6].map(n => `<button type="button" class="sst-tab${listSstTab === n ? ' active' : ''}" data-tab="${n}">${n}/6<span>${cnt(n)}</span></button>`).join('');
+      tabs.map(([n, lab]) => `<button type="button" class="sst-tab${listSstTab === n ? ' active' : ''}" data-tab="${n}">${lab}<span>${cnt(n)}</span></button>`).join('');
     el.querySelectorAll('.sst-tab').forEach(b => b.addEventListener('click', () => { listSstTab = b.dataset.tab ? parseInt(b.dataset.tab, 10) : null; renderListTable(); }));
   }
   const FIXED_ID_FORMS = ['form_c', 'form_cp204', 'form_cp204a'];   // company name + FYE cannot be edited once added
@@ -2330,6 +2365,7 @@
     if (listMonthFilter) rows = rows.filter(e => monthOf(e, formType) === listMonthFilter);
     if (listFyeFilter && formType === 'form_c') rows = rows.filter(e => e.fye_date && parseInt(e.fye_date.slice(5, 7), 10) === listFyeFilter);
     if (listSstTab !== null && formType === 'form_sst') { rebuildSstBase(); rows = rows.filter(e => sstIndex(e) === listSstTab); }
+    if (listSstTab !== null && formType === 'form_cp204a') rows = rows.filter(e => e.revision === listSstTab);
     if (listPeriodFilter !== null) rows = rows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === listPeriodFilter);
     if (statusFilter) {
       rows = rows.filter(e => normStatus(e.status) === statusFilter);
@@ -2526,7 +2562,7 @@
     if (!key || !REMINDER_FORMS.includes(key) || remindedForms.has(key)) return;
     remindedForms.add(key);
 
-    const pending = activeEntries(key).filter(e => !isDone(e.status) && e.due_date);
+    const pending = activeEntries(key).filter(e => !isDone(e.status) && e.due_date && !lockOf(e));
     if (!pending.length) return;
     const soonest = pending.reduce((a, b) => (a.due_date < b.due_date ? a : b));
 
@@ -2552,6 +2588,7 @@
       if (currentListFormType === 'form_pcb') activeSubForm2 = btn.dataset.view;
       else if (currentListFormType === 'form_cp204') activeSubForm3 = btn.dataset.view;
       else activeSubForm = btn.dataset.view;
+      listSstTab = null;
       listSearchTerm = '';
       document.getElementById('listSearchInput').value = '';
       listSortMode = 'newest';
@@ -2590,7 +2627,7 @@
       key === 'form_ea' ? 'Finalize' : key === 'form_e' ? 'Submit to LHDN' : key === 'form_sst' ? 'Sales Summary' : 'Status';
     document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea' || PCB_STYLE_FORMS.includes(key) || CP204_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('show-cp204-col', CP204_FORMS.includes(key));
-    document.querySelector('.list-table').classList.toggle('hide-due-col', CP204_FORMS.includes(key));
+    document.querySelector('.list-table').classList.toggle('hide-due-col', false);
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
     document.querySelector('.list-table').classList.toggle('show-audit-col', key === 'form_c');
@@ -2783,11 +2820,12 @@
     else if (entry.revision === 2) next = 3;
     if (!next) return `<span class="final-step">Final step</span>`;
     const ok = status === 'submitted';
+    if ((formData.form_cp204a || []).some(c => c.parent_id === entry.id)) return `<span class="final-step">${ok ? '✓ Next unlocked' : 'Next: locked'}</span>`;
     return `<button type="button" class="finish-btn jump-btn" data-entry="${entry.id}" ${ok ? '' : 'disabled'} title="${ok ? 'Start ' + CP204_REV_LABELS[next] : 'Set the status to SUBMITTED first'}">Start ${CP204_REV_LABELS[next]}</button>`;
   }
 
   function entryRowHtml(entry){
-    const sstLock = sstBlocker(entry);
+    const sstLock = lockOf(entry);
     const due = formatDateDMY(entry.due_date);
     const status = normStatus(entry.status);
     const remarks = entry.form_remarks || [];
@@ -2829,7 +2867,7 @@
     if (CP204_FORMS.includes(entry.form_type)) {
       if (entry.form_type === 'form_cp204a') stageTag += `<div><span class="stage-tag">${CP204_REV_LABELS[entry.revision] || 'Revised'}</span></div>`;
       const child = (formData.form_cp204a || []).find(c => c.parent_id === entry.id);
-      if (child) stageTag += `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ Jumped to ${CP204_REV_LABELS[child.revision] || 'next step'}</div>`;
+      if (child && normStatus(entry.status) === 'submitted') stageTag += `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ Jumped to ${CP204_REV_LABELS[child.revision] || 'next step'}</div>`;
     }
 
     if (CP204_FORMS.includes(entry.form_type)) {
@@ -2854,8 +2892,8 @@
       </div>`;
 
     return `
-      <tr data-row="${entry.id}"${(() => { const cls = [isLongOverdue(entry) ? 'long-overdue' : '', sstLock ? 'sst-locked' : ''].filter(Boolean).join(' '); return (cls ? ` class="${cls}"` : '') + (sstLock ? ` title="Locked until ${escapeHtml(formatDateDMY(sstLock.due_date))} is Submitted"` : ''); })()}>
-        <td class="company-cell">${escapeHtml(entry.company_name)}${entry.form_type === 'form_sst' && sstIndex(entry) ? `<span class="stage-tag" style="margin-left:6px;">${sstIndex(entry)}/6</span>` : ''}${sstLock ? `<div class="lock-tag">🔒 Locked — waiting for ${escapeHtml(formatDateDMY(sstLock.due_date))} to be Submitted</div>` : ''}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
+      <tr data-row="${entry.id}"${(() => { const cls = [isLongOverdue(entry) ? 'long-overdue' : '', sstLock ? 'sst-locked' : ''].filter(Boolean).join(' '); return (cls ? ` class="${cls}"` : '') + (sstLock ? ` title="Locked until ${escapeHtml(lockWhy(sstLock))} is Submitted"` : ''); })()}>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${entry.form_type === 'form_sst' && sstIndex(entry) ? `<span class="stage-tag" style="margin-left:6px;">${sstIndex(entry)}/6</span>` : ''}${sstLock ? `<div class="lock-tag">🔒 Locked — waiting for ${escapeHtml(lockWhy(sstLock))} to be Submitted</div>` : ''}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="fye-col">${entry.fye_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.fye_date)}</div>` : (() => { const o = fyeOptions(''); return `<div class="fye-pick" data-entry="${entry.id}" title="Pick the month and year — the last day of that month is saved, then it is fixed"><select class="fye-m">${o.ms}</select><select class="fye-y">${o.ys}</select></div><div class="fye-date" style="color:var(--red);">not set</div>`; })()}</td>
         <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
@@ -3014,12 +3052,26 @@
   document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); const sst = currentListFormType === 'form_sst', ym = e.target.value;
     document.getElementById('eFyeMonthPrev').textContent = sst
       ? (d ? '6 periods will be created: ' + [0, 2, 4, 6, 8, 10].map(k => formatDateDMY(monthEnd(addMonthsYM(ym, k)))).join(' · ') : 'Pick the first month; the last day of each month is the due date.')
-      : (d ? `FYE date: ${formatDateDMY(d)}` : 'The last day of the month is saved as the FYE date.'); });
+      : (d ? `FYE date: ${formatDateDMY(d)}` : 'The last day of the month is saved as the FYE date.');
+    if (currentListFormType === 'form_cp204') {
+      if (!cpDueTouched && ym) { const dm = addMonthsYM(ym, -13); document.getElementById('eDueM').value = dm.slice(5, 7); document.getElementById('eDueY').value = dm.slice(0, 4); }
+      updateCpDuePreview();
+    } });
   function defaultYA(){
     const now = new Date();
     return now.getMonth() <= 3 ? now.getFullYear() - 1 : now.getFullYear(); // Jan–Apr still files for last year's YA
   }
   function beDueDate(ya){ return `${ya + 1}-${FORM_BE_DUE.month}-${FORM_BE_DUE.day}`; }
+  let cpDueTouched = false;
+  function cpDueYM(){ const m = document.getElementById('eDueM').value, y = document.getElementById('eDueY').value; return (m && y) ? `${y}-${m}` : ''; }
+  function updateCpDuePreview(){
+    const due = monthEnd(cpDueYM()), fye = monthEnd(document.getElementById('eFyeMonth').value);
+    document.getElementById('eDueMYPrev').textContent = due
+      ? `Due date: ${formatDateDMY(due)}` + (fye ? ` · then 1st Revised ${formatDateDMY(revDue(fye, 1))}, 2nd Revised ${formatDateDMY(revDue(fye, 2))}, Final Revised ${formatDateDMY(revDue(fye, 3))}` : '')
+      : 'Pick the due month and year (the last day of the month is saved).';
+  }
+  document.getElementById('eDueM').addEventListener('change', () => { cpDueTouched = true; updateCpDuePreview(); });
+  document.getElementById('eDueY').addEventListener('change', () => { cpDueTouched = true; updateCpDuePreview(); });
   function setupDueFields(formType){
     const isBE = formType === 'form_be' || formType === 'form_b';   // both pick a Year of Assessment; the due date follows
     const isE = formType === 'form_e';
@@ -3033,6 +3085,9 @@
     document.getElementById('eFyeMonthWrap').style.display = (formType === 'form_c' || isCP204 || isSST) ? '' : 'none';
     document.getElementById('eFyeMonth').value = ''; { const o = fyeOptions(''); document.getElementById('eFyeM').innerHTML = o.ms; document.getElementById('eFyeY').innerHTML = o.ys; }
     document.getElementById('eFyeMonthPrev').textContent = 'The last day of the month is saved as the FYE date.';
+    document.getElementById('eDueMYWrap').style.display = isCP204 ? '' : 'none';
+    { const o = fyeOptions(''); document.getElementById('eDueM').innerHTML = o.ms; document.getElementById('eDueY').innerHTML = o.ys; cpDueTouched = false; }
+    document.getElementById('eDueMYPrev').textContent = 'Usually about 13 months before the FYE — it fills in by itself once you pick the FYE; change it if needed.';
     document.getElementById('eYAWrap').style.display = isBE ? '' : 'none';
     if (!isBE) return;
     const d = defaultYA();
@@ -3060,7 +3115,7 @@
       : currentListFormType === 'form_sst'
       ? monthEnd(document.getElementById('eFyeMonth').value)   // first of the 6 periods
       : currentListFormType === 'form_cp204'
-      ? null                                     // CP204 has no fixed due date — just the company name
+      ? monthEnd(cpDueYM())                      // picked month + year, last day of the month
       : (document.getElementById('eDueDate').value || null);
     const fye_date = (currentListFormType === 'form_cp204' || currentListFormType === 'form_c') ? monthEnd(document.getElementById('eFyeMonth').value) : null;
     const client_name = readClients('eClientList');
@@ -3068,7 +3123,7 @@
     const errEl = document.getElementById('entryModalError');
     if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE month and year.'; return; }
     if (!company_name) { errEl.textContent = 'Enter a company name.'; return; }
-    if (!due_date && currentListFormType !== 'form_cp204') { errEl.textContent = currentListFormType === 'form_sst' ? 'Choose the first due month and year.' : 'Choose a due date.'; return; }
+    if (!due_date) { errEl.textContent = currentListFormType === 'form_sst' ? 'Choose the first due month and year.' : currentListFormType === 'form_cp204' ? 'Choose the due month and year.' : 'Choose a due date.'; return; }
 
     const btn = document.getElementById('saveEntryBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -3081,6 +3136,11 @@
       
       .select();
     const newEntry = insData && insData[0];
+    let revNote = '';
+    if (!error && currentListFormType === 'form_cp204' && newEntry) {
+      const rc = await createRevisionChain(newEntry, 1);
+      revNote = rc.error ? ' (the CP204A revisions could not be created: ' + rc.error.message + ')' : ' with its 3 CP204A revisions';
+    }
 
     if (error) {
       btn.disabled = false; btn.textContent = 'Save';
@@ -3096,7 +3156,7 @@
 
     btn.disabled = false; btn.textContent = 'Save';
     closeEntryForm();
-    showToast(currentListFormType === 'form_sst' ? `${company_name} added with 6 SST periods.` : `${company_name} added.`);
+    showToast(currentListFormType === 'form_sst' ? `${company_name} added with 6 SST periods.` : `${company_name} added${revNote}.`);
     await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${document.getElementById('eLongOverdue').checked ? ' [marked LONG OVERDUE]' : ''}${remark ? ' with a remark' : ''}`);
     await loadFormEntries();
   });
@@ -3478,8 +3538,8 @@
     document.getElementById('editTitle').textContent = `Edit ${ent.toLowerCase()} — ${formNameOf(entry.form_type)}`;
     document.getElementById('editNameLabel').textContent = `${ent} name`;
     document.getElementById('editName').value = entry.company_name;
-    const hasDue = !CP204_FORMS.includes(entry.form_type);          // CP204 has no due date
-    document.getElementById('editDueWrap').style.display = hasDue ? '' : 'none';
+    const hasDue = true;
+    document.getElementById('editDueWrap').style.display = '';
     document.getElementById('editDue').value = entry.due_date || '';
     document.querySelector('label[for="editDue"]').textContent = 'Due date';
     const isCp = CP204_FORMS.includes(entry.form_type);
@@ -3519,10 +3579,10 @@
     const errEl = document.getElementById('editError');
     if (!entry) { closeEditModal(); return; }
     const name = document.getElementById('editName').value.trim();
-    const hasDue = !CP204_FORMS.includes(entry.form_type);
+    const hasDue = true, dueRequired = !CP204_FORMS.includes(entry.form_type);
     const due = document.getElementById('editDue').value || null;
     if (!name) { errEl.textContent = `Enter the ${entityOf(entry.form_type).toLowerCase()} name.`; return; }
-    if (hasDue && !due) { errEl.textContent = 'Choose a due date.'; return; }
+    if (dueRequired && !due) { errEl.textContent = 'Choose a due date.'; return; }
 
     const isCp = CP204_FORMS.includes(entry.form_type);
     const fyeRaw = isCp ? (document.getElementById('editFye').value || null) : null;
@@ -3657,9 +3717,7 @@
       goToForm('form_cp204a', existing.id);
       return;
     }
-    const { data, error } = await sb.from('form_entries')
-      .insert({ form_type: 'form_cp204a', company_name: entry.company_name, revision: nextRev, parent_id: entry.id, ...(entry.fye_date ? { fye_date: entry.fye_date } : {}), created_by: currentUser.id })
-      .select().single();
+    const { first: data, error } = await createRevisionChain(entry, nextRev);
     if (error) { showToast('Could not jump to the next step: ' + error.message); return; }
     showToast(`${entry.company_name} jumped to ${CP204_REV_LABELS[nextRev]} (CP204A).`);
     await logActivity(`Jumped "${entry.company_name}" from ${entry.form_type === 'form_cp204' ? 'CP204' : 'CP204A ' + CP204_REV_LABELS[entry.revision]} to CP204A ${CP204_REV_LABELS[nextRev]}`);
