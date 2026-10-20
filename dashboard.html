@@ -216,6 +216,9 @@
   .pd-table{width:100%; border-collapse:collapse; font-size:13px;} .pd-table th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.3px; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
   .pd-table td{padding:9px 10px; border-bottom:1px solid #F0F1F4; vertical-align:top;} .pd-table tr:last-child td{border-bottom:none;}
   .pd-table tr.pd-late td{background:#fde7e7;} .pd-none{color:var(--muted);} .pd-actions{margin-top:14px; display:flex; gap:8px; justify-content:center;}
+  .pd-addrem{margin-top:4px; background:none; border:none; color:var(--navy); font-weight:600; font-size:12px; cursor:pointer; padding:2px 0; font-family:inherit;}
+  .pd-rembox{margin-top:6px;} .pd-rembox textarea{width:100%; min-width:200px; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font-family:inherit; font-size:12.5px; resize:vertical;}
+  .pd-remact{display:flex; gap:6px; justify-content:flex-end; margin-top:5px;} .pd-remact button{padding:5px 12px; font-size:12px; border-radius:6px; border:1px solid var(--line); background:#fff; cursor:pointer;} .pd-remact button.primary{background:var(--navy); color:#fff; border-color:var(--navy);}
   .pf-card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px; max-width:900px;}
   .pf-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
   .pf-name{font-weight:700; font-size:15px;}
@@ -1145,6 +1148,11 @@
       <label for="editDue">Due date</label>
       <input type="date" id="editDue">
     </div>
+    <div id="editSstWrap" style="display:none;">
+      <label for="editSstPaid">Payments already made this year (out of 6)</label>
+      <select id="editSstPaid"><option value="0">0 — none yet</option><option value="1">1 of 6 paid</option><option value="2">2 of 6 paid</option><option value="3">3 of 6 paid</option><option value="4">4 of 6 paid</option><option value="5">5 of 6 paid</option></select>
+      <div class="due-preview" style="margin-top:6px;" id="editSstPrev"></div>
+    </div>
     <div id="editFyeWrap" style="display:none;">
       <label for="editFye">FYE — Final Year End date</label>
       <input type="date" id="editFye">
@@ -1548,7 +1556,10 @@
       const st = normStatus(e.status), isLate = !isDone(st) && e.due_date && e.due_date < today;
       const rem = (e.form_remarks || []).slice(-2).map(r => `<div style="margin-bottom:3px;"><i>${escapeHtml(r.body)}</i><div style="font-size:11px; color:var(--muted);">${escapeHtml(profilesMap[r.author_id] || '')} · ${escapeHtml(formatTimeMeta(r.created_at))}</div></div>`).join('') || '<span class="pd-none">—</span>';
       const cells = cols.filter(c => c.h !== 'Due Date').map(c => { const v = c.v(e); return `<td>${isEmptyVal(v) && !/^NOT RECEIVED$/i.test(v || '') ? '<span class="pd-none">—</span>' : escapeHtml(v)}</td>`; }).join('');
-      return `<tr class="${isLate ? 'pd-late' : ''}"><td>${formatDateDMY(e.due_date)}${isLate ? ' <b style="color:var(--red); font-size:11px;">OVERDUE</b>' : ''}${isLongOverdue(e) ? ' <span class="lo-tag">LONG OVERDUE</span>' : ''}</td>${cells}<td><span class="org-st ${st}">${STATUS_LABELS[st]}</span>${e.status_changed_at ? `<div style="font-size:11px; color:var(--muted); margin-top:3px;">${escapeHtml(formatTimeMeta(e.status_changed_at))}</div>` : ''}</td><td>${rem}</td></tr>`;
+      const canRemark = roleOf() === 'hod';
+      const remBox = canRemark ? `<button type="button" class="pd-addrem" data-entry="${e.id}">+ Add remark</button>
+        <div class="pd-rembox" id="pdRem-${e.id}" style="display:none;"><textarea rows="2" placeholder="Type a remark — it is saved to this form's list"></textarea><div class="pd-remact"><button type="button" class="pd-remcancel" data-entry="${e.id}">Cancel</button><button type="button" class="primary pd-remsave" data-entry="${e.id}">Save</button></div></div>` : '';
+      return `<tr class="${isLate ? 'pd-late' : ''}"><td>${formatDateDMY(e.due_date)}${isLate ? ' <b style="color:var(--red); font-size:11px;">OVERDUE</b>' : ''}${isLongOverdue(e) ? ' <span class="lo-tag">LONG OVERDUE</span>' : ''}</td>${cells}<td><span class="org-st ${st}">${STATUS_LABELS[st]}</span>${e.status_changed_at ? `<div style="font-size:11px; color:var(--muted); margin-top:3px;">${escapeHtml(formatTimeMeta(e.status_changed_at))}</div>` : ''}</td><td>${rem}${remBox}</td></tr>`;
     }).join('');
 
     box.innerHTML = `
@@ -1559,6 +1570,20 @@
       <h3 class="pd-h">All entries</h3>
       <div class="pd-tablewrap"><table class="pd-table"><thead><tr>${head.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>
       <div class="pd-actions"><button type="button" class="orgs-add-btn" id="pdOpenList">Open in the ${escapeHtml(formName)} list</button></div>`;
+    box.querySelectorAll('.pd-addrem').forEach(b => b.addEventListener('click', () => { const bx = document.getElementById('pdRem-' + b.dataset.entry); bx.style.display = bx.style.display === 'none' ? '' : 'none'; if (bx.style.display === '') bx.querySelector('textarea').focus(); }));
+    box.querySelectorAll('.pd-remcancel').forEach(b => b.addEventListener('click', () => { document.getElementById('pdRem-' + b.dataset.entry).style.display = 'none'; }));
+    box.querySelectorAll('.pd-remsave').forEach(b => b.addEventListener('click', async () => {
+      if (roleOf() !== 'hod') return;
+      const ta = document.querySelector('#pdRem-' + b.dataset.entry + ' textarea'), text = ta.value.trim();
+      if (!text) { ta.focus(); return; }
+      b.disabled = true; b.textContent = 'Saving...';
+      const { error } = await sb.from('form_remarks').insert({ entry_id: b.dataset.entry, body: text, author_id: currentUser.id });
+      if (error) { b.disabled = false; b.textContent = 'Save'; showToast('Could not add remark: ' + error.message); return; }
+      const en = findEntry(b.dataset.entry);
+      if (en) await logActivity(`Added a remark on "${en.company_name}" (${formNameOf(en.form_type)}) from Client Profile Consultation: "${shortText(text)}"`);
+      showToast('Remark saved — it also shows in the form list.');
+      await loadFormEntries();
+    }));
     document.getElementById('pdOpenList').addEventListener('click', () => { showScreen('dashboard'); goToForm(pdCtx.form, pdCtx.entry); });
   }
   ['plOverall'].forEach(id => document.getElementById(id).addEventListener('input', () => { plShown = 30; plPick = null; plCommit = false; plAct = -1; renderProfileList(); }));
@@ -2060,6 +2085,7 @@
     if (firstLoad) setTimeout(() => runRenewal(false), 800);
     renderWidgets();
     if (currentListFormType) renderCurrentPanel();
+    if (screenNow === 'profileDetail') renderProfileDetail();
     renderBell();
   }
 
@@ -3578,6 +3604,38 @@
     keys.forEach(k => (formData[k] || []).forEach(e => { if (e.id !== entry.id && normName(e.company_name) === normName(entry.company_name)) out.push(e); }));
     return out;
   }
+  // The company's SST periods for the current year (not archived, not next year's renewed copies), oldest first
+  const sstCycleRows = e => (formData.form_sst || []).filter(o => normName(o.company_name) === normName(e.company_name) && !isArchived(o) && !isUpcoming(o))
+    .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).slice(0, 6);
+  const sstPaidNow = rows => { let n = 0; while (n < rows.length && normStatus(rows[n].status) === 'submitted') n++; return n; };
+  let editSstOld = 0;
+  function updateEditSstPreview(){
+    const k = parseInt(document.getElementById('editSstPaid').value, 10) || 0;
+    document.getElementById('editSstPrev').textContent = k > editSstOld
+      ? `Periods ${editSstOld + 1}–${k} will be marked Submitted; the company moves to tab ${k + 1}/6.`
+      : `Currently in tab ${editSstOld + 1}/6. Choose a higher number if more payments were already made.`;
+  }
+  document.getElementById('editSstPaid').addEventListener('change', updateEditSstPreview);
+  // Marks periods 1..k of the company's SST cycle as Submitted (creating the missing periods for an old single-row company first)
+  async function applySstPaid(entry, k){
+    let rows = sstCycleRows(entry);
+    if (rows.length === 1 && rows[0].due_date) {
+      const base = rows[0].due_date.slice(0, 7);
+      const add = [2, 4, 6, 8, 10].map(m => ({ form_type: 'form_sst', company_name: rows[0].company_name, due_date: monthEnd(addMonthsYM(base, m)), created_by: currentUser.id }));
+      const r = await sb.from('form_entries').insert(add);
+      if (r.error) { showToast('Could not create the other SST periods: ' + r.error.message); return false; }
+      await loadFormEntries(); rows = sstCycleRows(entry);
+    }
+    const ids = rows.slice(0, k).filter(r => normStatus(r.status) !== 'submitted').map(r => r.id);
+    if (ids.length) {
+      const r = await sb.from('form_entries').update({ status: 'submitted', status_changed_at: new Date().toISOString() }).in('id', ids);
+      if (r.error) { showToast('Could not update the periods: ' + r.error.message); return false; }
+    }
+    await logActivity(`Set "${entry.company_name}" (Form SST) to ${k} of 6 payments already made — now in tab ${k + 1}/6`);
+    await runRenewal(true);
+    listSstTab = k + 1;
+    return true;
+  }
   function openEditModal(id){
     if (!isAdmin()) return;
     const entry = findEntry(id);
@@ -3595,15 +3653,23 @@
     document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
     document.getElementById('editFye').value = entry.fye_date || '';
     document.getElementById('editLongOverdue').checked = !!entry.long_overdue;
+    document.getElementById('editSstWrap').style.display = entry.form_type === 'form_sst' ? '' : 'none';
+    if (entry.form_type === 'form_sst') {
+      editSstOld = sstPaidNow(sstCycleRows(entry));
+      const sel = document.getElementById('editSstPaid'); sel.value = String(Math.min(editSstOld, 5));
+      [...sel.options].forEach(o => { o.disabled = parseInt(o.value, 10) < editSstOld; });
+      updateEditSstPreview();
+    }
     document.getElementById('editClientWrap').style.display = entry.form_type === 'form_b' ? '' : 'none';
     clientRows('editClientList', clientsOf(entry.client_name));
     const fixedForm = FIXED_ID_FORMS.includes(entry.form_type);
-    document.getElementById('editName').disabled = fixedForm;
+    document.getElementById('editName').disabled = true;            // the name of every client / company is fixed once added
     document.getElementById('editFye').disabled = fixedForm && !!entry.fye_date;
-    document.getElementById('editFixedNote').style.display = fixedForm ? '' : 'none';
+    document.getElementById('editFixedNote').textContent = fixedForm ? 'Company name and FYE are fixed once added.' : `The ${entityOf(entry.form_type).toLowerCase()} name is fixed once added.`;
+    document.getElementById('editFixedNote').style.display = '';
     const others = relatedRows(entry);
     const wrap = document.getElementById('editAllWrap');
-    wrap.style.display = others.length ? 'flex' : 'none';
+    wrap.style.display = (others.length && isCp && !document.getElementById('editFye').disabled) ? 'flex' : 'none';
     document.getElementById('editAll').checked = true;
     const grp = RELATED_GROUPS.find(g => g.includes(entry.form_type));
     document.getElementById('editAllText').textContent =
@@ -3615,7 +3681,7 @@
     document.getElementById('editIdNo').value = isEa ? (entry.id_number || '') : '';
     document.getElementById('editError').textContent = '';
     editBackdrop.classList.add('open');
-    setTimeout(() => { const n = document.getElementById('editName'); if (!n.disabled) n.focus(); }, 40);
+    
   }
   function closeEditModal(){ editBackdrop.classList.remove('open'); editingEntryId = null; }
   document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
@@ -3649,7 +3715,8 @@
     }
     const loNew = document.getElementById('editLongOverdue').checked, loChanged = loNew !== !!entry.long_overdue;
     const isB = entry.form_type === 'form_b', clientNew = isB ? readClients('editClientList') : '', clientChanged = isB && clientNew !== (entry.client_name || '');
-    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged && !clientChanged) { closeEditModal(); return; }
+    const sstNew = entry.form_type === 'form_sst' ? (parseInt(document.getElementById('editSstPaid').value, 10) || 0) : 0, sstChanged = entry.form_type === 'form_sst' && sstNew > editSstOld;
+    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged && !clientChanged && !sstChanged) { closeEditModal(); return; }
 
     const others = ((nameChanged || fyeChanged) && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
       ? relatedRows(entry) : [];
@@ -3663,7 +3730,8 @@
 
     const btn = document.getElementById('editSaveBtn');
     btn.disabled = true; btn.textContent = 'Saving...';
-    const { data, error } = await sb.from('form_entries').update(patch).eq('id', entry.id).select();
+    let data = [{}], error = null;
+    if (Object.keys(patch).length) ({ data, error } = await sb.from('form_entries').update(patch).eq('id', entry.id).select());
     if (error || !data || !data.length) {
       btn.disabled = false; btn.textContent = 'Save';
       errEl.textContent = 'Could not save: ' + (error ? error.message : 'the database refused it (HOD / Executive Administrator only). Run taxbase-roles-v2.sql if this keeps happening.');
@@ -3674,6 +3742,8 @@
       const r = await sb.from('form_entries').update({ ...(nameChanged ? { company_name: name } : {}), ...(fyeChanged ? { fye_date: fye } : {}) }).in('id', others.map(o => o.id)).select();
       othersFailed = !!r.error;
     }
+    let sstOk = true;
+    if (sstChanged) sstOk = await applySstPaid(entry, sstNew);
     btn.disabled = false; btn.textContent = 'Save';
 
     const oldName = entry.company_name, oldDue = entry.due_date;
@@ -3685,8 +3755,8 @@
     if (clientChanged) parts.push(`client name → "${clientNew || 'none'}"`);
     if (loChanged) parts.push(loNew ? 'marked LONG OVERDUE' : 'LONG OVERDUE removed');
     closeEditModal();
-    showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : `${name} updated.`);
-    await logActivity(`Edited ${entityOf(entry.form_type).toLowerCase()} in ${formNameOf(entry.form_type)}: ${parts.join('; ')}`);
+    showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : sstChanged && sstOk ? `${name} updated — now in tab ${sstNew + 1}/6.` : `${name} updated.`);
+    if (parts.length) await logActivity(`Edited ${entityOf(entry.form_type).toLowerCase()} in ${formNameOf(entry.form_type)}: ${parts.join('; ')}`);
     await loadFormEntries();
   });
 
