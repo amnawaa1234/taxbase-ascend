@@ -3302,9 +3302,12 @@
     const hide = opts.hide || new Set(), showRemarks = opts.remarks !== false, showStatusCol = opts.status !== false;
     const cols = namesOnly ? [] : reportColumns(key).filter((c, i) => i === 0 || !hide.has(c.h));
     const order = STATUSES.filter(st => chosen.includes(st));
+    // A "Month" column sits in front of the company name (same month the month picker filtered on); rows are grouped Jan → Dec
+    const mNo = e => monthOf(e, key) || 13;
+    const monthLabel = e => { const m = monthOf(e, key); return m ? MONTHS[m - 1] : '—'; };
     const byDueThenName = namesOnly
-      ? (a, b) => a.company_name.localeCompare(b.company_name, undefined, {sensitivity:'base'})
-      : (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.company_name.localeCompare(b.company_name);
+      ? (a, b) => mNo(a) - mNo(b) || a.company_name.localeCompare(b.company_name, undefined, {sensitivity:'base'})
+      : (a, b) => mNo(a) - mNo(b) || (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.company_name.localeCompare(b.company_name);
     const remarksHtml = e => (e.form_remarks || []).length
       ? e.form_remarks.slice(-1).map(r => `<div class="rm"><i>${escapeHtml(r.body)}</i><div class="rmeta">Updated by: ${escapeHtml(profilesMap[r.author_id] || 'Unknown')} at ${escapeHtml(formatTimeMeta(r.created_at))}</div></div>`).join('')
       : '<span class="none">—</span>';
@@ -3312,14 +3315,14 @@
     let grandTotal = 0;
     const multi = !namesOnly && order.length > 1 && showStatusCol;
     const ROWS_PER_BLOCK = namesOnly ? 26 : 36;   // roughly one landscape A4 page; further blocks sit beside it when they fit
-    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}${namesOnly ? '<th>Client / Company Name</th>' : (showRemarks ? '<th class="remcol">Remarks</th>' : '')}</tr></thead>`;
+    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}<th>Month</th>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}${namesOnly ? '<th>Client / Company Name</th>' : (showRemarks ? '<th class="remcol">Remarks</th>' : '')}</tr></thead>`;
     const all = [];
     if (namesOnly) entries.filter(e => order.includes(normStatus(e.status))).sort(byDueThenName).forEach(e => all.push({ e, st: normStatus(e.status) }));
     else order.forEach(st => entries.filter(e => normStatus(e.status) === st).sort(byDueThenName).forEach(e => all.push({ e, st })));
     grandTotal = all.length;
     // Rows are packed into columns when the report opens (see the script below), so each column fills the page
     // right down to the bottom and the numbering carries on in the next column beside it, not on a new page.
-    const rowHtml = all.map(({ e, st }, j) => `<tr><td class="num">${j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td${c.cls === 'name' ? ' class="namecol"' : ''}>${escapeHtml(c.v(e))}</td>`).join('')}${showRemarks ? `<td class="remcol">${remarksHtml(e)}</td>` : ''}`}</tr>`);
+    const rowHtml = all.map(({ e, st }, j) => `<tr><td class="num">${j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}<td><b>${escapeHtml(monthLabel(e))}</b></td>${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td${c.cls === 'name' ? ' class="namecol"' : ''}>${escapeHtml(c.v(e))}</td>`).join('')}${showRemarks ? `<td class="remcol">${remarksHtml(e)}</td>` : ''}`}</tr>`);
     const dataJson = JSON.stringify({ head: headRow, rows: rowHtml }).replace(/</g, '\\u003c');
     const sections = rowHtml.length ? '<div class="blocks" id="blocks"></div>' : '<p class="empty">No entries.</p>';
 
@@ -3362,7 +3365,7 @@
   .rm i { font-size: 7.5px; line-height: 1.3; }
   .rmeta { font-size: 6.5px; color: #6B7180; margin-top: 1px; }
   .none, .empty { color: #6B7180; }
-  body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(2){max-width:230px; white-space:normal;}
+  body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(3){max-width:230px; white-space:normal;}
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
 </style></head><body${namesOnly ? ' class="names"' : ''}>
 <div class="toolbar"><span>${namesOnly ? 'List' : 'Report'} preview</span>
