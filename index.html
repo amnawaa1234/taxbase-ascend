@@ -1,334 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TaxBase — Ascend Advisory Group</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2B4C7E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  :root{
-    --ink:#1C1E26; --muted:#6B7180; --line:#E2E4E9; --bg:#F7F7F5;
-    --navy:#2B4C7E; --navy-dark:#1F3A61; --red:#E03131;
+// Supabase Edge Function: proposal-signed-email  (sends through Resend — https://resend.com)
+// Called by TaxBase when a HOD / Executive Administrator enters the "Proposal Signed" date on a CP204 or CP204A row.
+// The email goes to Tax (ascenddynamic@gmail.com) as proof that the date was recorded, and by whom.
+// Secrets (Supabase > Edge Functions > Secrets):  RESEND_API_KEY   (optional: RESEND_FROM, TAX_EMAIL, EXTRA_CC)
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+
+const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
+const esc = (t: string) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  try {
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const asUser = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
+    const { data: { user } } = await asUser.auth.getUser();
+    if (!user) return new Response("Not signed in", { status: 401, headers: cors });
+    const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data: me } = await admin.from("profiles").select("role").eq("id", user.id).single();
+    if (!me || !["admin", "hod"].includes(me.role)) return new Response("Not allowed", { status: 403, headers: cors });
+
+    const b = await req.json();
+    const to = Deno.env.get("TAX_EMAIL") ?? "ascenddynamic@gmail.com";
+    const cc = (Deno.env.get("EXTRA_CC") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    const from = Deno.env.get("RESEND_FROM") ?? "TaxBase <onboarding@resend.dev>";
+
+    const subject = `[TaxBase] ${b.client} signed the proposal — ${b.form}`;
+    const text = `Hi Tax team,\n\n${b.client} has signed the proposal for ${b.form} on ${b.signed_date}.\n\n` +
+      `This change has been made by ${b.changed_by} (${b.changed_role}) on ${b.changed_at}.\n\n` +
+      `This email is a record that the "Proposal Signed" date was entered in TaxBase.\n${b.app_url}\n\n— TaxBase, Ascend Advisory Group`;
+    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#1c1e26">
+      <p>Hi Tax team,</p>
+      <p><b>${esc(b.client)}</b> has signed the proposal for <b>${esc(b.form)}</b> on <b>${esc(b.signed_date)}</b>.</p>
+      <p>This change has been made by <b>${esc(b.changed_by)}</b> (${esc(b.changed_role)}) on ${esc(b.changed_at)}.</p>
+      <p style="color:#6b7180">This email is a record that the "Proposal Signed" date was entered in TaxBase.</p>
+      <p><a href="${esc(b.app_url)}">Open TaxBase</a></p><p style="color:#6b7180">— TaxBase, Ascend Advisory Group</p></div>`;
+
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [to], cc: cc.length ? cc : undefined, subject, html, text }),
+    });
+    if (!r.ok) return new Response(await r.text(), { status: 502, headers: cors });
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, "Content-Type": "application/json" } });
+  } catch (e) {
+    return new Response(String(e), { status: 500, headers: cors });
   }
-  *{box-sizing:border-box;}
-  body{
-    margin:0; min-height:100vh; display:flex; justify-content:center;
-    font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--ink);
-    padding:32px 24px; position:relative; overflow-x:hidden;
-    background:#1a2a44;
-  }
-  .bg{position:fixed; inset:0; z-index:0; pointer-events:none; background:#1a2a44 url('login-bg.png') center/cover no-repeat;}
-  .bg::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg,rgba(15,30,60,.25),rgba(15,30,60,.45));}
-  .card{position:relative; z-index:1; box-shadow:0 18px 50px rgba(8,20,45,.35);}
-  .credit{position:fixed; bottom:10px; left:0; right:0; text-align:center; z-index:1; font-size:11.5px; color:rgba(255,255,255,.9); letter-spacing:.3px; text-shadow:0 1px 2px rgba(8,20,45,.5);}
-  .card{
-    width:100%; max-width:380px; background:#fff; border:1px solid var(--line);
-    border-radius:10px; padding:36px 32px;
-  }
-  .mark{
-    width:44px; height:44px; margin:0 auto 14px;
-  }
-  .mark img{width:100%; height:100%; display:block;}
-  h1{font-size:22px; font-weight:700; margin:0 0 6px; text-align:center;}
-  p.sub{color:var(--muted); font-size:14px; margin:0 0 26px; text-align:center;}
-  label{display:block; font-size:13px; font-weight:500; margin-bottom:6px; color:var(--ink);}
-  input{
-    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px;
-    font-size:14px; font-family:inherit; margin-bottom:16px; background:#fcfcfb;
-  }
-  input:focus{outline:none; border-color:var(--navy);}
-  .password-wrap{position:relative; margin-bottom:16px;}
-  .password-wrap input{margin-bottom:0 !important; padding-right:42px;}
-  button.eye-toggle{
-    position:absolute; top:50%; right:6px; transform:translateY(-50%);
-    width:30px !important; height:30px !important; margin:0 !important; padding:0 !important;
-    background:transparent !important; border:none !important; border-radius:6px !important;
-    display:flex; align-items:center; justify-content:center;
-    color:var(--muted); cursor:pointer;
-  }
-  button.eye-toggle:hover{background:#EDEFF3 !important; color:var(--ink);}
-  .eye-toggle svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
-  .eye-toggle .eye-off{display:none;}
-  button{
-    width:100%; padding:11px; background:var(--navy); color:#fff; border:none;
-    border-radius:7px; font-size:14px; font-weight:600; font-family:inherit;
-    cursor:pointer; margin-top:6px;
-  }
-  button:hover{background:var(--navy-dark);}
-  button:disabled{opacity:.6; cursor:default;}
-  .error{
-    background:#FFF0F0; border:1px solid #FFC9C9; color:var(--red);
-    font-size:13px; padding:10px 12px; border-radius:7px; margin-bottom:16px; display:none;
-  }
-  .card.wide{max-width:560px;}
-  .role-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:4px;}
-  .role-card{
-    all:unset; box-sizing:border-box; cursor:pointer; text-align:center;
-    border:1px solid var(--line); border-radius:10px; padding:20px 10px 16px; background:#fcfcfb;
-    display:flex; flex-direction:column; align-items:center; gap:10px;
-    transition:border-color .12s, box-shadow .12s, transform .12s;
-  }
-  .role-card:hover, .role-card:focus-visible{border-color:var(--navy); box-shadow:0 2px 10px rgba(43,76,126,.14); transform:translateY(-1px);}
-  .role-card .ico{width:44px; height:44px; border-radius:50%; background:#E9EFF8; color:var(--navy); display:flex; align-items:center; justify-content:center;}
-  .role-card .ico svg{width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
-  .role-card .rname{font-size:14px; font-weight:600; color:var(--ink);}
-  .role-card .rdesc{font-size:11.5px; color:var(--muted); line-height:1.35;}
-  .role-chip{display:flex; justify-content:center; width:max-content; margin-left:auto; margin-right:auto; align-items:center; gap:8px; font-size:13px; font-weight:600; color:var(--navy); background:#E9EFF8; padding:5px 11px; border-radius:99px; margin-bottom:18px;}
-  button.back-link{all:unset; cursor:pointer; font-size:13px; color:var(--muted); display:inline-block; margin-top:14px;}
-  button.back-link:hover{color:var(--navy); text-decoration:underline;}
-  @media (max-width:520px){ .role-grid{grid-template-columns:1fr;} .role-card{flex-direction:row; text-align:left; padding:14px;} }
-  #stageForm{display:none;}
-  .panel select{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:7px; font-size:14px; font-family:inherit; margin-bottom:16px; background:#fcfcfb; color:var(--ink);}
-  .panel select:focus{outline:none; border-color:var(--navy);}
-  /* header sits directly on the wallpaper; only the role cards / login form are boxed */
-  .card.wide{margin:auto; max-width:640px; background:transparent; border:none; box-shadow:none; padding:0;}
-  .mark{margin:0 auto 12px; filter:drop-shadow(0 4px 12px rgba(0,0,0,.35));}
-  h1{font-family:'Times New Roman',Times,'Liberation Serif',serif; font-weight:700; font-size:44px; letter-spacing:1px; color:#fff; margin:0 0 8px; text-shadow:0 2px 14px rgba(0,0,0,.45);}
-  p.sub{color:rgba(255,255,255,.9); font-size:15px; margin:0 0 30px; text-shadow:0 1px 8px rgba(0,0,0,.5);}
-  .role-card{background:rgba(255,255,255,.96); border-color:transparent; box-shadow:0 10px 30px rgba(8,20,45,.35);}
-  .role-card:hover, .role-card:focus-visible{border-color:transparent; box-shadow:0 14px 36px rgba(8,20,45,.45); transform:translateY(-3px);}
-  #stageForm{max-width:380px; margin:0 auto; background:#fff; border-radius:12px; padding:28px 30px 22px; box-shadow:0 18px 50px rgba(8,20,45,.4);}
-  #stageForm .role-chip{display:flex;}
-  button.back-link{display:block; text-align:center; margin:14px auto 0;}
-  .link-row{text-align:center; margin-top:18px; font-size:13.5px; color:rgba(255,255,255,.88); text-shadow:0 1px 6px rgba(0,0,0,.5);}
-  .link-row button.lnk{all:unset; cursor:pointer; color:#fff; font-weight:600; text-decoration:underline; text-underline-offset:3px;}
-  .forgot-row{text-align:right; margin:-6px 0 6px;}
-  .forgot-row button.lnk{all:unset; cursor:pointer; font-size:12.5px; color:var(--navy); font-weight:500;}
-  .forgot-row button.lnk:hover{text-decoration:underline;}
-  .panel{display:none; max-width:400px; margin:0 auto; background:#fff; border-radius:12px; padding:28px 30px 22px; box-shadow:0 18px 50px rgba(8,20,45,.4);}
-  .panel h2{font-size:17px; font-weight:600; margin:0 0 4px; text-align:center;}
-  .panel p.hint{font-size:13px; color:var(--muted); text-align:center; margin:0 0 18px; line-height:1.45;}
-  .ok{background:#EAF7EE; border:1px solid #BFE5CB; color:#1E7A3C; font-size:13px; padding:10px 12px; border-radius:7px; margin-bottom:16px; display:none; line-height:1.45;}
-</style>
-</head>
-<body>
-
-<div class="bg" aria-hidden="true"></div>
-<div class="card wide" id="card">
-  <div class="mark"><img src="icon.svg" alt="TaxBase"></div>
-  <h1>TaxBase</h1>
-  <p class="sub" id="subText">Ascend Dynamic Advisory — choose how you sign in.</p>
-
-  <div id="stageCards">
-    <div class="role-grid">
-      <button type="button" class="role-card" data-role="hod">
-        <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M17.5 3.5l.6 1.2 1.3.2-.9.9.2 1.3-1.2-.6-1.2.6.2-1.3-.9-.9 1.3-.2z"/></svg></span>
-        <span><span class="rname">Head of Department</span><br><span class="rdesc">Full access, approvals &amp; reports</span></span>
-      </button>
-      <button type="button" class="role-card" data-role="admin">
-        <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
-        <span><span class="rname">Executive Administrator</span><br><span class="rdesc">Data entry &amp; edit records</span></span>
-      </button>
-      <button type="button" class="role-card" data-role="staff">
-        <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg></span>
-        <span><span class="rname">Viewer (Read-only)</span><br><span class="rdesc">View, generate report &amp; print</span></span>
-      </button>
-    </div>
-    <div class="link-row">New here? <button type="button" class="lnk" id="goRegister">Register for an account</button></div>
-  </div>
-
-  <div id="stageForm">
-  <div class="role-chip" id="roleChip"></div>
-  <div class="error" id="errorBox"></div>
-
-  <form id="loginForm">
-    <label for="staffId">Staff ID</label>
-    <input type="text" id="staffId" required autocomplete="username" placeholder="e.g. HD1001">
-    <label for="password">Password</label>
-    <div class="password-wrap">
-      <input type="password" id="password" required autocomplete="current-password">
-      <button type="button" class="eye-toggle" id="eyeToggle" aria-label="Show password">
-        <svg class="eye-on" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-        <svg class="eye-off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.3 20.3 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>
-      </button>
-    </div>
-    <div class="forgot-row"><button type="button" class="lnk" id="goForgot">Forgot password?</button></div>
-    <button type="submit" id="submitBtn">Sign in</button>
-  </form>
-  <button type="button" class="back-link" id="backBtn">← Choose a different role</button>
-  </div>
-
-  <div class="panel" id="stageRegister">
-    <h2>Create an account</h2>
-    <p class="hint">Enter your full name and choose your role. Your account stays inactive until the Head of Department approves it and gives you your <b>Staff ID and password</b>. You then sign in with those.</p>
-    <div class="error" id="regError"></div>
-    <div class="ok" id="regOk"></div>
-    <form id="registerForm">
-      <label for="regName">Full name</label>
-      <input type="text" id="regName" required autocomplete="name" placeholder="e.g. Ahmad bin Ismail">
-      <label for="regRole">Role</label>
-      <select id="regRole" required>
-        <option value="staff">Viewer (Read-only)</option>
-        <option value="admin">Executive Administrator</option>
-        <option value="hod">Head of Department</option>
-      </select>
-      <button type="submit" id="regBtn">Register</button>
-    </form>
-    <button type="button" class="back-link" data-back="cards">← Back to sign in</button>
-  </div>
-
-  <div class="panel" id="stageForgot">
-    <h2>Forgot password</h2>
-    <p class="hint" style="margin-bottom:6px;">Ask the <b>Head of Department</b> to reset your password. They will give you a new password.</p>
-    <p class="hint">Only the Head of Department can change passwords, so use the password they give you to sign in. If you need another new password later, send a request from <b>Settings</b> or ask the Head of Department again.</p>
-    <button type="button" class="back-link" data-back="cards">← Back to sign in</button>
-  </div>
-</div>
-
-<script>
-  // ---- Fill these in from your Supabase project (Settings > API) ----
-  const SUPABASE_URL = "https://peqzoyzxdrsjovpmuirm.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_ePzp2ldvvl1eh5EGlPdCzg__gnBEnwV";
-  // ---------------------------------------------------------------
-
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const STAFF_EMAIL_DOMAIN = "ascend-fintrack.local"; // internal only, never actually emailed
-
-  const ROLE_NAMES = { admin: 'Executive Administrator', hod: 'Head of Department', staff: 'Viewer (Read-only)' };
-  let selectedRole = null;
-  const stageCards = document.getElementById('stageCards');
-  const stageForm = document.getElementById('stageForm');
-  const STAGES = { cards: stageCards, form: stageForm, register: document.getElementById('stageRegister'), forgot: document.getElementById('stageForgot') };
-  const SUBS = { cards: 'Ascend Dynamic Advisory — choose how you sign in.', form: 'Ascend Dynamic Advisory', register: 'Ascend Dynamic Advisory', forgot: 'Ascend Dynamic Advisory' };
-  function showStage(name){
-    Object.entries(STAGES).forEach(([k, el]) => el.style.display = k === name ? 'block' : 'none');
-    document.getElementById('subText').textContent = SUBS[name];
-    ['errorBox', 'regError', 'regOk'].forEach(id => document.getElementById(id).style.display = 'none');
-  }
-  document.getElementById('goRegister').addEventListener('click', () => showStage('register'));
-  document.getElementById('goForgot').addEventListener('click', () => {
-    showStage('forgot');
-  });
-  document.querySelectorAll('[data-back="cards"]').forEach(b => b.addEventListener('click', () => { selectedRole = null; showStage('cards'); }));
-  const note = (id, msg, ok) => { const el = document.getElementById(id); el.textContent = msg; el.style.display = 'block'; };
-
-  document.getElementById('registerForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    ['regError', 'regOk'].forEach(id => document.getElementById(id).style.display = 'none');
-    const full_name = document.getElementById('regName').value.trim();
-    const requested_role = document.getElementById('regRole').value;
-    const nameKey = full_name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!nameKey) { note('regError', 'Your name must contain letters or numbers (A–Z).'); return; }
-    const btn = document.getElementById('regBtn');
-    btn.disabled = true; btn.textContent = 'Registering...';
-    const { error } = await sb.rpc('register_user', { p_name: full_name, p_role: requested_role });
-    btn.disabled = false; btn.textContent = 'Register';
-    if (error) {
-      const m = (error.message || '').toLowerCase();
-      note('regError', m.includes('already')
-        ? 'This name is already registered. Add your middle name or an initial to make it different.'
-        : 'Could not register: ' + error.message);
-      return;
-    }
-    document.getElementById('registerForm').reset();
-    note('regOk', 'Registration sent. Please wait for the Head of Department to give you your Staff ID and password. Use them to sign in.');
-  });
-
-  document.querySelectorAll('.role-card').forEach(c => c.addEventListener('click', () => {
-    selectedRole = c.dataset.role;
-    document.getElementById('roleChip').textContent = `Signing in as ${ROLE_NAMES[selectedRole]}`;
-    document.getElementById('errorBox').style.display = 'none';
-    showStage('form');
-    document.getElementById('staffId').focus();
-  }));
-  document.getElementById('backBtn').addEventListener('click', () => {
-    selectedRole = null; showStage('cards');
-    document.getElementById('loginForm').reset();
-  });
-
-  const form = document.getElementById('loginForm');
-  const errorBox = document.getElementById('errorBox');
-  const submitBtn = document.getElementById('submitBtn');
-
-  function showError(msg){
-    errorBox.textContent = msg;
-    errorBox.style.display = 'block';
-  }
-
-  const eyeToggle = document.getElementById('eyeToggle');
-  const passwordInput = document.getElementById('password');
-  eyeToggle.addEventListener('click', () => {
-    const showing = passwordInput.type === 'text';
-    passwordInput.type = showing ? 'password' : 'text';
-    eyeToggle.querySelector('.eye-on').style.display = showing ? '' : 'none';
-    eyeToggle.querySelector('.eye-off').style.display = showing ? 'none' : '';
-    eyeToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
-  });
-
-  // If already logged in and authorized, skip straight to dashboard
-  (async () => {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) window.location.href = 'dashboard.html';
-  })();
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!selectedRole) return;
-    errorBox.style.display = 'none';
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Signing in...';
-
-    const staffId = document.getElementById('staffId').value.trim().toLowerCase();
-    const password = document.getElementById('password').value;
-    let email = `${staffId.replace(/[^a-z0-9]/g, '')}@${STAFF_EMAIL_DOMAIN}`;   // fallback; the database lookup below gives the real one
-    const { data: looked } = await sb.rpc('login_email', { p_staff_id: staffId });
-    if (looked) email = looked;
-
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      showError('Incorrect Staff ID or password.');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Sign in';
-      return;
-    }
-
-    // Confirm this account has a valid role
-    const { data: profile, error: profileError } = await sb
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
-
-    if (profile && profile.role === 'pending') {
-      await sb.auth.signOut();
-      showError('Your registration is waiting for approval by the Head of Department.');
-      submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
-      return;
-    }
-    if (profile && profile.role === 'rejected') {
-      await sb.auth.signOut();
-      showError('Your registration was not approved. Please contact the Head of Department.');
-      submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
-      return;
-    }
-    if (profileError || !profile || !['admin', 'hod', 'staff'].includes(profile.role)) {
-      await sb.auth.signOut();
-      showError('This account is not authorized to access the finance client tracker.');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Sign in';
-      return;
-    }
-
-    // The ID must belong to the role card that was chosen
-    if (profile.role !== selectedRole) {
-      await sb.auth.signOut();
-      showError(`This ID is not registered as ${ROLE_NAMES[selectedRole]}. Please go back and choose the correct role.`);
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Sign in';
-      return;
-    }
-
-    try { sessionStorage.removeItem('taxbase_mode'); } catch (e) {}   // every login starts at the "Choose an action" screen
-    window.location.href = 'dashboard.html';
-  });
-
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-</script>
-<div class="credit">Powered by Ascend Advisory Group 2026</div>
-</body>
-</html>
+});
