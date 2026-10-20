@@ -584,6 +584,12 @@
   .earlier-list.open{display:flex;}
   .no-remarks{font-size:12px; color:var(--muted); margin-bottom:8px;}
 
+  /* Viewer (read-only) accounts: anything other roles can press shows the "not available" cursor and is dimmed */
+  body.role-staff .status-select, body.role-staff .e-field-select, body.role-staff .e-date-input, body.role-staff .e-today-btn,
+  body.role-staff .audit-chk, body.role-staff .sst-chk, body.role-staff .audit-box, body.role-staff .fye-pick select,
+  body.role-staff .add-remark-btn, body.role-staff .finish-btn, body.role-staff .jump-btn, body.role-staff .next-btn,
+  body.role-staff #listAddBtn, body.role-staff #listReportBtn, body.role-staff .lo-check, body.role-staff .pd-addrem{cursor:not-allowed !important;}
+  body.role-staff #listAddBtn, body.role-staff #listReportBtn, body.role-staff .add-remark-btn, body.role-staff .e-today-btn{opacity:.5;}
   .admin-col{display:none;}
   body.role-hod .admin-col, body.role-admin .admin-col{display:table-cell;}
   body:not(.role-hod) .delete-btn{display:none;}
@@ -3220,6 +3226,7 @@
   const reportScopeEntries = () => (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
 
   document.getElementById('listReportBtn').addEventListener('click', () => {
+    if (roleOf() === 'staff') { showToast('Viewer accounts can only view — generating reports is not available.'); return; }
     const entries = reportScopeEntries();
     document.getElementById('reportTitle').textContent =
       `Generate report — ${currentListLabel()}${showArchive ? ' (Archive)' : ''}`;
@@ -4349,6 +4356,7 @@
     if (profile.role === 'admin') document.getElementById('welcomeSub').textContent = 'Add new clients and companies here, so the HOD and the team are notified and can act before the due date.';
     document.getElementById('userRole').textContent = ROLE_LABELS[profile.role];
     document.body.classList.add('role-' + profile.role);
+    { const rb = document.getElementById('listReportBtn'); rb.disabled = profile.role === 'staff'; rb.title = profile.role === 'staff' ? 'Not available for viewer accounts' : ''; }
 
 
     if (profile.role === 'hod') loadUsers();
