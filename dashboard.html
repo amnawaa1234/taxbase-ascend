@@ -3315,14 +3315,14 @@
     let grandTotal = 0;
     const multi = !namesOnly && order.length > 1 && showStatusCol;
     const ROWS_PER_BLOCK = namesOnly ? 26 : 36;   // roughly one landscape A4 page; further blocks sit beside it when they fit
-    const headRow = `<thead><tr><th class="num">#</th>${multi ? '<th>Status</th>' : ''}<th>Month</th>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}${namesOnly ? '<th>Client / Company Name</th>' : (showRemarks ? '<th class="remcol">Remarks</th>' : '')}</tr></thead>`;
+    const headRow = `<thead><tr><th class="num">No.</th>${multi ? '<th>Status</th>' : ''}<th>Month</th>${cols.map(c => `<th>${escapeHtml(c.h)}</th>`).join('')}${namesOnly ? '<th>Client / Company Name</th>' : (showRemarks ? '<th class="remcol">Remarks</th>' : '')}</tr></thead>`;
     const all = [];
     if (namesOnly) entries.filter(e => order.includes(normStatus(e.status))).sort(byDueThenName).forEach(e => all.push({ e, st: normStatus(e.status) }));
     else order.forEach(st => entries.filter(e => normStatus(e.status) === st).sort(byDueThenName).forEach(e => all.push({ e, st })));
     grandTotal = all.length;
     // Rows are packed into columns when the report opens (see the script below), so each column fills the page
     // right down to the bottom and the numbering carries on in the next column beside it, not on a new page.
-    const rowHtml = all.map(({ e, st }, j) => `<tr><td class="num">${j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}<td><b>${escapeHtml(monthLabel(e))}</b></td>${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td${c.cls === 'name' ? ' class="namecol"' : ''}>${escapeHtml(c.v(e))}</td>`).join('')}${showRemarks ? `<td class="remcol">${remarksHtml(e)}</td>` : ''}`}</tr>`);
+    const rowHtml = all.map(({ e, st }, j) => `<tr data-g="${multi ? st : ''}-${mNo(e)}"><td class="num">${j + 1}</td>${multi ? `<td><span class="badge ${st}">${STATUS_LABELS[st]}</span></td>` : ''}<td class="mcell">${escapeHtml(monthLabel(e))}</td>${namesOnly ? `<td>${escapeHtml(e.company_name)}</td>` : `${cols.map(c => `<td${c.cls === 'name' ? ' class="namecol"' : ''}>${escapeHtml(c.v(e))}</td>`).join('')}${showRemarks ? `<td class="remcol">${remarksHtml(e)}</td>` : ''}`}</tr>`);
     const dataJson = JSON.stringify({ head: headRow, rows: rowHtml }).replace(/</g, '\\u003c');
     const sections = rowHtml.length ? '<div class="blocks" id="blocks"></div>' : '<p class="empty">No entries.</p>';
 
@@ -3357,13 +3357,14 @@
   th { text-align: left; background: #F1F2F5; font-size: 7.5px; padding: 3px 4px; border: 1px solid #D9DCE3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   td { padding: 2.5px 4px; border: 1px solid #D9DCE3; vertical-align: top; font-size: 7.5px; }
   tr { page-break-inside: avoid; }
-  .num { width: 20px; text-align: center; color: #6B7180; }
+  .num { width: 24px; text-align: center; color: #6B7180; }
   .remcol { max-width: 90px; }
   td { white-space: nowrap; } td.remcol { white-space: normal; } td.namecol{max-width:130px; white-space:normal;}
   .badge { padding: 1px 6px; font-size: 7px; }
   .rm { margin-bottom: 2px; }
   .rm i { font-size: 7.5px; line-height: 1.3; }
   .rmeta { font-size: 6.5px; color: #6B7180; margin-top: 1px; }
+  td.mcell { font-weight: 800; vertical-align: top; } tr.mstart td { border-top: 2px solid #1C1E26; }
   .none, .empty { color: #6B7180; }
   body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(3){max-width:230px; white-space:normal;}
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
@@ -3389,6 +3390,17 @@
   function apply(){ document.querySelector('.blocks') && document.querySelector('.blocks').style.setProperty('--z', z / 100); document.getElementById('zv').textContent = z + '%'; }
   var DATA = ${dataJson};
   var PAGE_W = 1062, PAGE_H = 725;   // A4 landscape minus 8mm margins, in CSS px
+  // One month cell per run of rows with the same month (merged downwards); a bold line marks where the next month starts
+  function mergeMonths(t){
+    var rows = t.querySelectorAll('tbody tr'), first = null, n = 0, i;
+    for (i = 0; i < rows.length; i++) {
+      var g = rows[i].getAttribute('data-g');
+      if (first && first.getAttribute('data-g') === g) {
+        var mc = rows[i].querySelector('td.mcell'); if (mc) mc.parentNode.removeChild(mc);
+        n++; first.querySelector('td.mcell').rowSpan = n;
+      } else { first = rows[i]; n = 1; if (i > 0) rows[i].className += ' mstart'; }
+    }
+  }
   function pack(){
     var host = document.getElementById('blocks'); if (!host) return;
     var zf = z / 100;
@@ -3414,6 +3426,7 @@
       cols.slice(c, c + perLine).forEach(function(idx){
         var t = document.createElement('table');
         t.innerHTML = DATA.head + '<tbody>' + idx.map(function(k){ return DATA.rows[k]; }).join('') + '</tbody>';
+        mergeMonths(t);
         line.appendChild(t);
       });
       host.appendChild(line);
