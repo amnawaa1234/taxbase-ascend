@@ -930,6 +930,11 @@
             <input type="hidden" id="eFyeMonth"><div class="fye-pick-add"><select id="eFyeM"></select><select id="eFyeY"></select></div>
             <div class="due-preview" style="margin-top:6px;" id="eFyeMonthPrev">The last day of the month is saved as the FYE date.</div>
           </div>
+          <div id="eSstPaidWrap" style="display:none;">
+            <label for="eSstPaid">Payments already made this year (out of 6)</label>
+            <select id="eSstPaid"><option value="0">0 — new, nothing paid yet</option><option value="1">1 of 6 paid</option><option value="2">2 of 6 paid</option><option value="3">3 of 6 paid</option><option value="4">4 of 6 paid</option><option value="5">5 of 6 paid</option></select>
+            <div class="due-preview" style="margin-top:6px;" id="eSstPaidPrev"></div>
+          </div>
           <div id="eDueMYWrap" style="display:none;">
             <label for="eDueM">Due date — pick the month</label>
             <div class="fye-pick-add"><select id="eDueM"></select><select id="eDueY"></select></div>
@@ -2698,11 +2703,12 @@
       const go = () => { if (m.value && y.value) onEFieldUpdate(box.dataset.entry, 'fye_date', monthEnd(`${y.value}-${m.value}`)); };
       m.addEventListener('change', go); y.addEventListener('change', go);
     });
+    body.querySelectorAll('.sst-chk').forEach(c => c.addEventListener('change', () => onEFieldUpdate(c.dataset.entry, 'process_date', c.checked ? new Date().toISOString().slice(0, 10) : null)));
     body.querySelectorAll('.audit-chk').forEach(c => c.addEventListener('change', () => onAuditToggle(c.dataset.entry, c.checked)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     if (!canEdit()) {
       body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Read-only account'; });
-      body.querySelectorAll('.status-select, .e-field-select, .e-date-input, .e-today-btn, .audit-chk, .fye-pick select').forEach(el => { el.disabled = true; });
+      body.querySelectorAll('.status-select, .e-field-select, .e-date-input, .e-today-btn, .audit-chk, .sst-chk, .fye-pick select').forEach(el => { el.disabled = true; });
     }
     body.querySelectorAll('.e-today-btn').forEach(btn => btn.addEventListener('click', () => {
       const today = new Date().toISOString().slice(0, 10);
@@ -2904,7 +2910,7 @@
         <td class="cp204-col">${simpleDateCell('lhdn_submitted_at', entry.lhdn_submitted_at)}</td>
         <td class="e-col status-cell">${eCellHtml('ea_received', eaReceived, 'ea_received_date', entry.ea_received_date)}</td>
         <td class="e-col status-cell">${eCellHtml('salary_received', salaryReceived, 'salary_received_date', entry.salary_received_date)}</td>
-        <td class="sst-col">${simpleDateCell('process_date', entry.process_date)}</td>
+        <td class="sst-col"><label class="audit-box"><input type="checkbox" class="sst-chk" data-entry="${entry.id}" ${entry.process_date ? 'checked' : ''}> Received</label>${entry.process_date ? `<div class="status-date">on ${formatDateDMY(entry.process_date)}</div>` : ''}</td>
         <td class="sst-col">${simpleDateCell('client_paid_date', entry.client_paid_date)}</td>
         <td class="sst-col">${simpleDateCell('customs_payment_date', entry.customs_payment_date)}</td>
         <td class="status-cell">
@@ -3049,7 +3055,7 @@
   });
   const syncFye = () => { const m = document.getElementById('eFyeM').value, y = document.getElementById('eFyeY').value; document.getElementById('eFyeMonth').value = (m && y) ? `${y}-${m}` : ''; document.getElementById('eFyeMonth').dispatchEvent(new Event('change')); };
   document.getElementById('eFyeM').addEventListener('change', syncFye); document.getElementById('eFyeY').addEventListener('change', syncFye);
-  document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); const sst = currentListFormType === 'form_sst', ym = e.target.value;
+  document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); const sst = currentListFormType === 'form_sst', ym = e.target.value; if (sst) updateSstPaidPreview();
     document.getElementById('eFyeMonthPrev').textContent = sst
       ? (d ? '6 periods will be created: ' + [0, 2, 4, 6, 8, 10].map(k => formatDateDMY(monthEnd(addMonthsYM(ym, k)))).join(' · ') : 'Pick the first month; the last day of each month is the due date.')
       : (d ? `FYE date: ${formatDateDMY(d)}` : 'The last day of the month is saved as the FYE date.');
@@ -3062,6 +3068,15 @@
     return now.getMonth() <= 3 ? now.getFullYear() - 1 : now.getFullYear(); // Jan–Apr still files for last year's YA
   }
   function beDueDate(ya){ return `${ya + 1}-${FORM_BE_DUE.month}-${FORM_BE_DUE.day}`; }
+  function updateSstPaidPreview(){
+    const el = document.getElementById('eSstPaidPrev'); if (!el) return;
+    const paid = parseInt(document.getElementById('eSstPaid').value, 10) || 0, ym = document.getElementById('eFyeMonth').value;
+    const tabTxt = `It goes straight to tab ${paid + 1}/6`;
+    el.textContent = ym
+      ? `${tabTxt} — due ${formatDateDMY(monthEnd(addMonthsYM(ym, paid * 2)))}.` + (paid ? ` Periods 1–${paid} are saved as Submitted.` : '')
+      : `${tabTxt}. Pick the first due month above to see the dates.`;
+  }
+  document.getElementById('eSstPaid').addEventListener('change', updateSstPaidPreview);
   let cpDueTouched = false;
   function cpDueYM(){ const m = document.getElementById('eDueM').value, y = document.getElementById('eDueY').value; return (m && y) ? `${y}-${m}` : ''; }
   function updateCpDuePreview(){
@@ -3085,6 +3100,9 @@
     document.getElementById('eFyeMonthWrap').style.display = (formType === 'form_c' || isCP204 || isSST) ? '' : 'none';
     document.getElementById('eFyeMonth').value = ''; { const o = fyeOptions(''); document.getElementById('eFyeM').innerHTML = o.ms; document.getElementById('eFyeY').innerHTML = o.ys; }
     document.getElementById('eFyeMonthPrev').textContent = 'The last day of the month is saved as the FYE date.';
+    document.getElementById('eSstPaidWrap').style.display = isSST ? '' : 'none';
+    document.getElementById('eSstPaid').value = '0';
+    updateSstPaidPreview();
     document.getElementById('eDueMYWrap').style.display = isCP204 ? '' : 'none';
     { const o = fyeOptions(''); document.getElementById('eDueM').innerHTML = o.ms; document.getElementById('eDueY').innerHTML = o.ys; cpDueTouched = false; }
     document.getElementById('eDueMYPrev').textContent = 'Usually about 13 months before the FYE — it fills in by itself once you pick the FYE; change it if needed.';
@@ -3130,7 +3148,8 @@
 
     const isSst = currentListFormType === 'form_sst';
     const baseRow = { form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(currentListFormType === 'form_b' && client_name ? { client_name } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id };
-    const payload = isSst ? [0, 2, 4, 6, 8, 10].map(k => ({ ...baseRow, due_date: monthEnd(addMonthsYM(due_date.slice(0, 7), k)) })) : [baseRow];
+    const sstPaid = isSst ? (parseInt(document.getElementById('eSstPaid').value, 10) || 0) : 0;
+    const payload = isSst ? [0, 2, 4, 6, 8, 10].map((k, idx) => ({ ...baseRow, due_date: monthEnd(addMonthsYM(due_date.slice(0, 7), k)), ...(idx < sstPaid ? { status: 'submitted', status_changed_at: new Date().toISOString() } : {}) })) : [baseRow];
     const { data: insData, error } = await sb.from('form_entries')
       .insert(payload)
       
@@ -3156,7 +3175,8 @@
 
     btn.disabled = false; btn.textContent = 'Save';
     closeEntryForm();
-    showToast(currentListFormType === 'form_sst' ? `${company_name} added with 6 SST periods.` : `${company_name} added${revNote}.`);
+    if (currentListFormType === 'form_sst') { listSstTab = sstPaid + 1; listSearchTerm = ''; document.getElementById('listSearchInput').value = ''; }
+    showToast(currentListFormType === 'form_sst' ? `${company_name} added — now in tab ${sstPaid + 1}/6.` : `${company_name} added${revNote}.`);
     await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${document.getElementById('eLongOverdue').checked ? ' [marked LONG OVERDUE]' : ''}${remark ? ' with a remark' : ''}`);
     await loadFormEntries();
   });
@@ -3292,7 +3312,7 @@
     if (key === 'form_cp204a') cols.push({ h: 'Revision', v: e => CP204_REV_LABELS[e.revision] || '' });
     if (CP204_FORMS.includes(key)) cols.push({ h: 'Proposal Sent to Client', v: dateOf('proposal_sent_at') }, { h: 'Proposal Signed', v: dateOf('proposal_signed_at') }, { h: 'Submitted to LHDN', v: dateOf('lhdn_submitted_at') });
     if (key === 'form_e') cols.push({ h: 'EA', v: recv('ea_received', 'ea_received_date') }, { h: 'Summary Salary', v: recv('salary_received', 'salary_received_date') });
-    if (key === 'form_sst') cols.push({ h: 'Sales Summary', v: dateOf('process_date') }, { h: 'Client Paid On', v: dateOf('client_paid_date') }, { h: 'Make Payment to Customs', v: dateOf('customs_payment_date') });
+    if (key === 'form_sst') cols.push({ h: 'Sales Summary', v: e => e.process_date ? 'Received' : '—' }, { h: 'Client Paid On', v: dateOf('client_paid_date') }, { h: 'Make Payment to Customs', v: dateOf('customs_payment_date') });
     if (PCB_STYLE_FORMS.includes(key)) cols.push({ h: 'Payment Received On', v: dateOf('payment_received_on') }, { h: 'Paid to LHDN', v: dateOf('paid_to_lhdn') });
     return cols;
   }
@@ -3364,7 +3384,7 @@
   .rm { margin-bottom: 2px; }
   .rm i { font-size: 7.5px; line-height: 1.3; }
   .rmeta { font-size: 6.5px; color: #6B7180; margin-top: 1px; }
-  td.mcell { font-weight: 800; vertical-align: top; } tr.mstart td { border-top: 2px solid #1C1E26; }
+  td.mcell { font-weight: 600; vertical-align: top; } tr.mstart td { border-top: 1.5px solid #555B68; }
   .none, .empty { color: #6B7180; }
   body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(3){max-width:230px; white-space:normal;}
   @media print { .toolbar { display: none; } .page { padding-top: 0; } }
@@ -3924,7 +3944,7 @@
   const FIELD_LABELS = {
     ea_received: 'EA', ea_received_date: 'EA received date',
     salary_received: 'Summary Salary', salary_received_date: 'Summary Salary received date',
-    process_date: 'Sales Summary date', client_paid_date: 'Client Paid On', customs_payment_date: 'Make Payment to Customs',
+    process_date: 'Sales Summary received', client_paid_date: 'Client Paid On', customs_payment_date: 'Make Payment to Customs',
     payment_received_on: 'Payment Received On', paid_to_lhdn: 'Paid to LHDN',
     fye_date: 'FYE', audit_received_date: 'Audit Report Received date', proposal_sent_at: 'Proposal Sent to Client', proposal_signed_at: 'Proposal Signed', lhdn_submitted_at: 'Submitted to LHDN'
   };
