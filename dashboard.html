@@ -1296,6 +1296,8 @@
   // Every form uses the same four statuses.
   const STATUSES = ['pending', 'in_progress', 'completed', 'pending_submit', 'submitted'];
   const STATUS_LABELS = { pending: 'PENDING', in_progress: 'IN PROGRESS', completed: 'COMPLETED', pending_submit: 'PENDING SUBMIT', submitted: 'SUBMITTED' };
+  // CP204 / CP204A stop at COMPLETED (no Pending Submit / Submitted)
+  const statusesFor = key => CP204_FORMS.includes(key) ? ['pending', 'in_progress', 'completed'] : STATUSES;
   const normStatus = s => (STATUSES.includes(s) ? s : 'pending');
   const isDone = s => s === 'completed' || s === 'submitted';
 
@@ -2315,7 +2317,7 @@
   function cp204aBlocker(e){
     if (e.form_type !== 'form_cp204a' || !e.parent_id) return null;
     const par = findEntry(e.parent_id);
-    return par && normStatus(par.status) !== 'submitted' ? par : null;
+    return par && !isDone(normStatus(par.status)) ? par : null;   // CP204 steps unlock once the step before is COMPLETED
   }
   const lockOf = e => e.form_type === 'form_sst' ? sstBlocker(e) : e.form_type === 'form_cp204a' ? cp204aBlocker(e) : null;
   const lockWhy = b => b.form_type === 'form_cp204' ? 'CP204' : b.form_type === 'form_cp204a' ? (CP204_REV_LABELS[b.revision] || 'the previous step') : formatDateDMY(b.due_date);
@@ -2457,6 +2459,7 @@
     statusFilter = savedStatus;
     const counts = { all: rows.length };
     STATUSES.forEach(st => { counts[st] = rows.filter(e => normStatus(e.status) === st).length; });
+    const sideStatuses = statusesFor(key);
 
     // Month counts follow the other filters (incl. status) but not the month filter itself.
     const monthCounts = { all: 0 };
@@ -2500,7 +2503,7 @@
     // Due Month (Form C / SST) or Period (CP500) sit underneath and scroll if needed.
     let html = `<div class="sidebar-section-label" style="margin-top:0;">Status</div>` +
       btn('status-filter-btn', 'status', '', 'All', statusFilter === null, counts.all) +
-      STATUSES.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
+      sideStatuses.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
     if (hasMonths) {
       html += `<div class="sidebar-section-label">${currentListFormType === 'form_cp204' ? 'FYE Month' : 'Due Month'}</div>` +
         btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null, monthCounts.all) +
@@ -2857,9 +2860,9 @@
     else if (entry.revision === 1) next = 2;
     else if (entry.revision === 2) next = 3;
     if (!next) return `<span class="final-step">Final step</span>`;
-    const ok = status === 'submitted';
+    const ok = isDone(status);
     if ((formData.form_cp204a || []).some(c => c.parent_id === entry.id)) return `<span class="final-step">${ok ? '✓ Next unlocked' : 'Next: locked'}</span>`;
-    return `<button type="button" class="finish-btn jump-btn" data-entry="${entry.id}" ${ok ? '' : 'disabled'} title="${ok ? 'Start ' + CP204_REV_LABELS[next] : 'Set the status to SUBMITTED first'}">Start ${CP204_REV_LABELS[next]}</button>`;
+    return `<button type="button" class="finish-btn jump-btn" data-entry="${entry.id}" ${ok ? '' : 'disabled'} title="${ok ? 'Start ' + CP204_REV_LABELS[next] : 'Set the status to COMPLETED first'}">Start ${CP204_REV_LABELS[next]}</button>`;
   }
 
   function entryRowHtml(entry){
@@ -2905,7 +2908,7 @@
     if (CP204_FORMS.includes(entry.form_type)) {
       if (entry.form_type === 'form_cp204a') stageTag += `<div><span class="stage-tag">${CP204_REV_LABELS[entry.revision] || 'Revised'}</span></div>`;
       const child = (formData.form_cp204a || []).find(c => c.parent_id === entry.id);
-      if (child && normStatus(entry.status) === 'submitted') stageTag += `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ Jumped to ${CP204_REV_LABELS[child.revision] || 'next step'}</div>`;
+      if (child && isDone(normStatus(entry.status))) stageTag += `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ Jumped to ${CP204_REV_LABELS[child.revision] || 'next step'}</div>`;
     }
 
     if (CP204_FORMS.includes(entry.form_type)) {
@@ -2930,8 +2933,8 @@
       </div>`;
 
     return `
-      <tr data-row="${entry.id}"${(() => { const cls = [isLongOverdue(entry) ? 'long-overdue' : '', sstLock ? 'sst-locked' : ''].filter(Boolean).join(' '); return (cls ? ` class="${cls}"` : '') + (sstLock ? ` title="Locked until ${escapeHtml(lockWhy(sstLock))} is Submitted"` : ''); })()}>
-        <td class="company-cell">${escapeHtml(entry.company_name)}${entry.form_type === 'form_sst' && sstIndex(entry) ? `<span class="stage-tag" style="margin-left:6px;">${sstIndex(entry)}/6</span>` : ''}${sstLock ? `<div class="lock-tag">🔒 Locked — waiting for ${escapeHtml(lockWhy(sstLock))} to be Submitted</div>` : ''}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
+      <tr data-row="${entry.id}"${(() => { const cls = [isLongOverdue(entry) ? 'long-overdue' : '', sstLock ? 'sst-locked' : ''].filter(Boolean).join(' '); return (cls ? ` class="${cls}"` : '') + (sstLock ? ` title="Locked until ${escapeHtml(lockWhy(sstLock))} is ${entry.form_type === 'form_cp204a' ? 'Completed' : 'Submitted'}"` : ''); })()}>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${entry.form_type === 'form_sst' && sstIndex(entry) ? `<span class="stage-tag" style="margin-left:6px;">${sstIndex(entry)}/6</span>` : ''}${sstLock ? `<div class="lock-tag">🔒 Locked — waiting for ${escapeHtml(lockWhy(sstLock))} to be ${entry.form_type === 'form_cp204a' ? 'Completed' : 'Submitted'}</div>` : ''}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="fye-col">${entry.fye_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.fye_date)}</div>` : (() => { const o = fyeOptions(''); return `<div class="fye-pick" data-entry="${entry.id}" title="Pick the month and year — the last day of that month is saved, then it is fixed"><select class="fye-m">${o.ms}</select><select class="fye-y">${o.ys}</select></div><div class="fye-date" style="color:var(--red);">not set</div>`; })()}</td>
         <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
@@ -2947,7 +2950,7 @@
         <td class="sst-col">${simpleDateCell('customs_payment_date', entry.customs_payment_date)}</td>
         <td class="status-cell">
           <select class="status-select status-${status}" data-entry="${entry.id}">
-            ${STATUSES.map(st => `<option value="${st}" ${status === st ? 'selected' : ''}>${STATUS_LABELS[st]}</option>`).join('')}
+            ${(statusesFor(entry.form_type).includes(status) ? statusesFor(entry.form_type) : statusesFor(entry.form_type).concat(status)).map(st => `<option value="${st}" ${status === st ? 'selected' : ''}>${STATUS_LABELS[st]}</option>`).join('')}
           </select>
           <div class="status-date">Changed on ${formatDateDMY(entry.status_changed_at ? entry.status_changed_at.slice(0, 10) : entry.created_at.slice(0, 10))}</div>
         </td>
@@ -3230,7 +3233,7 @@
     const entries = reportScopeEntries();
     document.getElementById('reportTitle').textContent =
       `Generate report — ${currentListLabel()}${showArchive ? ' (Archive)' : ''}`;
-    document.getElementById('reportStatusOptions').innerHTML = STATUSES.map(st => {
+    document.getElementById('reportStatusOptions').innerHTML = statusesFor(currentDataKey()).map(st => {
       const n = entries.filter(e => normStatus(e.status) === st).length;
       return `<label class="report-opt"><input type="checkbox" value="${st}" checked> ${STATUS_LABELS[st]}<span class="rcount">${n}</span></label>`;
     }).join('');
@@ -3830,7 +3833,7 @@
   async function onCp204JumpClick(entryId){
     if (!canEdit()) { showToast('Only HOD or Executive Administrator can do this.'); return; }
     const entry = findEntry(entryId);
-    if (!entry || !CP204_FORMS.includes(entry.form_type) || normStatus(entry.status) !== 'submitted') return;
+    if (!entry || !CP204_FORMS.includes(entry.form_type) || !isDone(normStatus(entry.status))) return;
     let nextRev = null;
     if (entry.form_type === 'form_cp204') nextRev = 1;
     else if (entry.revision === 1) nextRev = 2;
