@@ -203,7 +203,7 @@
   .pl-clear button{padding:7px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; font-family:inherit; font-size:13px;}
   .pl-count{font-size:13px; color:var(--muted); margin:6px 0 10px;}
   #profileDetailView{max-width:1100px; margin:0 auto;}
-  .pd-title{font-size:22px; margin:6px 0 2px; text-align:center;} .pd-sub{text-align:center; color:var(--muted); font-size:13.5px; margin:0 0 16px;}
+  .pd-title{font-size:22px; margin:6px 0 12px; text-align:center;} .pd-sub{text-align:center; color:var(--muted); font-size:13.5px; margin:0 0 22px;}
   .pd-sentence{background:#fff; border:1px solid var(--line); border-left:4px solid var(--navy); border-radius:10px; padding:12px 16px; font-size:14px; margin-bottom:14px; line-height:1.5;}
   .pd-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-bottom:14px;}
   .pd-card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
@@ -1555,22 +1555,28 @@
     const progCols = cols.filter(c => !skip.has(c.h) && c.h !== 'Instalment' && c.h !== 'Payment');
     const prog = progCols.map(c => { const n = list.filter(e => !isEmptyVal(c.v(e))).length; return { h: c.h, n }; });
 
-    const sentence = [
-      `${total} ${total === 1 ? 'entry' : 'entries'} for ${formName}: ${openN ? `<b>${openN} still open</b>` : '<b>all finished</b>'}${doneN ? `, ${doneN} completed / submitted` : ''}.`,
-      nextDue ? `Next due date: <b>${formatDateDMY(nextDue)}</b>.` : '',
-      late.length ? `<b style="color:var(--red);">${late.length} overdue</b> (oldest due ${formatDateDMY(late[0].due_date)}).` : '',
-      prog.length ? prog.map(p => `${escapeHtml(p.h)}: ${p.n} of ${total}`).join(' · ') + '.' : ''
-    ].filter(Boolean).join(' ');
-
-    const cardsHtml = `
-      <div class="pd-cards">
-        <div class="pd-card"><div class="k">Current status</div><div class="v" style="font-size:13px;">${stChips}</div></div>
-        <div class="pd-card"><div class="k">Entries</div><div class="v">${total}</div><div class="s">${openN} open · ${doneN} done</div></div>
-        <div class="pd-card"><div class="k">Next due</div><div class="v">${nextDue ? formatDateDMY(nextDue) : '—'}</div><div class="s">${nextDue ? '' : 'Nothing open'}</div></div>
-        <div class="pd-card"><div class="k">Overdue</div><div class="v ${late.length ? 'red' : ''}">${late.length}</div><div class="s">${late.length ? 'open and past due' : 'none'}</div></div>
-        <div class="pd-card"><div class="k">Last status change</div><div class="v" style="font-size:14px;">${lastChange ? escapeHtml(formatTimeMeta(lastChange)) : '—'}</div></div>
-      </div>`;
-    const progHtml = prog.length ? `<h3 class="pd-h">Progress</h3><div class="pd-prog">${prog.map(p => `<div class="pd-card"><div class="k">${escapeHtml(p.h)}</div><div class="v">${p.n} <span style="font-size:13px; font-weight:500; color:var(--muted);">of ${total}</span></div><div class="pd-bar"><i style="width:${Math.round(p.n / total * 100)}%"></i></div></div>`).join('')}</div>` : '';
+    const payField = key === 'form_sst' ? 'customs_payment_date' : (PCB_STYLE_FORMS.includes(key) ? 'paid_to_lhdn' : null);
+    const yr = today.slice(0, 4), pct = total ? Math.round(doneN / total * 100) : 0;
+    const dOf = v => v ? String(v).slice(0, 10) : '';
+    const times = n => n === 1 ? 'once' : n + ' times';
+    const parts = [];
+    if (payField) {
+      const paid = list.map(e => dOf(e[payField])).filter(Boolean).sort();
+      const paidYear = paid.filter(d => d.slice(0, 4) === yr);
+      const payWhere = key === 'form_sst' ? 'to Customs' : 'to LHDN';
+      parts.push(paid.length ? `The last payment ${payWhere} was made on <b>${formatDateDMY(paid[paid.length - 1])}</b>.` : `No payment ${payWhere} has been recorded yet.`);
+      parts.push(paidYear.length ? `This year (${yr}) <b>${escapeHtml(prof.name)}</b> has paid <b>${times(paidYear.length)}</b> for ${escapeHtml(formName)}.` : `No payment has been made this year (${yr}).`);
+    } else {
+      const fin = list.filter(e => isDone(normStatus(e.status)));
+      const lastDone = fin.map(e => dOf(e.status_changed_at)).filter(Boolean).sort().slice(-1)[0];
+      parts.push(lastDone ? `Last completed / submitted on <b>${formatDateDMY(lastDone)}</b>.` : `Nothing has been completed yet.`);
+      const thisYr = list.filter(e => (e.due_date || '').slice(0, 4) === yr);
+      if (thisYr.length) parts.push(`This year (${yr}): <b>${thisYr.filter(e => isDone(normStatus(e.status))).length}</b> of ${thisYr.length} ${thisYr.length === 1 ? 'entry' : 'entries'} finished.`);
+    }
+    parts.push(`Overall progress: <b>${pct}%</b> (${doneN} of ${total} ${total === 1 ? 'entry' : 'entries'} done).`);
+    if (nextDue) parts.push(`Next due date: <b>${formatDateDMY(nextDue)}</b>.`);
+    if (late.length) parts.push(`<b style="color:var(--red);">${late.length} overdue</b> (oldest due ${formatDateDMY(late[0].due_date)}).`);
+    const sentence = parts.join(' ');
 
     const head = ['Due Date', ...cols.filter(c => c.h !== 'Due Date').map(c => c.h), 'Status', 'Remarks'];
     const rowsHtml = list.map(e => {
@@ -1587,7 +1593,6 @@
       <h2 class="pd-title">${escapeHtml(prof.name)}</h2>
       <p class="pd-sub">${escapeHtml(formName)} — summary${prof.idNo ? ` · ${ID_LABELS[prof.idType] || 'ID'}: ${escapeHtml(prof.idNo)}` : ''}</p>
       <div class="pd-sentence">${sentence}</div>
-      ${cardsHtml}${progHtml}
       <h3 class="pd-h">All entries</h3>
       <div class="pd-tablewrap"><table class="pd-table"><thead><tr>${head.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>
       <div class="pd-actions"><button type="button" class="orgs-add-btn" id="pdOpenList">Open in the ${escapeHtml(formName)} list</button></div>`;
