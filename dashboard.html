@@ -3387,7 +3387,7 @@
   td.mcell { font-weight: 600; vertical-align: top; } tr.mstart td { border-top: 1.5px solid #555B68; }
   .none, .empty { color: #6B7180; }
   body.names th { font-size: 11px; padding: 5px 8px; } body.names td { font-size: 11.5px; padding: 4px 8px; } body.names .num { width: 28px; } body.names td:nth-child(3){max-width:230px; white-space:normal;}
-  @media print { .toolbar { display: none; } .page { padding-top: 0; } }
+  @media print { .toolbar { display: none; } .page { padding-top: 0; } body { padding-bottom: 0; } .line { break-inside: avoid; } }
 </style></head><body${namesOnly ? ' class="names"' : ''}>
 <div class="toolbar"><span>${namesOnly ? 'List' : 'Report'} preview</span>
   <span class="sizectl">Text size: <button type="button" onclick="zoomBy(-10)" title="Smaller text">A−</button> <b id="zv">100%</b> <button type="button" onclick="zoomBy(10)" title="Bigger text">A+</button> <button type="button" onclick="zoomBy(0)" title="Reset">Reset</button></span>
@@ -3410,6 +3410,7 @@
   function apply(){ document.querySelector('.blocks') && document.querySelector('.blocks').style.setProperty('--z', z / 100); document.getElementById('zv').textContent = z + '%'; }
   var DATA = ${dataJson};
   var PAGE_W = 1062, PAGE_H = 725;   // A4 landscape minus 8mm margins, in CSS px
+  var EXTRA = 0;                     // extra safety (px) added when the check below finds a column taller than the page
   // One month cell per run of rows with the same month (merged downwards); a bold line marks where the next month starts
   function mergeMonths(t){
     var rows = t.querySelectorAll('tbody tr'), first = null, n = 0, i;
@@ -3432,7 +3433,9 @@
     var headH = probe.querySelector('thead').getBoundingClientRect().height, tw = probe.getBoundingClientRect().width;
     var topH = document.querySelector('.page').getBoundingClientRect().height - host.getBoundingClientRect().height;   // title + summary above the tables
     var perLine = Math.max(1, Math.floor((PAGE_W / zf + 8) / (tw + 8)));
-    var cap1 = (PAGE_H - 24) / zf - topH - headH, capN = (PAGE_H - 4) / zf - headH;
+    // Room left for rows: the title block is not zoomed, the tables are. A little safety margin is kept on every page.
+    var SAFE = 8 + EXTRA;
+    var cap1 = (PAGE_H - SAFE - 24 - topH) / zf - headH, capN = (PAGE_H - SAFE) / zf - headH;
     var cols = [], cur = [], used = 0, lineNo = 0, colNo = 0;
     var capFor = function(){ return Math.floor(colNo / perLine) === 0 ? cap1 : capN; };
     for (i = 0; i < hs.length; i++) {
@@ -3452,10 +3455,20 @@
       host.appendChild(line);
     }
     host.style.setProperty('--z', zf);
+    // Check against the real layout: a column taller than its page would be split by the printer, and a table with merged
+    // month cells then jumps whole groups of rows to the next page. If that happens, pack again with more safety margin.
+    var lines = host.querySelectorAll('.line'), tooTall = false;
+    for (var li = 0; li < lines.length; li++) {
+      var tabs = lines[li].querySelectorAll('table'), hmax = 0;
+      for (var ti = 0; ti < tabs.length; ti++) hmax = Math.max(hmax, tabs[ti].getBoundingClientRect().height);
+      var avail = PAGE_H - 6 - (li === 0 ? topH + 24 : 0);
+      if (hmax > avail) tooTall = true;
+    }
+    if (tooTall && EXTRA < 120) { EXTRA += 12; pack(); }
   }
   apply(); pack();
   window.addEventListener('load', pack);
-  var _apply = apply; apply = function(){ _apply(); pack(); };
+  var _apply = apply; apply = function(){ _apply(); EXTRA = 0; pack(); };
 <\/script></body></html>`;
   }
 
