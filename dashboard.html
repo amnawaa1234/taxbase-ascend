@@ -1142,7 +1142,7 @@
   <div class="modal" style="max-width:400px;">
     <h2>Are you sure this date is correct?</h2>
     <p class="modal-sub" id="proposalConfirmWho" style="margin-bottom:8px;"></p>
-    <p class="modal-sub">A confirmation email will be sent to HOD to record this activity.</p>
+    <p class="modal-sub" id="proposalConfirmNote">A confirmation email will be sent to HOD to record this activity.</p>
     <div class="modal-actions">
       <button id="proposalCancelBtn">Cancel</button>
       <button class="primary" id="proposalConfirmBtn">Yes, save and send</button>
@@ -2873,10 +2873,13 @@
     const entry = findEntry(entryId);
     if (field === 'fye_date' && entry && entry.fye_date) { showToast('FYE is fixed once added.'); await loadFormEntries(); return; }
     // CP204 / CP204A "Proposal Signed": ask first — saving the date also sends the proof email
-    if (field === 'proposal_signed_at' && value && entry && CP204_FORMS.includes(entry.form_type) && !skipProposalConfirm && entry.proposal_signed_at !== value) {
+    const isProposal = field === 'proposal_signed_at' && entry && CP204_FORMS.includes(entry.form_type);
+    const isAudit = field === 'audit_received_date' && entry && entry.form_type === 'form_c';
+    if ((isProposal || isAudit) && value && !skipProposalConfirm && entry[field] !== value) {
       pendingProposal = { entryId, field, value };
-      const which = entry.form_type === 'form_cp204' ? 'CP204' : 'CP204A — ' + (CP204_REV_LABELS[entry.revision] || 'Revised');
-      document.getElementById('proposalConfirmWho').innerHTML = `<b>${escapeHtml(entry.company_name)}</b> · ${escapeHtml(which)}<br>Proposal signed on <b>${escapeHtml(formatDateDMY(value))}</b>`;
+      const which = isAudit ? 'Form C' : entry.form_type === 'form_cp204' ? 'CP204' : 'CP204A — ' + (CP204_REV_LABELS[entry.revision] || 'Revised');
+      document.getElementById('proposalConfirmWho').innerHTML = `<b>${escapeHtml(entry.company_name)}</b> · ${escapeHtml(which)}<br>${isAudit ? 'Audit report received on' : 'Proposal signed on'} <b>${escapeHtml(formatDateDMY(value))}</b>`;
+      document.getElementById('proposalConfirmNote').textContent = isAudit ? 'A confirmation email will be sent to record this activity.' : 'A confirmation email will be sent to HOD to record this activity.';
       document.getElementById('proposalConfirmBackdrop').classList.add('open');
       return;
     }
@@ -2890,6 +2893,7 @@
         : (value ? formatDateDMY(value) : 'cleared');
       await logActivity(`Set ${label} to ${shown} for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
       if (field === 'proposal_signed_at' && value && CP204_FORMS.includes(entry.form_type)) sendProposalSignedEmail(entry, value);   // proof email, fire and forget
+      if (field === 'audit_received_date' && value && entry.form_type === 'form_c') sendAuditReceivedEmail(entry, value);
     }
     await loadFormEntries();
   }
@@ -2910,6 +2914,23 @@
       showToast('Proof email sent to Tax (proposal signed).');
     } catch (e) {
       showToast('Date saved, but the proof email could not be sent (email service not set up yet).');
+    }
+  }
+
+  // Form C: when the "Audit Report Received" date is entered, an email goes out as a record (Edge Function "audit-received-email").
+  async function sendAuditReceivedEmail(entry, receivedDate){
+    if (!['admin', 'hod'].includes(roleOf())) return;
+    try {
+      const { error } = await sb.functions.invoke('audit-received-email', { body: {
+        client: entry.company_name, form: 'Form C',
+        received_date: formatDateDMY(receivedDate),
+        changed_by: currentProfile ? currentProfile.full_name : '', changed_role: ROLE_LABELS[roleOf()] || roleOf(),
+        changed_at: formatTimeMeta(new Date().toISOString()), app_url: location.origin + location.pathname
+      } });
+      if (error) throw error;
+      showToast('Email sent (audit report received).');
+    } catch (e) {
+      showToast('Date saved, but the email could not be sent (email service not set up yet).');
     }
   }
 
