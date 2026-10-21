@@ -464,6 +464,11 @@
     border-radius:7px; font-size:13px; font-family:inherit;
   }
   .list-toolbar input:focus{outline:none; border-color:var(--navy);}
+  .search-wrap{position:relative; flex:1; min-width:160px; display:flex;}
+  .search-wrap input[type="text"]{width:100%; padding-right:32px;}
+  .list-toolbar .search-clear{position:absolute; right:6px; top:50%; transform:translateY(-50%); display:none; width:22px; height:22px; padding:0; line-height:20px; border:none; border-radius:50%; background:#e5e8ee; color:#4a5568; font-size:16px; cursor:pointer;}
+  .list-toolbar .search-clear:hover{background:#d3d8e2;}
+  .search-wrap.has-text .search-clear{display:block;}
   .list-toolbar button{
     padding:9px 13px; border:1px solid var(--line); background:#fff; color:var(--ink);
     border-radius:7px; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit;
@@ -897,7 +902,7 @@
         <div class="list-main">
 
       <div class="list-toolbar">
-        <input type="text" id="listSearchInput" placeholder="Search company name...">
+        <span class="search-wrap"><input type="text" id="listSearchInput" placeholder="Search company name..."><button type="button" id="listSearchClear" class="search-clear" title="Clear search" aria-label="Clear search">&times;</button></span>
         <select id="listSortSelect">
           <option value="newest">Sort: Newest added</option>
           <option value="due">Sort: Due date (earliest first)</option>
@@ -3272,16 +3277,32 @@
   });
 
   /* ---------------- List search (inside a form's modal) ---------------- */
+  const syncSearchClear = () => { const i = document.getElementById('listSearchInput'); i.parentNode.classList.toggle('has-text', !!i.value); };
   document.getElementById('listSearchInput').addEventListener('input', (e) => {
-    listSearchTerm = e.target.value;
+    listSearchTerm = e.target.value; syncSearchClear();
     renderListTable();
   });
+  document.getElementById('listSearchClear').addEventListener('click', () => {
+    const i = document.getElementById('listSearchInput'); i.value = ''; listSearchTerm = ''; syncSearchClear(); renderListTable(); i.focus();
+  });
+  setInterval(syncSearchClear, 400);   // other code resets the box programmatically (opening a form, jumping to a client)
 
   /* ---------------- Generate report (print / save as PDF) ---------------- */
   const currentListLabel = () => formNameOf(currentDataKey());
   // The report covers the whole list being viewed (current list, or Archive when that is open),
   // regardless of the on-screen search / letter / month filters.
-  const reportScopeEntries = () => (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
+  const reportScopeEntries = () => {
+    const base = (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
+    if (currentDataKey() !== 'form_sst') return base;
+    // SST has 6 periods per company: the report lists each company once (its current period), not 6 times
+    const by = new Map();
+    base.slice().sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).forEach(e => {
+      const k = normName(e.company_name), cur = by.get(k);
+      if (!cur || (isDone(normStatus(cur.status)) && !isDone(normStatus(e.status)))) by.set(k, e);
+      else if (isDone(normStatus(cur.status)) && isDone(normStatus(e.status))) by.set(k, e);
+    });
+    return [...by.values()];
+  };
 
   document.getElementById('listReportBtn').addEventListener('click', () => {
     if (roleOf() === 'staff') { showToast('Viewer accounts can only view — generating reports is not available.'); return; }
@@ -3393,7 +3414,7 @@
     const dateOf = f => e => formatDateDMY(e[f]);
     const recv = (f, df) => e => (e[f] === 'received' ? 'RECEIVED' : 'NOT RECEIVED') + (e[df] ? ' · ' + formatDateDMY(e[df]) : '');
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
-    if (!CP204_FORMS.includes(key)) cols.push({ h: 'Due Date', v: dateOf('due_date') });
+    cols.push({ h: 'Due Date', v: dateOf('due_date') });
     if (key === 'form_c') cols.push({ h: 'FYE', v: dateOf('fye_date') });
     if (key === 'form_c') cols.push({ h: 'Audit Report Received', v: e => e.audit_received ? 'RECEIVED' + (e.audit_received_date ? ' · ' + formatDateDMY(e.audit_received_date) : '') : 'NOT RECEIVED' });
     else cols.push({ h: 'FYE', v: dateOf('fye_date') });
