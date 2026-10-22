@@ -632,6 +632,7 @@
   .audit-ts{font-size:11px; color:var(--muted); margin-top:4px; white-space:normal;}
   .sst-col{display:none;}
   .list-table.show-sst-col .sst-col{display:table-cell;}
+  .list-table.hide-status-col .st-col{display:none;}
   .tx-col, .tx-pay{display:none;}
   .list-table.show-tx-col .tx-col, .list-table.show-tx-col .tx-pay{display:table-cell;}
   .list-table thead th.tx-col, .list-table thead th.tx-pay{white-space:normal; line-height:1.3;}
@@ -1014,7 +1015,7 @@
               <th class="tx-col" style="width:10%;">Deemed Interest</th>
               <th class="tx-col" style="width:10%;">Tax on Rental</th>
               <th class="tx-col" style="width:8%;">Others</th>
-              <th style="width:13%;" id="thStatus">Status</th>
+              <th class="st-col" style="width:13%;" id="thStatus">Status</th>
               <th class="tx-pay" style="width:14%;">Pay to LHDN</th>
               <th>Remarks</th>
               <th class="finish-col" id="thFinish" style="width:110px;"></th>
@@ -1591,7 +1592,12 @@
     const dOf = v => v ? String(v).slice(0, 10) : '';
     const times = n => n === 1 ? 'once' : n + ' times';
     const parts = [];
-    if (payField) {
+    if (key === 'form_taxable') {
+      const e0 = list[list.length - 1], on = ['tax_profit', 'tax_deemed_interest', 'tax_rental', 'tax_others'].filter(f => e0[f]).map(f => FIELD_LABELS[f]);
+      parts.push(`Latest audit: <b>${e0.latest_audit_date ? formatDateDMY(e0.latest_audit_date) : '—'}</b>.`);
+      parts.push(on.length ? `Taxable on: <b>${on.join(', ')}</b>.` : '');
+      parts.push(e0.due_date ? `Pay to LHDN by <b>${formatDateDMY(e0.due_date)}</b>${e0.due_date < today ? ' <b style="color:var(--red);">(date has passed)</b>' : ''}.` : 'The Pay to LHDN date has not been entered yet.');
+    } else if (payField) {
       const paid = list.map(e => dOf(e[payField])).filter(Boolean).sort();
       const paidYear = paid.filter(d => d.slice(0, 4) === yr);
       const payWhere = key === 'form_sst' ? 'to Customs' : 'to LHDN';
@@ -1604,12 +1610,13 @@
       const thisYr = list.filter(e => (e.due_date || '').slice(0, 4) === yr);
       if (thisYr.length) parts.push(`This year (${yr}): <b>${thisYr.filter(e => isDone(normStatus(e.status))).length}</b> of ${thisYr.length} ${thisYr.length === 1 ? 'entry' : 'entries'} finished.`);
     }
-    parts.push(`Overall progress: <b>${pct}%</b> (${doneN} of ${total} ${total === 1 ? 'entry' : 'entries'} done).`);
-    if (nextDue) parts.push(`Next due date: <b>${formatDateDMY(nextDue)}</b>.`);
-    if (late.length) parts.push(`<b style="color:var(--red);">${late.length} overdue</b> (oldest due ${formatDateDMY(late[0].due_date)}).`);
-    const sentence = parts.join(' ');
+    if (key !== 'form_taxable') parts.push(`Overall progress: <b>${pct}%</b> (${doneN} of ${total} ${total === 1 ? 'entry' : 'entries'} done).`);
+    if (nextDue && key !== 'form_taxable') parts.push(`Next due date: <b>${formatDateDMY(nextDue)}</b>.`);
+    if (late.length && key !== 'form_taxable') parts.push(`<b style="color:var(--red);">${late.length} overdue</b> (oldest due ${formatDateDMY(late[0].due_date)}).`);
+    const sentence = parts.filter(Boolean).join(' ');
 
-    const head = [key === 'form_taxable' ? 'Pay to LHDN' : 'Due Date', ...cols.filter(c => c.h !== 'Due Date').map(c => c.h), 'Status', 'Remarks'];
+    const isTx = key === 'form_taxable';
+    const head = [isTx ? 'Pay to LHDN' : 'Due Date', ...cols.filter(c => c.h !== 'Due Date').map(c => c.h), ...(isTx ? [] : ['Status']), 'Remarks'];
     const rowsHtml = list.map(e => {
       const st = normStatus(e.status), isLate = !isDone(st) && e.due_date && e.due_date < today;
       const rem = (e.form_remarks || []).slice(-2).map(r => `<div style="margin-bottom:3px;"><i>${escapeHtml(r.body)}</i><div style="font-size:11px; color:var(--muted);">${escapeHtml(profilesMap[r.author_id] || '')} · ${escapeHtml(formatTimeMeta(r.created_at))}</div></div>`).join('') || '<span class="pd-none">—</span>';
@@ -1617,7 +1624,7 @@
       const canRemark = roleOf() === 'hod';
       const remBox = canRemark ? `<button type="button" class="pd-addrem" data-entry="${e.id}">+ Add remark</button>
         <div class="pd-rembox" id="pdRem-${e.id}" style="display:none;"><textarea rows="2" placeholder="Type a remark — it is saved to this form's list"></textarea><div class="pd-remact"><button type="button" class="pd-remcancel" data-entry="${e.id}">Cancel</button><button type="button" class="primary pd-remsave" data-entry="${e.id}">Save</button></div></div>` : '';
-      return `<tr class="${isLate ? 'pd-late' : ''}"><td>${formatDateDMY(e.due_date)}${isLate ? ' <b style="color:var(--red); font-size:11px;">OVERDUE</b>' : ''}${isLongOverdue(e) ? ' <span class="lo-tag">LONG OVERDUE</span>' : ''}</td>${cells}<td><span class="org-st ${st}">${STATUS_LABELS[st]}</span>${e.status_changed_at ? `<div style="font-size:11px; color:var(--muted); margin-top:3px;">${escapeHtml(formatTimeMeta(e.status_changed_at))}</div>` : ''}</td><td>${rem}${remBox}</td></tr>`;
+      return `<tr class="${isLate ? 'pd-late' : ''}"><td>${formatDateDMY(e.due_date)}${isLate ? ' <b style="color:var(--red); font-size:11px;">OVERDUE</b>' : ''}${isLongOverdue(e) ? ' <span class="lo-tag">LONG OVERDUE</span>' : ''}</td>${cells}${isTx ? '' : `<td><span class="org-st ${st}">${STATUS_LABELS[st]}</span>${e.status_changed_at ? `<div style="font-size:11px; color:var(--muted); margin-top:3px;">${escapeHtml(formatTimeMeta(e.status_changed_at))}</div>` : ''}</td>`}<td>${rem}${remBox}</td></tr>`;
     }).join('');
 
     box.innerHTML = `
@@ -2504,6 +2511,7 @@
     const el = document.getElementById('monthSidebar');
     if (!currentListFormType) { el.classList.remove('show'); el.innerHTML = ''; return; }
     const key = currentDataKey();
+    if (key === 'form_taxable') { el.classList.remove('show'); el.innerHTML = ''; return; }   // nothing to filter by status
     const hasMonths = ['form_c', 'form_sst', 'form_pcb', 'form_cp204'].includes(currentListFormType);   // form_pcb = the CP205 / PCB widget
     const hasPeriods = currentListFormType === 'form_cp500';
 
@@ -2724,6 +2732,7 @@
     document.querySelector('.list-table').classList.toggle('show-cp204-col', CP204_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('hide-due-col', key === 'form_taxable');   // its date lives in the Pay to LHDN column
     document.querySelector('.list-table').classList.toggle('show-tx-col', key === 'form_taxable');
+    document.querySelector('.list-table').classList.toggle('hide-status-col', key === 'form_taxable');   // no status for Taxable Company
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
     document.querySelector('.list-table').classList.toggle('show-audit-col', key === 'form_c');
@@ -3075,7 +3084,7 @@
         <td class="sst-col">${simpleDateCell('customs_payment_date', entry.customs_payment_date)}</td>
         <td class="tx-col">${entry.latest_audit_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.latest_audit_date)}</div>` : '<span style="color:var(--muted);">—</span>'}</td>
         ${[['tax_profit'], ['tax_deemed_interest'], ['tax_rental'], ['tax_others']].map(([f]) => `<td class="tx-col"><label class="audit-box"><input type="checkbox" class="tx-chk" data-entry="${entry.id}" data-field="${f}" ${entry[f] ? 'checked' : ''}></label></td>`).join('')}
-        <td class="status-cell">
+        <td class="status-cell st-col">
           <select class="status-select status-${status}" data-entry="${entry.id}">
             ${(statusesFor(entry.form_type).includes(status) ? statusesFor(entry.form_type) : statusesFor(entry.form_type).concat(status)).map(st => `<option value="${st}" ${status === st ? 'selected' : ''}>${STATUS_LABELS[st]}</option>`).join('')}
           </select>
@@ -3404,7 +3413,7 @@
     document.querySelectorAll('#reportMonthOptions input').forEach(b => b.addEventListener('change', syncAll));
     {
       const cols = reportColumns(dk).slice(1).map(c => c.h);
-      if (showStatusColNeeded()) cols.unshift('Status');
+      if (showStatusColNeeded() && dk !== 'form_taxable') cols.unshift('Status');
       cols.push('Remarks');
       document.getElementById('reportColOptions').innerHTML = cols.map(h => `<label><input type="checkbox" value="${escapeHtml(h)}" checked> ${escapeHtml(h)}</label>`).join('');
       const syncCols = () => { const bx = [...document.querySelectorAll('#reportColOptions input')]; document.getElementById('reportAllCols').checked = bx.every(b => b.checked); };
@@ -3469,7 +3478,7 @@
     document.getElementById('reportBackdrop').classList.remove('open');
     const namesOnly = document.getElementById('reportNamesOnly').checked;
     const unticked = new Set([...document.querySelectorAll('#reportColOptions input:not(:checked)')].map(i => i.value));
-    const opts = { hide: unticked, remarks: !unticked.has('Remarks'), status: !unticked.has('Status') };
+    const opts = { hide: unticked, remarks: !unticked.has('Remarks'), status: !unticked.has('Status') && key !== 'form_taxable' };
     openReportWindow(buildReportHtml(key, label, chosen, entries, monthText, namesOnly, opts));   // must run straight from the click (popup rules)
     logActivity(`Generated ${label} report (${namesOnly ? 'names only; ' : ''}${!namesOnly && unticked.size ? 'without ' + [...unticked].join(', ') + '; ' : ''}${STATUSES.filter(st => chosen.includes(st)).map(st => STATUS_LABELS[st]).join(', ')}${monthText ? '; ' + monthText : ''}) — ${total} entr${total === 1 ? 'y' : 'ies'}`);
   });
