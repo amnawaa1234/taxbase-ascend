@@ -3232,8 +3232,7 @@
     addEntryForm.classList.add('open');
     document.getElementById('eCompanyName').focus();
   });
-  /* Existing names: typing in the Add form suggests names already in the system, so nobody creates a duplicate */
-  let nmAct = -1;
+  /* Existing names: typing a name in ANY add box suggests the names already in the system, and the same name can't be added twice to the same form */
   const squash = n => normName(n).replace(/\s+/g, ' ');
   const allKnownNames = () => {
     const map = new Map();   // normalised name -> { name, forms:Set }
@@ -3245,32 +3244,44 @@
     }));
     return [...map.values()];
   };
-  const sameNameInThisForm = name => (formData[currentDataKey()] || []).some(e => squash(e.company_name) === squash(name));
-  const dupMsg = v => `"${v}" is already in ${formNameOf(currentDataKey())}. Use the search box to find it instead of adding it again.`;
-  function renderNameSuggest(){
-    const box = document.getElementById('eNameSuggest'), inp = document.getElementById('eCompanyName');
-    const t = squash(inp.value);
-    if (!t) { box.classList.remove('open'); box.innerHTML = ''; return; }
-    const hits = allKnownNames().filter(x => squash(x.name).includes(t)).sort((a, b) => (squash(a.name).startsWith(t) ? 0 : 1) - (squash(b.name).startsWith(t) ? 0 : 1) || a.name.localeCompare(b.name)).slice(0, 8);
-    nmAct = -1;
-    if (!hits.length) { box.classList.remove('open'); box.innerHTML = ''; return; }
-    box.innerHTML = `<div class="nm-head">Already in the system — pick it instead of typing it again</div>` + hits.map(x => `<div class="nm-sg" data-name="${escapeHtml(x.name)}"><span>${escapeHtml(x.name)}</span><small>${escapeHtml([...x.forms].slice(0, 3).join(', '))}${x.forms.size > 3 ? ' +' + (x.forms.size - 3) : ''}</small></div>`).join('');
-    box.classList.add('open');
-    box.querySelectorAll('.nm-sg').forEach(el => el.addEventListener('mousedown', ev => { ev.preventDefault(); inp.value = el.dataset.name; box.classList.remove('open'); checkNameDup(); }));
+  const sameNameInForm = (key, name) => (formData[key] || []).some(e => squash(e.company_name) === squash(name));
+  const sameNameInThisForm = name => sameNameInForm(currentDataKey(), name);
+  const dupMsgFor = (key, v) => `"${v}" is already in ${formNameOf(key)}. Use the search box to find it instead of adding it again.`;
+  const dupMsg = v => dupMsgFor(currentDataKey(), v);
+  function attachNameSuggest(inp, getKey, errId){
+    let box = inp.parentNode.querySelector('.nm-suggest');
+    if (!box) {
+      const wrap = document.createElement('div'); wrap.className = 'nm-box';
+      inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(inp);
+      box = document.createElement('div'); box.className = 'nm-suggest'; wrap.appendChild(box);
+    }
+    inp.setAttribute('autocomplete', 'off');
+    let act = -1;
+    const close = () => box.classList.remove('open');
+    const check = () => { const v = inp.value.trim(), k = getKey(), el = document.getElementById(errId); if (el) el.textContent = v && k && sameNameInForm(k, v) ? dupMsgFor(k, v) : ''; };
+    const render = () => {
+      const t = squash(inp.value);
+      if (!t) { close(); box.innerHTML = ''; return; }
+      const hits = allKnownNames().filter(x => squash(x.name).includes(t)).sort((x, y) => (squash(x.name).startsWith(t) ? 0 : 1) - (squash(y.name).startsWith(t) ? 0 : 1) || x.name.localeCompare(y.name)).slice(0, 8);
+      act = -1;
+      if (!hits.length) { close(); box.innerHTML = ''; return; }
+      box.innerHTML = `<div class="nm-head">Already in the system — pick it instead of typing it again</div>` + hits.map(x => `<div class="nm-sg" data-name="${escapeHtml(x.name)}"><span>${escapeHtml(x.name)}</span><small>${escapeHtml([...x.forms].slice(0, 3).join(', '))}${x.forms.size > 3 ? ' +' + (x.forms.size - 3) : ''}</small></div>`).join('');
+      box.classList.add('open');
+      box.querySelectorAll('.nm-sg').forEach(el => el.addEventListener('mousedown', ev => { ev.preventDefault(); inp.value = el.dataset.name; close(); check(); }));
+    };
+    inp.addEventListener('input', () => { render(); check(); });
+    inp.addEventListener('focus', render);
+    inp.addEventListener('blur', () => setTimeout(close, 120));
+    inp.addEventListener('keydown', ev => {
+      const items = [...box.querySelectorAll('.nm-sg')];
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { if (!items.length) return; ev.preventDefault(); act = (act + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items.forEach((el, i) => el.classList.toggle('act', i === act)); }
+      else if (ev.key === 'Enter' && act >= 0 && items[act]) { ev.preventDefault(); ev.stopImmediatePropagation(); inp.value = items[act].dataset.name; close(); check(); }
+      else if (ev.key === 'Escape') close();
+    }, true);
   }
-  function checkNameDup(){
-    const v = document.getElementById('eCompanyName').value.trim();
-    document.getElementById('entryModalError').textContent = v && sameNameInThisForm(v) ? dupMsg(v) : '';
-  }
-  document.getElementById('eCompanyName').addEventListener('input', () => { renderNameSuggest(); checkNameDup(); });
-  document.getElementById('eCompanyName').addEventListener('focus', renderNameSuggest);
-  document.getElementById('eCompanyName').addEventListener('blur', () => setTimeout(() => document.getElementById('eNameSuggest').classList.remove('open'), 120));
-  document.getElementById('eCompanyName').addEventListener('keydown', ev => {
-    const items = [...document.querySelectorAll('#eNameSuggest .nm-sg')];
-    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { if (!items.length) return; ev.preventDefault(); nmAct = (nmAct + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items.forEach((el, i) => el.classList.toggle('act', i === nmAct)); }
-    else if (ev.key === 'Enter' && nmAct >= 0 && items[nmAct]) { ev.preventDefault(); document.getElementById('eCompanyName').value = items[nmAct].dataset.name; document.getElementById('eNameSuggest').classList.remove('open'); checkNameDup(); }
-    else if (ev.key === 'Escape') document.getElementById('eNameSuggest').classList.remove('open');
-  });
+  attachNameSuggest(document.getElementById('eCompanyName'), () => currentDataKey(), 'entryModalError');            // Add client / company (every form)
+  attachNameSuggest(document.getElementById('tripleClientName'), () => (TRIPLE_SAVE_CONFIG[tripleMode] || {}).formType, 'tripleFormError');   // Add EA / EA+BE / PCB / CP205
+  attachNameSuggest(document.getElementById('formBCompany'), () => 'form_b', 'formBError');                           // Create Form B from an EA client
   const syncFye = () => { const m = document.getElementById('eFyeM').value, y = document.getElementById('eFyeY').value; document.getElementById('eFyeMonth').value = (m && y) ? `${y}-${m}` : ''; document.getElementById('eFyeMonth').dispatchEvent(new Event('change')); };
   document.getElementById('eFyeM').addEventListener('change', syncFye); document.getElementById('eFyeY').addEventListener('change', syncFye);
   document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); const sst = currentListFormType === 'form_sst', ym = e.target.value; if (sst) updateSstPaidPreview();
@@ -4167,6 +4178,7 @@
     const company_name = document.getElementById('tripleClientName').value.trim();
     const errEl = document.getElementById('tripleFormError');
     if (!company_name) { errEl.textContent = `Enter a ${TRIPLE_LABELS[tripleMode].toLowerCase()}.`; return; }
+    if (sameNameInForm(TRIPLE_SAVE_CONFIG[tripleMode].formType, company_name)) { errEl.textContent = dupMsgFor(TRIPLE_SAVE_CONFIG[tripleMode].formType, company_name); return; }
 
     let idFields = {};
     if (tripleMode === 'ea' || tripleMode === 'both') {
