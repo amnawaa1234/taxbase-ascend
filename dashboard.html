@@ -2455,6 +2455,7 @@
       // CP204 / CP204A follow the company's FYE (Final Year End) month
       return e.fye_date ? parseInt(e.fye_date.slice(5, 7), 10) : null;
     }
+    if (formType === 'form_taxable') return e.latest_audit_date ? parseInt(e.latest_audit_date.slice(5, 7), 10) : null;   // Taxable Company is grouped by the month of its latest audit
     return e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : null;
   }
 
@@ -2517,8 +2518,7 @@
     const el = document.getElementById('monthSidebar');
     if (!currentListFormType) { el.classList.remove('show'); el.innerHTML = ''; return; }
     const key = currentDataKey();
-    if (key === 'form_taxable') { el.classList.remove('show'); el.innerHTML = ''; return; }   // nothing to filter by status
-    const hasMonths = ['form_c', 'form_sst', 'form_pcb', 'form_cp204'].includes(currentListFormType);   // form_pcb = the CP205 / PCB widget
+    const hasMonths = ['form_c', 'form_sst', 'form_pcb', 'form_cp204', 'form_taxable'].includes(currentListFormType);   // form_pcb = the CP205 / PCB widget
     const hasPeriods = currentListFormType === 'form_cp500';
 
     // Status counts follow the other filters (search / letter / month), but not the status filter itself.
@@ -2570,11 +2570,12 @@
 
     // Status buttons come first on every form so they are always in view;
     // Due Month (Form C / SST) or Period (CP500) sit underneath and scroll if needed.
-    let html = `<div class="sidebar-section-label" style="margin-top:0;">Status</div>` +
+    const noStatus = key === 'form_taxable';   // Taxable Company has no status: only the Audit Month buttons
+    let html = noStatus ? '' : `<div class="sidebar-section-label" style="margin-top:0;">Status</div>` +
       btn('status-filter-btn', 'status', '', 'All', statusFilter === null, counts.all) +
       sideStatuses.map(st => btn('status-filter-btn', 'status', st, STATUS_LABELS[st], statusFilter === st, counts[st])).join('');
     if (hasMonths) {
-      html += `<div class="sidebar-section-label">${currentListFormType === 'form_cp204' ? 'FYE Month' : 'Due Month'}</div>` +
+      html += `<div class="sidebar-section-label"${noStatus ? ' style="margin-top:0;"' : ''}>${currentListFormType === 'form_cp204' ? 'FYE Month' : noStatus ? 'Audit Month' : 'Due Month'}</div>` +
         btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null, monthCounts.all) +
         MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1, monthCounts[i + 1])).join('');
     }
@@ -3439,7 +3440,7 @@
     document.getElementById('reportStatusOptions').style.opacity = '';
     document.getElementById('reportAllCount').textContent = entries.length;
     const dk = currentDataKey();
-    document.getElementById('reportMonthLabel').textContent = CP204_FORMS.includes(dk) ? 'FYE month' : 'Due month';
+    document.getElementById('reportMonthLabel').textContent = CP204_FORMS.includes(dk) ? 'FYE month' : dk === 'form_taxable' ? 'Audit month' : 'Due month';
     document.getElementById('reportMonthOptions').innerHTML = MONTHS.map((m, i) => {
       const n = entries.filter(e => monthOf(e, dk) === i + 1).length;
       return `<label><input type="checkbox" value="${i + 1}" checked> ${m.slice(0, 3)}<span class="rmc">${n}</span></label>`;
