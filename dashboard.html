@@ -2450,6 +2450,9 @@
 
   // Which month an entry belongs to for the month buttons: its due-date month; for CP204 (no fixed
   // due date — it depends on each company's financial year) the month the step was added.
+  // Taxable Company groups by the year AND month of the latest audit: 'YYYY-MM'
+  const ymOf = e => e.latest_audit_date ? e.latest_audit_date.slice(0, 7) : null;
+  const ymLabel = (ym, short) => ym ? (short ? MONTHS[parseInt(ym.slice(5, 7), 10) - 1].slice(0, 3) : MONTHS[parseInt(ym.slice(5, 7), 10) - 1]) + ' ' + ym.slice(0, 4) : '—';
   function monthOf(e, formType){
     if (CP204_FORMS.includes(formType)) {
       // CP204 / CP204A follow the company's FYE (Final Year End) month
@@ -2470,7 +2473,7 @@
     let rows = (formData[formType] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
     if (listSearchTerm) rows = rows.filter(e => (e.company_name + ' ' + (e.client_name || '')).toLowerCase().includes(listSearchTerm.toLowerCase()));
     if (listLetterFilter) rows = rows.filter(e => e.company_name.trim().charAt(0).toUpperCase() === listLetterFilter);
-    if (listMonthFilter) rows = rows.filter(e => monthOf(e, formType) === listMonthFilter);
+    if (listMonthFilter) rows = rows.filter(e => formType === 'form_taxable' ? ymOf(e) === listMonthFilter : monthOf(e, formType) === listMonthFilter);
     if (listFyeFilter && formType === 'form_c') rows = rows.filter(e => e.fye_date && parseInt(e.fye_date.slice(5, 7), 10) === listFyeFilter);
     if (listSstTab !== null && formType === 'form_sst') { rebuildSstBase(); rows = rows.filter(e => sstIndex(e) === listSstTab); }
     if (listSstTab !== null && formType === 'form_cp204a') rows = rows.filter(e => e.revision === listSstTab);
@@ -2541,6 +2544,11 @@
       for (let m = 1; m <= 12; m++) {
         monthCounts[m] = mRows.filter(e => monthOf(e, key) === m).length;
       }
+      if (key === 'form_taxable') {   // one block per year, oldest year first, each starting again from January
+        const yrs = [...new Set((formData.form_taxable || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e) && ymOf(e)).map(e => ymOf(e).slice(0, 4)))].sort();
+        yrs.forEach(y => { for (let m = 1; m <= 12; m++) { const ym = y + '-' + String(m).padStart(2, '0'); monthCounts[ym] = mRows.filter(e => ymOf(e) === ym).length; } });
+        monthCounts.years = yrs;
+      }
     }
 
     // FYE month counts (Form C only) follow the other filters but not the FYE filter itself.
@@ -2577,7 +2585,9 @@
     if (hasMonths) {
       html += `<div class="sidebar-section-label"${noStatus ? ' style="margin-top:0;"' : ''}>${currentListFormType === 'form_cp204' ? 'FYE Month' : noStatus ? 'Audit Month' : 'Due Month'}</div>` +
         btn('month-filter-btn', 'month', '', 'All', listMonthFilter === null, monthCounts.all) +
-        MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1, monthCounts[i + 1])).join('');
+        (noStatus
+          ? (monthCounts.years || []).map(y => `<div class="sidebar-section-label" style="margin-top:10px; color:var(--navy);">${y}</div>` + MONTHS.map((m, i) => { const ym = y + '-' + String(i + 1).padStart(2, '0'); return btn('month-filter-btn', 'month', ym, m, listMonthFilter === ym, monthCounts[ym]); }).join('')).join('')
+          : MONTHS.map((m, i) => btn('month-filter-btn', 'month', i + 1, m, listMonthFilter === i + 1, monthCounts[i + 1])).join(''));
     }
     if (hasFye) {
       html += `<div class="sidebar-section-label">FYE Month</div>` +
@@ -2593,7 +2603,7 @@
     el.classList.add('show');
     el.innerHTML = html;
     el.querySelectorAll('.month-filter-btn').forEach(b => b.addEventListener('click', () => {
-      listMonthFilter = b.dataset.month ? parseInt(b.dataset.month, 10) : null;
+      listMonthFilter = b.dataset.month ? (/^\d{4}-/.test(b.dataset.month) ? b.dataset.month : parseInt(b.dataset.month, 10)) : null;
       renderListTable();
     }));
     el.querySelectorAll('.fye-filter-btn').forEach(b => b.addEventListener('click', () => {
@@ -3441,7 +3451,10 @@
     document.getElementById('reportAllCount').textContent = entries.length;
     const dk = currentDataKey();
     document.getElementById('reportMonthLabel').textContent = CP204_FORMS.includes(dk) ? 'FYE month' : dk === 'form_taxable' ? 'Audit month' : 'Due month';
-    document.getElementById('reportMonthOptions').innerHTML = MONTHS.map((m, i) => {
+    const txYears = dk === 'form_taxable' ? [...new Set(entries.map(ymOf).filter(Boolean).map(x => x.slice(0, 4)))].sort() : [];
+    document.getElementById('reportMonthOptions').innerHTML = dk === 'form_taxable'
+      ? txYears.map(y => MONTHS.map((m, i) => { const ym = y + '-' + String(i + 1).padStart(2, '0'); return `<label><input type="checkbox" value="${ym}" checked> ${m.slice(0, 3)} ${y}<span class="rmc">${entries.filter(e => ymOf(e) === ym).length}</span></label>`; }).join('')).join('')
+      : MONTHS.map((m, i) => {
       const n = entries.filter(e => monthOf(e, dk) === i + 1).length;
       return `<label><input type="checkbox" value="${i + 1}" checked> ${m.slice(0, 3)}<span class="rmc">${n}</span></label>`;
     }).join('');
@@ -3496,12 +3509,13 @@
     if (!chosen.length) { document.getElementById('reportError').textContent = 'Select at least one status.'; return; }
     const key = currentDataKey();
     const label = currentListLabel() + (showArchive ? ' (Archive)' : '');
-    const monthsChosen = [...document.querySelectorAll('#reportMonthOptions input:checked')].map(i => parseInt(i.value, 10));
+    const isTxRep = key === 'form_taxable';
+    const monthsChosen = [...document.querySelectorAll('#reportMonthOptions input:checked')].map(i => isTxRep ? i.value : parseInt(i.value, 10));
     if (!monthsChosen.length) { document.getElementById('reportError').textContent = 'Select at least one month.'; return; }
-    const allMonths = monthsChosen.length === 12;
+    const allMonths = monthsChosen.length === document.querySelectorAll('#reportMonthOptions input').length;
     let entries = reportScopeEntries();
-    if (!allMonths) entries = entries.filter(e => monthsChosen.includes(monthOf(e, key)));
-    let monthText = allMonths ? '' : monthsChosen.map(m => MONTHS[m - 1].slice(0, 3)).join(', ');
+    if (!allMonths) entries = entries.filter(e => isTxRep ? monthsChosen.includes(ymOf(e)) : monthsChosen.includes(monthOf(e, key)));
+    let monthText = allMonths ? '' : monthsChosen.map(m => isTxRep ? ymLabel(m, true) : MONTHS[m - 1].slice(0, 3)).join(', ');
     if (key === 'form_c') {
       const fyeChosen = [...document.querySelectorAll('#reportFyeOptions input:checked')].map(i => parseInt(i.value, 10));
       if (!fyeChosen.length) { document.getElementById('reportError').textContent = 'Select at least one FYE month.'; return; }
@@ -3562,8 +3576,8 @@
     const cols = namesOnly ? [] : reportColumns(key).filter((c, i) => i === 0 || !hide.has(c.h));
     const order = STATUSES.filter(st => chosen.includes(st));
     // A "Month" column sits in front of the company name (same month the month picker filtered on); rows are grouped Jan → Dec
-    const mNo = e => monthOf(e, key) || 13;
-    const monthLabel = e => { const m = monthOf(e, key); return m ? MONTHS[m - 1] : '—'; };
+    const mNo = key === 'form_taxable' ? (e => { const y = ymOf(e); return y ? parseInt(y.slice(0, 4), 10) * 12 + parseInt(y.slice(5, 7), 10) : 99999; }) : (e => monthOf(e, key) || 13);
+    const monthLabel = key === 'form_taxable' ? (e => ymLabel(ymOf(e))) : (e => { const m = monthOf(e, key); return m ? MONTHS[m - 1] : '—'; });
     const byDueThenName = namesOnly
       ? (a, b) => mNo(a) - mNo(b) || a.company_name.localeCompare(b.company_name, undefined, {sensitivity:'base'})
       : (a, b) => mNo(a) - mNo(b) || (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.company_name.localeCompare(b.company_name);
