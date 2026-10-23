@@ -636,7 +636,13 @@
   .tx-col, .tx-pay{display:none;}
   .list-table.show-tx-col .tx-col, .list-table.show-tx-col .tx-pay{display:table-cell;}
   .list-table thead th.tx-col, .list-table thead th.tx-pay{white-space:normal; line-height:1.3;}
-  .tx-col .audit-box{justify-content:center;} .tx-pay .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:0;}
+  .nm-box{position:relative;} .nm-box input{width:100%;}
+  .nm-suggest{display:none; position:absolute; left:0; right:0; top:100%; margin-top:4px; z-index:30; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(20,30,60,.16); max-height:240px; overflow:auto;}
+  .nm-suggest.open{display:block;}
+  .nm-head{padding:7px 12px; font-size:11.5px; color:var(--muted); background:#f7f8fb; border-bottom:1px solid var(--line);}
+  .nm-sg{display:flex; justify-content:space-between; gap:10px; padding:8px 12px; cursor:pointer; font-size:13.5px;}
+  .nm-sg:hover, .nm-sg.act{background:#eef3fb;} .nm-sg small{color:var(--muted); white-space:nowrap;}
+  .tx-tick{text-align:center;} .tick-ok{display:inline-flex;} .tx-pay .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:0;}
   .tx-opts{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;}
   .tx-opt{display:flex; align-items:center; gap:8px; margin:0; padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; font-size:13.5px; font-weight:600; cursor:pointer;}
   .tx-opt input{width:auto; margin:0;}
@@ -931,7 +937,7 @@
         <div class="add-entry-grid">
           <div>
             <label for="eCompanyName" id="eCompanyLabel">Company name</label>
-            <input type="text" id="eCompanyName" placeholder="e.g. Meridian Holdings Sdn Bhd">
+            <div class="nm-box"><input type="text" id="eCompanyName" placeholder="e.g. Meridian Holdings Sdn Bhd" autocomplete="off"><div class="nm-suggest" id="eNameSuggest"></div></div>
           </div>
           <div id="eClientWrap" style="display:none;">
             <label>Client name (optional)</label>
@@ -2805,7 +2811,6 @@
     });
     body.querySelectorAll('.sst-chk').forEach(c => c.addEventListener('change', () => onEFieldUpdate(c.dataset.entry, 'process_date', c.checked ? new Date().toISOString().slice(0, 10) : null)));
     body.querySelectorAll('.audit-chk').forEach(c => c.addEventListener('change', () => onAuditToggle(c.dataset.entry, c.checked)));
-    body.querySelectorAll('.tx-chk').forEach(c => c.addEventListener('change', () => onTaxToggle(c.dataset.entry, c.dataset.field, c.checked)));
     body.querySelectorAll('.e-date-input').forEach(inp => inp.addEventListener('change', () => onEFieldUpdate(inp.dataset.entry, inp.dataset.field, inp.value || null)));
     if (!canEdit()) {
       body.querySelectorAll('.finish-btn').forEach(el => { el.disabled = true; el.title = 'Read-only account'; });
@@ -2899,16 +2904,6 @@
     const { error } = await sb.from('form_entries').update({ audit_received: on, audit_received_date: null }).eq('id', entryId);
     if (error) showToast('Could not update: ' + error.message + ' (run taxbase-v7-updates.sql)');
     else if (entry) await logActivity(`Set Audit Report Received to ${on ? 'RECEIVED' : 'NOT RECEIVED'} for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
-    await loadFormEntries();
-  }
-
-  // Taxable Company: tick / untick Profit, Deemed Interest, Tax on Rental, Others
-  async function onTaxToggle(entryId, field, on){
-    if (!canEdit()) { showToast('Viewer accounts are read-only.'); await loadFormEntries(); return; }
-    const entry = findEntry(entryId);
-    const { error } = await sb.from('form_entries').update({ [field]: on }).eq('id', entryId);
-    if (error) showToast('Could not update: ' + error.message + ' (run taxbase-v11-taxable-company.sql)');
-    else if (entry) await logActivity(`${on ? 'Ticked' : 'Unticked'} ${FIELD_LABELS[field] || field} for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
     await loadFormEntries();
   }
 
@@ -3083,7 +3078,7 @@
         <td class="sst-col">${simpleDateCell('client_paid_date', entry.client_paid_date)}</td>
         <td class="sst-col">${simpleDateCell('customs_payment_date', entry.customs_payment_date)}</td>
         <td class="tx-col">${entry.latest_audit_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.latest_audit_date)}</div>` : '<span style="color:var(--muted);">—</span>'}</td>
-        ${[['tax_profit'], ['tax_deemed_interest'], ['tax_rental'], ['tax_others']].map(([f]) => `<td class="tx-col"><label class="audit-box"><input type="checkbox" class="tx-chk" data-entry="${entry.id}" data-field="${f}" ${entry[f] ? 'checked' : ''}></label></td>`).join('')}
+        ${[['tax_profit'], ['tax_deemed_interest'], ['tax_rental'], ['tax_others']].map(([f]) => `<td class="tx-col tx-tick">${entry[f] ? `<span class="tick-ok" title="Ticked when added — fixed"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="12" fill="#12A100"/><path d="M6.5 12.6l3.8 3.8 7.2-7.6" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span style="color:var(--muted);">—</span>'}</td>`).join('')}
         <td class="status-cell st-col">
           <select class="status-select status-${status}" data-entry="${entry.id}">
             ${(statusesFor(entry.form_type).includes(status) ? statusesFor(entry.form_type) : statusesFor(entry.form_type).concat(status)).map(st => `<option value="${st}" ${status === st ? 'selected' : ''}>${STATUS_LABELS[st]}</option>`).join('')}
@@ -3226,6 +3221,45 @@
     addEntryForm.classList.add('open');
     document.getElementById('eCompanyName').focus();
   });
+  /* Existing names: typing in the Add form suggests names already in the system, so nobody creates a duplicate */
+  let nmAct = -1;
+  const squash = n => normName(n).replace(/\s+/g, ' ');
+  const allKnownNames = () => {
+    const map = new Map();   // normalised name -> { name, forms:Set }
+    Object.keys(formData).forEach(k => (formData[k] || []).forEach(e => {
+      const n = String(e.company_name || '').trim(); if (!n) return;
+      const nk = squash(n);
+      if (!map.has(nk)) map.set(nk, { name: n, forms: new Set() });
+      map.get(nk).forms.add(formNameOf(e.form_type));
+    }));
+    return [...map.values()];
+  };
+  const sameNameInThisForm = name => (formData[currentDataKey()] || []).some(e => squash(e.company_name) === squash(name));
+  const dupMsg = v => `"${v}" is already in ${formNameOf(currentDataKey())}. Use the search box to find it instead of adding it again.`;
+  function renderNameSuggest(){
+    const box = document.getElementById('eNameSuggest'), inp = document.getElementById('eCompanyName');
+    const t = squash(inp.value);
+    if (!t) { box.classList.remove('open'); box.innerHTML = ''; return; }
+    const hits = allKnownNames().filter(x => squash(x.name).includes(t)).sort((a, b) => (squash(a.name).startsWith(t) ? 0 : 1) - (squash(b.name).startsWith(t) ? 0 : 1) || a.name.localeCompare(b.name)).slice(0, 8);
+    nmAct = -1;
+    if (!hits.length) { box.classList.remove('open'); box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="nm-head">Already in the system — pick it instead of typing it again</div>` + hits.map(x => `<div class="nm-sg" data-name="${escapeHtml(x.name)}"><span>${escapeHtml(x.name)}</span><small>${escapeHtml([...x.forms].slice(0, 3).join(', '))}${x.forms.size > 3 ? ' +' + (x.forms.size - 3) : ''}</small></div>`).join('');
+    box.classList.add('open');
+    box.querySelectorAll('.nm-sg').forEach(el => el.addEventListener('mousedown', ev => { ev.preventDefault(); inp.value = el.dataset.name; box.classList.remove('open'); checkNameDup(); }));
+  }
+  function checkNameDup(){
+    const v = document.getElementById('eCompanyName').value.trim();
+    document.getElementById('entryModalError').textContent = v && sameNameInThisForm(v) ? dupMsg(v) : '';
+  }
+  document.getElementById('eCompanyName').addEventListener('input', () => { renderNameSuggest(); checkNameDup(); });
+  document.getElementById('eCompanyName').addEventListener('focus', renderNameSuggest);
+  document.getElementById('eCompanyName').addEventListener('blur', () => setTimeout(() => document.getElementById('eNameSuggest').classList.remove('open'), 120));
+  document.getElementById('eCompanyName').addEventListener('keydown', ev => {
+    const items = [...document.querySelectorAll('#eNameSuggest .nm-sg')];
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { if (!items.length) return; ev.preventDefault(); nmAct = (nmAct + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items.forEach((el, i) => el.classList.toggle('act', i === nmAct)); }
+    else if (ev.key === 'Enter' && nmAct >= 0 && items[nmAct]) { ev.preventDefault(); document.getElementById('eCompanyName').value = items[nmAct].dataset.name; document.getElementById('eNameSuggest').classList.remove('open'); checkNameDup(); }
+    else if (ev.key === 'Escape') document.getElementById('eNameSuggest').classList.remove('open');
+  });
   const syncFye = () => { const m = document.getElementById('eFyeM').value, y = document.getElementById('eFyeY').value; document.getElementById('eFyeMonth').value = (m && y) ? `${y}-${m}` : ''; document.getElementById('eFyeMonth').dispatchEvent(new Event('change')); };
   document.getElementById('eFyeM').addEventListener('change', syncFye); document.getElementById('eFyeY').addEventListener('change', syncFye);
   document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); const sst = currentListFormType === 'form_sst', ym = e.target.value; if (sst) updateSstPaidPreview();
@@ -3318,6 +3352,7 @@
     const errEl = document.getElementById('entryModalError');
     if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE month and year.'; return; }
     if (!company_name) { errEl.textContent = 'Enter a company name.'; return; }
+    if (sameNameInThisForm(company_name)) { errEl.textContent = dupMsg(company_name); return; }
     const isTaxable = currentListFormType === 'form_taxable';
     const auditDate = document.getElementById('eAuditDate').value || null;
     const taxTicks = { tax_profit: document.getElementById('eTxProfit').checked, tax_deemed_interest: document.getElementById('eTxDeemed').checked, tax_rental: document.getElementById('eTxRental').checked, tax_others: document.getElementById('eTxOthers').checked };
