@@ -640,6 +640,7 @@
   .tx-col, .tx-pay{display:none;}
   .list-table.show-tx-col .tx-col, .list-table.show-tx-col .tx-pay{display:table-cell;}
   .list-table thead th.tx-col, .list-table thead th.tx-pay{white-space:normal; line-height:1.3;}
+  .dup-wrap{margin-top:10px; padding:10px 12px; border:1px solid #E7C873; background:#FFF8E1; border-radius:8px;} .dup-note{font-size:12.5px; color:#8A5A00; margin-bottom:6px;} .dup-wrap textarea{width:100%;}
   .nm-box{position:relative;} .nm-box input{width:100%;}
   .nm-suggest{display:none; position:absolute; left:0; right:0; top:100%; margin-top:4px; z-index:30; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(20,30,60,.16); max-height:240px; overflow:auto;}
   .nm-suggest.open{display:block;}
@@ -899,6 +900,7 @@
         <h3 id="tripleAddTitle">New client</h3>
         <label for="tripleClientName">Client name</label>
         <input type="text" id="tripleClientName" placeholder="e.g. Ahmad bin Ismail">
+        <div class="dup-wrap" id="tripleDupWrap" style="display:none;"><div class="dup-note" id="tripleDupNote"></div><label for="tripleDupReason">Reason for adding this name again (required)</label><textarea id="tripleDupReason" rows="2" placeholder="e.g. A second PCB account for the same client"></textarea></div>
         <div id="tripleIdWrap">
           <label for="tripleIdType" style="margin-top:12px;">IC No. / Passport No.</label>
           <div class="id-row">
@@ -947,6 +949,7 @@
           <div>
             <label for="eCompanyName" id="eCompanyLabel">Company name</label>
             <div class="nm-box"><input type="text" id="eCompanyName" placeholder="e.g. Meridian Holdings Sdn Bhd" autocomplete="off"><div class="nm-suggest" id="eNameSuggest"></div></div>
+            <div class="dup-wrap" id="eDupWrap" style="display:none;"><div class="dup-note" id="eDupNote"></div><label for="eDupReason">Reason for adding this name again (required)</label><textarea id="eDupReason" rows="2" placeholder="e.g. A second account for the same client"></textarea></div>
           </div>
           <div id="eClientWrap" style="display:none;">
             <label>Client name (optional)</label>
@@ -1255,7 +1258,7 @@
     <h2>Create Form B</h2>
     <p class="modal-sub" id="formBSub" style="margin-bottom:14px;"></p>
     <label for="formBCompany">Company name</label>
-    <input type="text" id="formBCompany" placeholder="e.g. Meridian Holdings Sdn Bhd">
+    <input type="text" id="formBCompany" placeholder="e.g. Meridian Holdings Sdn Bhd"><label for="formBDupReason">Reason for adding this name again (required)</label><textarea id="formBDupReason" rows="2" placeholder="e.g. A second Form B for the same company"></textarea></div>
     <div class="modal-error" id="formBError"></div>
     <div class="modal-actions">
       <button id="formBCancelBtn">Cancel</button>
@@ -2377,17 +2380,21 @@
   document.getElementById('eClientAdd').addEventListener('click', () => addClientRow('eClientList').querySelector('input').focus());
   document.getElementById('editClientAdd').addEventListener('click', () => addClientRow('editClientList').querySelector('input').focus());
   /* ---- SST: 6 periods a year (every 2 months). Each company gets 6 rows at once; a period stays locked until the one before it is SUBMITTED. ---- */
+  // A name can be added a second time (with a reason). Its SST / PCB / CP205 rows form their own chain, tagged in the `series` column.
+  const serOf = e => e.series || '';
+  const sameChain = (a, b) => normName(a.company_name) === normName(b.company_name) && serOf(a) === serOf(b);
+  const newSeriesTag = () => 's' + Math.random().toString(36).slice(2, 8);
   const addMonthsYM = (ym, k) => { const y = parseInt(ym.slice(0, 4), 10), m = parseInt(ym.slice(5, 7), 10) - 1 + k; const yy = y + Math.floor(m / 12), mm = ((m % 12) + 12) % 12; return `${yy}-${String(mm + 1).padStart(2, '0')}`; };
   const sstBaseMonth = {};   // company -> month (1-12) of its first period, rebuilt on every render
   function rebuildSstBase(){
     Object.keys(sstBaseMonth).forEach(k => delete sstBaseMonth[k]);
     const first = {};
-    (formData.form_sst || []).forEach(e => { if (!e.due_date) return; const k = normName(e.company_name); if (!first[k] || e.due_date < first[k]) first[k] = e.due_date; });
+    (formData.form_sst || []).forEach(e => { if (!e.due_date) return; const k = normName(e.company_name) + '|' + serOf(e); if (!first[k] || e.due_date < first[k]) first[k] = e.due_date; });
     Object.keys(first).forEach(k => { sstBaseMonth[k] = parseInt(first[k].slice(5, 7), 10); });
   }
   function sstIndex(e){   // 1..6
     if (!e.due_date) return null;
-    const base = sstBaseMonth[normName(e.company_name)] || parseInt(e.due_date.slice(5, 7), 10);
+    const base = sstBaseMonth[normName(e.company_name) + '|' + serOf(e)] || parseInt(e.due_date.slice(5, 7), 10);
     const diff = ((parseInt(e.due_date.slice(5, 7), 10) - base) % 12 + 12) % 12;
     return Math.floor(diff / 2) + 1;
   }
@@ -2395,7 +2402,7 @@
   function sstBlocker(e){
     if (e.form_type !== 'form_sst' || !e.due_date) return null;
     const k = normName(e.company_name);
-    return (formData.form_sst || []).filter(o => o.id !== e.id && normName(o.company_name) === k && o.due_date && o.due_date < e.due_date && normStatus(o.status) !== 'submitted')
+    return (formData.form_sst || []).filter(o => o.id !== e.id && sameChain(o, e) && o.due_date && o.due_date < e.due_date && normStatus(o.status) !== 'submitted')
       .sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null;
   }
   // CP204A: each revision is locked until the step before it (its parent) is SUBMITTED
@@ -2409,7 +2416,7 @@
   function pcbBlocker(e){
     if (!isMonthly(e.form_type) || !e.due_date) return null;
     const k = normName(e.company_name), y = e.due_date.slice(0, 4);
-    return (formData[e.form_type] || []).filter(o => o.id !== e.id && normName(o.company_name) === k && o.due_date && o.due_date.slice(0, 4) === y && o.due_date < e.due_date && !isDone(normStatus(o.status)))
+    return (formData[e.form_type] || []).filter(o => o.id !== e.id && sameChain(o, e) && o.due_date && o.due_date.slice(0, 4) === y && o.due_date < e.due_date && !isDone(normStatus(o.status)))
       .sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null;
   }
   const lockOf = e => e.form_type === 'form_sst' ? sstBlocker(e) : e.form_type === 'form_cp204a' ? cp204aBlocker(e) : isMonthly(e.form_type) ? pcbBlocker(e) : null;
@@ -3252,7 +3259,7 @@
     document.getElementById('eCompanyLabel').textContent = `${entName} name`;
     document.getElementById('eCompanyName').placeholder =
       (currentListFormType === 'form_be' || currentListFormType === 'form_cp500') ? 'e.g. Ahmad bin Ismail' : 'e.g. Meridian Holdings Sdn Bhd';
-    document.getElementById('eRemark').value = '';
+    document.getElementById('eRemark').value = ''; document.getElementById('eDupReason').value = ''; document.getElementById('eDupWrap').style.display = 'none';
     document.getElementById('eAuditDate').value = ''; ['eTxProfit', 'eTxDeemed', 'eTxRental', 'eTxOthers'].forEach(id => { document.getElementById(id).checked = false; });
     document.getElementById('entryModalError').textContent = '';
     const noteFn = ADD_FORM_NOTES[currentListFormType];
@@ -3278,7 +3285,7 @@
   const sameNameInThisForm = name => sameNameInForm(currentDataKey(), name);
   const dupMsgFor = (key, v) => `"${v}" is already in ${formNameOf(key)}. Use the search box to find it instead of adding it again.`;
   const dupMsg = v => dupMsgFor(currentDataKey(), v);
-  function attachNameSuggest(inp, getKey, errId){
+  function attachNameSuggest(inp, getKey, errId, dupPrefix){
     let box = inp.parentNode.querySelector('.nm-suggest');
     if (!box) {
       const wrap = document.createElement('div'); wrap.className = 'nm-box';
@@ -3288,7 +3295,13 @@
     inp.setAttribute('autocomplete', 'off');
     let act = -1;
     const close = () => box.classList.remove('open');
-    const check = () => { const v = inp.value.trim(), k = getKey(), el = document.getElementById(errId); if (el) el.textContent = v && k && sameNameInForm(k, v) ? dupMsgFor(k, v) : ''; };
+    const check = () => {
+      const v = inp.value.trim(), k = getKey(), el = document.getElementById(errId), isDup = !!(v && k && sameNameInForm(k, v));
+      if (el) el.textContent = '';
+      const w = document.getElementById(dupPrefix + 'DupWrap'); if (!w) return;
+      w.style.display = isDup ? '' : 'none';
+      if (isDup) document.getElementById(dupPrefix + 'DupNote').textContent = `"${v}" is already in ${formNameOf(k)}. You can add it again, but a reason is needed: it is saved as a remark.`;
+    };
     const render = () => {
       const t = squash(inp.value);
       if (!t) { close(); box.innerHTML = ''; return; }
@@ -3309,9 +3322,9 @@
       else if (ev.key === 'Escape') close();
     }, true);
   }
-  attachNameSuggest(document.getElementById('eCompanyName'), () => currentDataKey(), 'entryModalError');            // Add client / company (every form)
-  attachNameSuggest(document.getElementById('tripleClientName'), () => (TRIPLE_SAVE_CONFIG[tripleMode] || {}).formType, 'tripleFormError');   // Add EA / EA+BE / PCB / CP205
-  attachNameSuggest(document.getElementById('formBCompany'), () => 'form_b', 'formBError');                           // Create Form B from an EA client
+  attachNameSuggest(document.getElementById('eCompanyName'), () => currentDataKey(), 'entryModalError', 'e');            // Add client / company (every form)
+  attachNameSuggest(document.getElementById('tripleClientName'), () => (TRIPLE_SAVE_CONFIG[tripleMode] || {}).formType, 'tripleFormError', 'triple');   // Add EA / EA+BE / PCB / CP205
+  attachNameSuggest(document.getElementById('formBCompany'), () => 'form_b', 'formBError', 'formB');                           // Create Form B from an EA client
   const syncFye = () => { const m = document.getElementById('eFyeM').value, y = document.getElementById('eFyeY').value; document.getElementById('eFyeMonth').value = (m && y) ? `${y}-${m}` : ''; document.getElementById('eFyeMonth').dispatchEvent(new Event('change')); };
   document.getElementById('eFyeM').addEventListener('change', syncFye); document.getElementById('eFyeY').addEventListener('change', syncFye);
   document.getElementById('eFyeMonth').addEventListener('change', e => { const d = monthEnd(e.target.value); const sst = currentListFormType === 'form_sst', ym = e.target.value; if (sst) updateSstPaidPreview();
@@ -3404,7 +3417,10 @@
     const errEl = document.getElementById('entryModalError');
     if (currentListFormType === 'form_cp204' && !fye_date) { errEl.textContent = 'Choose the FYE month and year.'; return; }
     if (!company_name) { errEl.textContent = 'Enter a company name.'; return; }
-    if (sameNameInThisForm(company_name)) { errEl.textContent = dupMsg(company_name); return; }
+    const isDupName = sameNameInThisForm(company_name);
+    const dupReason = isDupName ? document.getElementById('eDupReason').value.trim() : '';
+    if (isDupName && !dupReason) { errEl.textContent = 'This name is already in this form. Give a reason for adding it again.'; document.getElementById('eDupReason').focus(); return; }
+    const dupSeries = isDupName && currentListFormType === 'form_sst' ? newSeriesTag() : null;
     const isTaxable = currentListFormType === 'form_taxable';
     const auditDate = document.getElementById('eAuditDate').value || null;
     const taxTicks = { tax_profit: document.getElementById('eTxProfit').checked, tax_deemed_interest: document.getElementById('eTxDeemed').checked, tax_rental: document.getElementById('eTxRental').checked, tax_others: document.getElementById('eTxOthers').checked };
@@ -3416,7 +3432,7 @@
     btn.disabled = true; btn.textContent = 'Saving...';
 
     const isSst = currentListFormType === 'form_sst';
-    const baseRow = { form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(currentListFormType === 'form_b' && client_name ? { client_name } : {}), ...(isTaxable ? { latest_audit_date: auditDate, ...taxTicks } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id };
+    const baseRow = { form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(currentListFormType === 'form_b' && client_name ? { client_name } : {}), ...(isTaxable ? { latest_audit_date: auditDate, ...taxTicks } : {}), ...(dupSeries ? { series: dupSeries } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id };
     const sstPaid = isSst ? (parseInt(document.getElementById('eSstPaid').value, 10) || 0) : 0;
     const payload = isSst ? [0, 2, 4, 6, 8, 10].map((k, idx) => ({ ...baseRow, due_date: monthEnd(addMonthsYM(due_date.slice(0, 7), k)), ...(idx < sstPaid ? { status: 'submitted', status_changed_at: new Date().toISOString() } : {}) })) : [baseRow];
     const { data: insData, error } = await sb.from('form_entries')
@@ -3436,17 +3452,19 @@
       return;
     }
 
-    if (remark && newEntry) {
+    const remarkTarget = (isSst && insData && insData[sstPaid]) || newEntry;   // SST: on the period the company lands in
+    const remarkBodies = [dupReason ? `Reason for adding this name again: ${dupReason}` : '', remark].filter(Boolean);
+    if (remarkBodies.length && remarkTarget) {
       const { error: remarkError } = await sb.from('form_remarks')
-        .insert({ entry_id: newEntry.id, body: remark, author_id: currentUser.id });
-      if (remarkError) showToast('Client saved, but the remark could not be added: ' + remarkError.message);
+        .insert(remarkBodies.map(body => ({ entry_id: remarkTarget.id, body, author_id: currentUser.id })));
+      if (remarkError) showToast('Saved, but the remark could not be added: ' + remarkError.message);
     }
 
     btn.disabled = false; btn.textContent = 'Save';
     closeEntryForm();
     if (currentListFormType === 'form_sst') { listSstTab = sstPaid + 1; listSearchTerm = ''; document.getElementById('listSearchInput').value = ''; }
     showToast(currentListFormType === 'form_sst' ? `${company_name} added — now in tab ${sstPaid + 1}/6.` : `${company_name} added${revNote}.`);
-    await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${isTaxable ? ' (latest audit ' + formatDateDMY(auditDate) + '; ' + Object.entries(taxTicks).filter(([, v]) => v).map(([k]) => FIELD_LABELS[k]).join(', ') + ')' : ''}${document.getElementById('eLongOverdue').checked ? ' [marked LONG OVERDUE]' : ''}${remark ? ' with a remark' : ''}`);
+    await logActivity(`Added ${entityOf(currentListFormType).toLowerCase()} "${company_name}" to ${formNameOf(currentListFormType)}${fye_date ? ' (FYE ' + formatDateDMY(fye_date) + ')' : ''}${dupReason ? ' [added again — reason: ' + shortText(dupReason) + ']' : ''}${isTaxable ? ' (latest audit ' + formatDateDMY(auditDate) + '; ' + Object.entries(taxTicks).filter(([, v]) => v).map(([k]) => FIELD_LABELS[k]).join(', ') + ')' : ''}${document.getElementById('eLongOverdue').checked ? ' [marked LONG OVERDUE]' : ''}${remark ? ' with a remark' : ''}`);
     await loadFormEntries();
   });
 
@@ -3468,7 +3486,7 @@
   function onePerCompany(base){
     const by = new Map();
     base.slice().sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).forEach(e => {
-      const k = normName(e.company_name), cur = by.get(k);
+      const k = normName(e.company_name) + '|' + serOf(e), cur = by.get(k);
       if (!cur || (isDone(normStatus(cur.status)) && !isDone(normStatus(e.status)))) by.set(k, e);
       else if (isDone(normStatus(cur.status)) && isDone(normStatus(e.status))) by.set(k, e);
     });
@@ -3480,7 +3498,7 @@
     // SST has 6 periods per company: the report lists each company once (its current period), not 6 times
     const by = new Map();
     base.slice().sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).forEach(e => {
-      const k = normName(e.company_name), cur = by.get(k);
+      const k = normName(e.company_name) + '|' + serOf(e), cur = by.get(k);
       if (!cur || (isDone(normStatus(cur.status)) && !isDone(normStatus(e.status)))) by.set(k, e);
       else if (isDone(normStatus(cur.status)) && isDone(normStatus(e.status))) by.set(k, e);
     });
@@ -3848,7 +3866,7 @@
   // ---- PCB / CP205: all 12 months of a year at once ----
   const dueOfMonth = (y, m) => `${y}-${pad2(m)}-01`;
   const monthNoOf = e => e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : 0;
-  const pcbYearRows = e => (formData[e.form_type] || []).filter(o => normName(o.company_name) === normName(e.company_name) && o.due_date && o.due_date.slice(0, 4) === e.due_date.slice(0, 4)).sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const pcbYearRows = e => (formData[e.form_type] || []).filter(o => sameChain(o, e) && o.due_date && o.due_date.slice(0, 4) === e.due_date.slice(0, 4)).sort((a, b) => a.due_date.localeCompare(b.due_date));
   const pcbPaidNow = rows => { let n = 0; for (let m = 1; m <= 12; m++) { const r = rows.find(x => monthNoOf(x) === m); if (r && isDone(normStatus(r.status))) n++; else break; } return n; };
   const monthlyRows = (formType, name, year, paid, createdBy, extra) => { const now = new Date().toISOString(); const out = []; for (let m = 1; m <= 12; m++) out.push({ form_type: formType, company_name: name, due_date: dueOfMonth(year, m), created_by: createdBy, ...(extra || {}), ...(m <= paid ? { status: 'completed', status_changed_at: now } : {}) }); return out; };
   function defaultPaidNow(){ return Math.min(new Date().getMonth() + 1, 11); }   // joins at the next 1st, as before
@@ -3862,15 +3880,15 @@
   async function ensureNextYearRows(entry){
     if (!isMonthly(entry.form_type) || !entry.due_date) return;
     const ny = parseInt(entry.due_date.slice(0, 4), 10) + 1, k = normName(entry.company_name);
-    if ((formData[entry.form_type] || []).some(o => normName(o.company_name) === k && o.due_date && o.due_date.startsWith(String(ny)))) return;
-    const { error } = await sb.from('form_entries').insert(monthlyRows(entry.form_type, entry.company_name, ny, 0, currentUser.id, { renewed_from: entry.id }));
+    if ((formData[entry.form_type] || []).some(o => sameChain(o, entry) && o.due_date && o.due_date.startsWith(String(ny)))) return;
+    const { error } = await sb.from('form_entries').insert(monthlyRows(entry.form_type, entry.company_name, ny, 0, currentUser.id, { renewed_from: entry.id, ...(entry.series ? { series: entry.series } : {}) }));
     if (error) { showToast('Could not prepare next year\'s 12 months: ' + error.message); return; }
     await logActivity(`Prepared ${ny} (12 months) for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
   }
   // Edit: the company has already made k payments this year -> create any missing months and mark months 1..k as Completed
   async function applyPcbPaid(entry, k){
     const year = parseInt(entry.due_date.slice(0, 4), 10), rows = pcbYearRows(entry), have = new Set(rows.map(monthNoOf));
-    const add = monthlyRows(entry.form_type, entry.company_name, year, k, currentUser.id).filter(r => !have.has(parseInt(r.due_date.slice(5, 7), 10)));
+    const add = monthlyRows(entry.form_type, entry.company_name, year, k, currentUser.id, entry.series ? { series: entry.series } : null).filter(r => !have.has(parseInt(r.due_date.slice(5, 7), 10)));
     if (add.length) { const r = await sb.from('form_entries').insert(add); if (r.error) { showToast('Could not create the other months: ' + r.error.message); return false; } }
     const ids = rows.filter(r => monthNoOf(r) <= k && !isDone(normStatus(r.status))).map(r => r.id);
     if (ids.length) { const r = await sb.from('form_entries').update({ status: 'completed', status_changed_at: new Date().toISOString() }).in('id', ids); if (r.error) { showToast('Could not update the months: ' + r.error.message); return false; } }
@@ -3918,7 +3936,7 @@
     return out;
   }
   // The company's SST periods for the current year (not archived, not next year's renewed copies), oldest first
-  const sstCycleRows = e => (formData.form_sst || []).filter(o => normName(o.company_name) === normName(e.company_name) && !isArchived(o) && !isUpcoming(o))
+  const sstCycleRows = e => (formData.form_sst || []).filter(o => sameChain(o, e) && !isArchived(o) && !isUpcoming(o))
     .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).slice(0, 6);
   const sstPaidNow = rows => { let n = 0; while (n < rows.length && normStatus(rows[n].status) === 'submitted') n++; return n; };
   let editSstOld = 0, editPcbOld = 0;
@@ -3934,7 +3952,7 @@
     let rows = sstCycleRows(entry);
     if (rows.length === 1 && rows[0].due_date) {
       const base = rows[0].due_date.slice(0, 7);
-      const add = [2, 4, 6, 8, 10].map(m => ({ form_type: 'form_sst', company_name: rows[0].company_name, due_date: monthEnd(addMonthsYM(base, m)), created_by: currentUser.id }));
+      const add = [2, 4, 6, 8, 10].map(m => ({ form_type: 'form_sst', company_name: rows[0].company_name, due_date: monthEnd(addMonthsYM(base, m)), created_by: currentUser.id, ...(rows[0].series ? { series: rows[0].series } : {}) }));
       const r = await sb.from('form_entries').insert(add);
       if (r.error) { showToast('Could not create the other SST periods: ' + r.error.message); return false; }
       await loadFormEntries(); rows = sstCycleRows(entry);
@@ -4242,7 +4260,7 @@
       const mode = btn.dataset.mode;
       if (tripleAddForm.classList.contains('open') && tripleMode === mode) { closeTripleForm(); return; }
       tripleMode = mode;
-      document.getElementById('tripleClientName').value = '';
+      document.getElementById('tripleClientName').value = ''; document.getElementById('tripleDupReason').value = ''; document.getElementById('tripleDupWrap').style.display = 'none';
       document.getElementById('tripleFormError').textContent = '';
       document.getElementById('tripleAddTitle').textContent = TRIPLE_TITLES[mode];
       document.getElementById('tripleNote').textContent = typeof TRIPLE_NOTES[mode] === 'function' ? TRIPLE_NOTES[mode]() : TRIPLE_NOTES[mode];
@@ -4264,7 +4282,9 @@
     const company_name = document.getElementById('tripleClientName').value.trim();
     const errEl = document.getElementById('tripleFormError');
     if (!company_name) { errEl.textContent = `Enter a ${TRIPLE_LABELS[tripleMode].toLowerCase()}.`; return; }
-    if (sameNameInForm(TRIPLE_SAVE_CONFIG[tripleMode].formType, company_name)) { errEl.textContent = dupMsgFor(TRIPLE_SAVE_CONFIG[tripleMode].formType, company_name); return; }
+    const isDupT = sameNameInForm(TRIPLE_SAVE_CONFIG[tripleMode].formType, company_name);
+    const dupReasonT = isDupT ? document.getElementById('tripleDupReason').value.trim() : '';
+    if (isDupT && !dupReasonT) { errEl.textContent = 'This name is already in this form. Give a reason for adding it again.'; document.getElementById('tripleDupReason').focus(); return; }
 
     let idFields = {};
     if (tripleMode === 'ea' || tripleMode === 'both') {
@@ -4282,17 +4302,23 @@
     const cfg = TRIPLE_SAVE_CONFIG[tripleMode];
     const monthlyMode = tripleMode === 'pcb' || tripleMode === 'cp205';
     const paidK = monthlyMode ? (parseInt(document.getElementById('triplePaid').value, 10) || 0) : 0;
-    const { error } = await sb.from('form_entries').insert(monthlyMode
-      ? monthlyRows(cfg.formType, company_name, new Date().getFullYear(), paidK, currentUser.id)     // all 12 months at once
-      : { form_type: cfg.formType, company_name, due_date: cfg.due(), created_by: currentUser.id, ...cfg.extra(), ...idFields });
+    const tSeries = isDupT && monthlyMode ? newSeriesTag() : null;
+    const { data: tIns, error } = await sb.from('form_entries').insert(monthlyMode
+      ? monthlyRows(cfg.formType, company_name, new Date().getFullYear(), paidK, currentUser.id, tSeries ? { series: tSeries } : null)     // all 12 months at once
+      : { form_type: cfg.formType, company_name, due_date: cfg.due(), created_by: currentUser.id, ...cfg.extra(), ...idFields }).select();
 
     btn.disabled = false; btn.textContent = 'Save';
     if (error) { errEl.textContent = 'Could not save: ' + error.message; return; }
 
+    if (dupReasonT && tIns && tIns.length) {
+      const target = monthlyMode ? (tIns.find(r => monthNoOf(r) === Math.min(paidK + 1, 12)) || tIns[0]) : tIns[0];
+      const rr = await sb.from('form_remarks').insert({ entry_id: target.id, body: `Reason for adding this name again: ${dupReasonT}`, author_id: currentUser.id });
+      if (rr.error) showToast('Saved, but the reason could not be added as a remark: ' + rr.error.message);
+    }
     closeTripleForm();
     showToast(monthlyMode ? `${company_name} added — now in tab ${Math.min(paidK + 1, 12)}/12.` : `${company_name} added.`);
     if (monthlyMode) { listSstTab = Math.min(paidK + 1, 12); listSearchTerm = ''; document.getElementById('listSearchInput').value = ''; }
-    await logActivity(`Added ${entityOf(cfg.formType).toLowerCase()} "${company_name}" to ${formNameOf(cfg.formType)}${monthlyMode ? ' (12 months' + (paidK ? ', ' + paidK + ' already paid' : '') + ')' : ''}${tripleMode === 'both' ? ' (BE required)' : ''}`);
+    await logActivity(`Added ${entityOf(cfg.formType).toLowerCase()} "${company_name}" to ${formNameOf(cfg.formType)}${monthlyMode ? ' (12 months' + (paidK ? ', ' + paidK + ' already paid' : '') + ')' : ''}${dupReasonT ? ' [added again — reason: ' + shortText(dupReasonT) + ']' : ''}${tripleMode === 'both' ? ' (BE required)' : ''}`);
     if (tripleMode === 'ea' || tripleMode === 'both') activeSubForm = 'form_ea';
     if (tripleMode === 'pcb' || tripleMode === 'cp205') activeSubForm2 = cfg.formType;
     await loadFormEntries();
