@@ -3434,7 +3434,7 @@
     const isSst = currentListFormType === 'form_sst';
     const baseRow = { form_type: currentListFormType, company_name, due_date, ...(fye_date ? { fye_date } : {}), ...(currentListFormType === 'form_b' && client_name ? { client_name } : {}), ...(isTaxable ? { latest_audit_date: auditDate, ...taxTicks } : {}), ...(dupSeries ? { series: dupSeries } : {}), ...(document.getElementById('eLongOverdue').checked ? { long_overdue: true } : {}), created_by: currentUser.id };
     const sstPaid = isSst ? (parseInt(document.getElementById('eSstPaid').value, 10) || 0) : 0;
-    const payload = isSst ? [0, 2, 4, 6, 8, 10].map((k, idx) => ({ ...baseRow, due_date: monthEnd(addMonthsYM(due_date.slice(0, 7), k)), ...(idx < sstPaid ? { status: 'submitted', status_changed_at: new Date().toISOString() } : {}) })) : [baseRow];
+    const payload = isSst ? [0, 2, 4, 6, 8, 10].map((k, idx) => ({ ...baseRow, due_date: monthEnd(addMonthsYM(due_date.slice(0, 7), k)), status: idx < sstPaid ? 'submitted' : 'pending', status_changed_at: new Date().toISOString() })) : [baseRow];
     const { data: insData, error } = await sb.from('form_entries')
       .insert(payload)
       
@@ -3868,7 +3868,7 @@
   const monthNoOf = e => e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : 0;
   const pcbYearRows = e => (formData[e.form_type] || []).filter(o => sameChain(o, e) && o.due_date && o.due_date.slice(0, 4) === e.due_date.slice(0, 4)).sort((a, b) => a.due_date.localeCompare(b.due_date));
   const pcbPaidNow = rows => { let n = 0; for (let m = 1; m <= 12; m++) { const r = rows.find(x => monthNoOf(x) === m); if (r && isDone(normStatus(r.status))) n++; else break; } return n; };
-  const monthlyRows = (formType, name, year, paid, createdBy, extra) => { const now = new Date().toISOString(); const out = []; for (let m = 1; m <= 12; m++) out.push({ form_type: formType, company_name: name, due_date: dueOfMonth(year, m), created_by: createdBy, ...(extra || {}), ...(m <= paid ? { status: 'completed', status_changed_at: now } : {}) }); return out; };
+  const monthlyRows = (formType, name, year, paid, createdBy, extra) => { const now = new Date().toISOString(); const out = []; for (let m = 1; m <= 12; m++) out.push({ form_type: formType, company_name: name, due_date: dueOfMonth(year, m), created_by: createdBy, ...(extra || {}), status: m <= paid ? 'completed' : 'pending', status_changed_at: now }); return out; };
   function defaultPaidNow(){ return Math.min(new Date().getMonth() + 1, 11); }   // joins at the next 1st, as before
   function fillPaidSelect(sel, selected, min){
     sel.innerHTML = Array.from({ length: 13 }, (_, k) => `<option value="${k}"${k === selected ? ' selected' : ''}${k < (min || 0) ? ' disabled' : ''}>${k === 0 ? '0 — none yet' : k + ' of 12 paid'}</option>`).join('');
