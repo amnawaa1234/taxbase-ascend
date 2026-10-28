@@ -633,6 +633,10 @@
   .sst-col{display:none;}
   .list-table.show-sst-col .sst-col{display:table-cell;}
   .list-table.hide-status-col .st-col{display:none;}
+  .cpo-col{display:none;}
+  .list-table.show-cpo-col .cpo-col{display:table-cell;}
+  .list-table thead th.cpo-col{white-space:normal; line-height:1.3;}
+  .cpo-col .e-date-row{flex-direction:column; align-items:flex-start; gap:4px; margin-top:0;}
   .tx-col, .tx-pay{display:none;}
   .list-table.show-tx-col .tx-col, .list-table.show-tx-col .tx-pay{display:table-cell;}
   .list-table thead th.tx-col, .list-table thead th.tx-pay{white-space:normal; line-height:1.3;}
@@ -1026,6 +1030,7 @@
               <th class="tx-col" style="width:10%;">Deemed Interest</th>
               <th class="tx-col" style="width:10%;">Tax on Rental</th>
               <th class="tx-col" style="width:8%;">Others</th>
+              <th class="cpo-col" style="width:14%;">Client Paid On</th>
               <th class="st-col" style="width:13%;" id="thStatus">Status</th>
               <th class="tx-pay" style="width:14%;">Pay to LHDN</th>
               <th>Remarks</th>
@@ -1033,7 +1038,7 @@
               <th class="admin-col" style="width:44px;"></th>
             </tr>
           </thead>
-          <tbody id="listTableBody"><tr><td colspan="19" class="empty-state">Loading...</td></tr></tbody>
+          <tbody id="listTableBody"><tr><td colspan="20" class="empty-state">Loading...</td></tr></tbody>
         </table>
       </div>
 
@@ -1334,6 +1339,8 @@
     if (currentListFormType === 'form_cp204') return activeSubForm3;
     return currentListFormType;
   };
+  // Forms with a "Client Paid On" date column (SST has its own, further left)
+  const CLIENT_PAID_FORMS = ['form_c', 'form_ea', 'form_be', 'form_e', 'form_b', 'form_cp204', 'form_cp204a', 'form_taxable'];
   const PCB_STYLE_FORMS = ['form_pcb', 'form_cp205', 'form_cp500'];
   // CP204 = tax estimate. 4 steps: CP204 (original) -> 1st Revised -> 2nd Revised -> Final Revised.
   // The original lives in the CP204 tab; the three revisions live in the CP204A tab (revision 1, 2, 3).
@@ -2769,6 +2776,7 @@
     document.querySelector('.list-table').classList.toggle('show-cp204-col', CP204_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('hide-due-col', key === 'form_taxable');   // its date lives in the Pay to LHDN column
     document.querySelector('.list-table').classList.toggle('show-tx-col', key === 'form_taxable');
+    document.querySelector('.list-table').classList.toggle('show-cpo-col', CLIENT_PAID_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('hide-status-col', key === 'form_taxable');   // no status for Taxable Company
     document.querySelector('.list-table').classList.toggle('show-e-col', key === 'form_e');
     document.querySelector('.list-table').classList.toggle('show-sst-col', key === 'form_sst');
@@ -2808,7 +2816,7 @@
     const rows = getFilteredEntries(currentDataKey());
     body.innerHTML = rows.length
       ? rows.map(entryRowHtml).join('')
-      : `<tr><td colspan="19" class="empty-state">${showArchive ? 'Nothing archived yet.' : 'No entries yet. Click "+ Add client" to add one.'}</td></tr>`;
+      : `<tr><td colspan="20" class="empty-state">${showArchive ? 'Nothing archived yet.' : 'No entries yet. Click "+ Add client" to add one.'}</td></tr>`;
 
     body.querySelectorAll('.add-remark-btn').forEach(btn => btn.addEventListener('click', () => toggleCompose(btn.dataset.entry)));
     body.querySelectorAll('.cancel-remark-btn').forEach(btn => btn.addEventListener('click', () => toggleCompose(btn.dataset.entry, true)));
@@ -3111,6 +3119,7 @@
         <td class="sst-col">${simpleDateCell('customs_payment_date', entry.customs_payment_date)}</td>
         <td class="tx-col">${entry.latest_audit_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.latest_audit_date)}</div>` : '<span style="color:var(--muted);">—</span>'}</td>
         ${[['tax_profit'], ['tax_deemed_interest'], ['tax_rental'], ['tax_others']].map(([f]) => `<td class="tx-col tx-tick">${entry[f] ? `<span class="tick-ok" title="Ticked when added — fixed"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="12" fill="#12A100"/><path d="M6.5 12.6l3.8 3.8 7.2-7.6" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span style="color:var(--muted);">—</span>'}</td>`).join('')}
+        <td class="cpo-col">${simpleDateCell('client_paid_date', entry.client_paid_date)}</td>
         <td class="status-cell st-col">
           <select class="status-select status-${status}" data-entry="${entry.id}">
             ${(statusesFor(entry.form_type).includes(status) ? statusesFor(entry.form_type) : statusesFor(entry.form_type).concat(status)).map(st => `<option value="${st}" ${status === st ? 'selected' : ''}>${STATUS_LABELS[st]}</option>`).join('')}
@@ -3595,7 +3604,7 @@
     const cols = [{ h: `${entityOf(key)} Name`, v: e => e.company_name, cls: 'name' }];
     if (key === 'form_taxable') {
       const yn = f => e => e[f] ? 'Yes' : '—';
-      return cols.concat([{ h: 'Latest Audit', v: dateOf('latest_audit_date') }, { h: 'Profit', v: yn('tax_profit') }, { h: 'Deemed Interest', v: yn('tax_deemed_interest') }, { h: 'Tax on Rental', v: yn('tax_rental') }, { h: 'Others', v: yn('tax_others') }, { h: 'Pay to LHDN', v: dateOf('due_date') }]);
+      return cols.concat([{ h: 'Latest Audit', v: dateOf('latest_audit_date') }, { h: 'Profit', v: yn('tax_profit') }, { h: 'Deemed Interest', v: yn('tax_deemed_interest') }, { h: 'Tax on Rental', v: yn('tax_rental') }, { h: 'Others', v: yn('tax_others') }, { h: 'Client Paid On', v: dateOf('client_paid_date') }, { h: 'Pay to LHDN', v: dateOf('due_date') }]);
     }
     cols.push({ h: 'Due Date', v: dateOf('due_date') });
     if (key === 'form_c') cols.push({ h: 'FYE', v: dateOf('fye_date') });
@@ -3609,6 +3618,7 @@
     if (key === 'form_e') cols.push({ h: 'EA', v: recv('ea_received', 'ea_received_date') }, { h: 'Summary Salary', v: recv('salary_received', 'salary_received_date') });
     if (key === 'form_sst') cols.push({ h: 'Sales Summary', v: e => e.process_date ? 'Received' : '—' }, { h: 'Client Paid On', v: dateOf('client_paid_date') }, { h: 'Make Payment to Customs', v: dateOf('customs_payment_date') });
     if (PCB_STYLE_FORMS.includes(key)) cols.push({ h: 'Payment Received On', v: dateOf('payment_received_on') }, { h: 'Paid to LHDN', v: dateOf('paid_to_lhdn') });
+    if (CLIENT_PAID_FORMS.includes(key)) cols.push({ h: 'Client Paid On', v: dateOf('client_paid_date') });
     return cols;
   }
 
