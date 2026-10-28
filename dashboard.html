@@ -903,6 +903,11 @@
           </div>
           <div class="id-hint">Numbers only — no dash (-).</div>
         </div>
+        <div id="triplePaidWrap" style="display:none;">
+          <label for="triplePaid" style="margin-top:12px;">Payments already made this year (out of 12)</label>
+          <select id="triplePaid"></select>
+          <div class="due-preview" style="margin-top:6px;" id="triplePaidPrev"></div>
+        </div>
         <div class="ea-note" id="tripleNote"></div>
         <div class="modal-error" id="tripleFormError"></div>
         <div class="add-entry-actions">
@@ -1208,6 +1213,11 @@
       <label for="editSstPaid">Payments already made this year (out of 6)</label>
       <select id="editSstPaid"><option value="0">0 — none yet</option><option value="1">1 of 6 paid</option><option value="2">2 of 6 paid</option><option value="3">3 of 6 paid</option><option value="4">4 of 6 paid</option><option value="5">5 of 6 paid</option></select>
       <div class="due-preview" style="margin-top:6px;" id="editSstPrev"></div>
+    </div>
+    <div id="editPcbWrap" style="display:none;">
+      <label for="editPcbPaid">Payments already made this year (out of 12)</label>
+      <select id="editPcbPaid"></select>
+      <div class="due-preview" style="margin-top:6px;" id="editPcbPrev"></div>
     </div>
     <div id="editFyeWrap" style="display:none;">
       <label for="editFye">FYE — Final Year End date</label>
@@ -2387,7 +2397,15 @@
     const par = findEntry(e.parent_id);
     return par && !isDone(normStatus(par.status)) ? par : null;   // CP204 steps unlock once the step before is COMPLETED
   }
-  const lockOf = e => e.form_type === 'form_sst' ? sstBlocker(e) : e.form_type === 'form_cp204a' ? cp204aBlocker(e) : null;
+  // PCB / CP205: 12 monthly rows a year (1/12 … 12/12). A month stays locked until every earlier month of the same year is COMPLETED / SUBMITTED.
+  const isMonthly = t => t === 'form_pcb' || t === 'form_cp205';
+  function pcbBlocker(e){
+    if (!isMonthly(e.form_type) || !e.due_date) return null;
+    const k = normName(e.company_name), y = e.due_date.slice(0, 4);
+    return (formData[e.form_type] || []).filter(o => o.id !== e.id && normName(o.company_name) === k && o.due_date && o.due_date.slice(0, 4) === y && o.due_date < e.due_date && !isDone(normStatus(o.status)))
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null;
+  }
+  const lockOf = e => e.form_type === 'form_sst' ? sstBlocker(e) : e.form_type === 'form_cp204a' ? cp204aBlocker(e) : isMonthly(e.form_type) ? pcbBlocker(e) : null;
   const lockWhy = b => b.form_type === 'form_cp204' ? 'CP204' : b.form_type === 'form_cp204a' ? (CP204_REV_LABELS[b.revision] || 'the previous step') : formatDateDMY(b.due_date);
   const REV_LEAD = { 1: 6, 2: 3, 3: 1 };   // months before FYE: 1st Revised (6th month), 2nd Revised (9th), Final Revised (11th)
   const revDue = (fye, rev) => fye ? monthEnd(addMonthsYM(fye.slice(0, 7), -REV_LEAD[rev])) : null;
@@ -2408,14 +2426,15 @@
   function renderSstTabs(){
     const el = document.getElementById('sstTabs');
     const dk = currentListFormType ? currentDataKey() : null;
-    if ((dk !== 'form_sst' && dk !== 'form_cp204a') || showArchive) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    if ((dk !== 'form_sst' && dk !== 'form_cp204a' && !isMonthly(dk)) || showArchive) { el.style.display = 'none'; el.innerHTML = ''; return; }
     rebuildSstBase();
     const saved = listSstTab; listSstTab = null;
     const rows = getFilteredEntries(dk); listSstTab = saved;
     const isRev = dk === 'form_cp204a';
-    const idx = e => isRev ? e.revision : sstIndex(e);
+    const mon = isMonthly(dk);
+    const idx = e => isRev ? e.revision : mon ? (e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : null) : sstIndex(e);
     const cnt = n => rows.filter(e => idx(e) === n).length;
-    const tabs = isRev ? [[1, '1st Revised'], [2, '2nd Revised'], [3, 'Final Revised']] : [1, 2, 3, 4, 5, 6].map(n => [n, n + '/6']);
+    const tabs = isRev ? [[1, '1st Revised'], [2, '2nd Revised'], [3, 'Final Revised']] : mon ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => [n, n + '/12']) : [1, 2, 3, 4, 5, 6].map(n => [n, n + '/6']);
     el.style.display = '';
     el.innerHTML = `<button type="button" class="sst-tab${listSstTab === null ? ' active' : ''}" data-tab="">All<span>${rows.length}</span></button>` +
       tabs.map(([n, lab]) => `<button type="button" class="sst-tab${listSstTab === n ? ' active' : ''}" data-tab="${n}">${lab}<span>${cnt(n)}</span></button>`).join('');
@@ -2477,6 +2496,7 @@
     if (listFyeFilter && formType === 'form_c') rows = rows.filter(e => e.fye_date && parseInt(e.fye_date.slice(5, 7), 10) === listFyeFilter);
     if (listSstTab !== null && formType === 'form_sst') { rebuildSstBase(); rows = rows.filter(e => sstIndex(e) === listSstTab); }
     if (listSstTab !== null && formType === 'form_cp204a') rows = rows.filter(e => e.revision === listSstTab);
+    if (listSstTab !== null && isMonthly(formType)) rows = rows.filter(e => e.due_date && parseInt(e.due_date.slice(5, 7), 10) === listSstTab);
     if (listPeriodFilter !== null) rows = rows.filter(e => e.due_date && Math.floor((parseInt(e.due_date.slice(5, 7), 10) - 1) / 2) === listPeriodFilter);
     if (statusFilter) {
       rows = rows.filter(e => normStatus(e.status) === statusFilter);
@@ -2745,7 +2765,7 @@
     document.getElementById('listSearchInput').placeholder = `Search ${ent.toLowerCase()} name...`;
     document.getElementById('thStatus').textContent =
       key === 'form_ea' ? 'Finalize' : key === 'form_e' ? 'Submit to LHDN' : 'Status';
-    document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea' || PCB_STYLE_FORMS.includes(key) || CP204_FORMS.includes(key));
+    document.querySelector('.list-table').classList.toggle('show-finish-col', key === 'form_ea' || key === 'form_cp500' || CP204_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('show-cp204-col', CP204_FORMS.includes(key));
     document.querySelector('.list-table').classList.toggle('hide-due-col', key === 'form_taxable');   // its date lives in the Pay to LHDN column
     document.querySelector('.list-table').classList.toggle('show-tx-col', key === 'form_taxable');
@@ -2860,6 +2880,7 @@
       await logActivity(`Changed status of "${entry.company_name}" (${formNameOf(entry.form_type)}) from ${STATUS_LABELS[oldStatus]} to ${STATUS_LABELS[newStatus]}`);
       if (EMAIL_STATUSES.includes(newStatus)) sendStatusEmail(entry, oldStatus, newStatus);   // fire and forget
       if (newStatus === 'submitted') { await runRenewal(false); return; }
+      if (isMonthly(entry.form_type) && isDone(newStatus) && monthNoOf(entry) === 12) { await ensureNextYearRows(entry); }
     }
     await loadFormEntries();
   }
@@ -3073,8 +3094,8 @@
       </div>`;
 
     return `
-      <tr data-row="${entry.id}"${(() => { const cls = [isLongOverdue(entry) ? 'long-overdue' : '', sstLock ? 'sst-locked' : ''].filter(Boolean).join(' '); return (cls ? ` class="${cls}"` : '') + (sstLock ? ` title="Locked until ${escapeHtml(lockWhy(sstLock))} is ${entry.form_type === 'form_cp204a' ? 'Completed' : 'Submitted'}"` : ''); })()}>
-        <td class="company-cell">${escapeHtml(entry.company_name)}${entry.form_type === 'form_sst' && sstIndex(entry) ? `<span class="stage-tag" style="margin-left:6px;">${sstIndex(entry)}/6</span>` : ''}${sstLock ? `<div class="lock-tag">🔒 Locked — waiting for ${escapeHtml(lockWhy(sstLock))} to be ${entry.form_type === 'form_cp204a' ? 'Completed' : 'Submitted'}</div>` : ''}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
+      <tr data-row="${entry.id}"${(() => { const cls = [isLongOverdue(entry) ? 'long-overdue' : '', sstLock ? 'sst-locked' : ''].filter(Boolean).join(' '); return (cls ? ` class="${cls}"` : '') + (sstLock ? ` title="Locked until ${escapeHtml(lockWhy(sstLock))} is ${entry.form_type === 'form_sst' ? 'Submitted' : 'Completed'}"` : ''); })()}>
+        <td class="company-cell">${escapeHtml(entry.company_name)}${entry.form_type === 'form_sst' && sstIndex(entry) ? `<span class="stage-tag" style="margin-left:6px;">${sstIndex(entry)}/6</span>` : ''}${sstLock ? `<div class="lock-tag">🔒 Locked — waiting for ${escapeHtml(lockWhy(sstLock))} to be ${entry.form_type === 'form_sst' ? 'Submitted' : 'Completed'}</div>` : ''}${isLongOverdue(entry) ? '<span class="lo-tag">LONG OVERDUE</span>' : ''}${instTag}${idTag}${clientTag}${beTag}${stageTag}</td>
         <td class="due-cell due-col">${due}</td>
         <td class="fye-col">${entry.fye_date ? `<div class="fye-date fye-fixed" title="Fixed once added">${formatDateDMY(entry.fye_date)}</div>` : (() => { const o = fyeOptions(''); return `<div class="fye-pick" data-entry="${entry.id}" title="Pick the month and year — the last day of that month is saved, then it is fixed"><select class="fye-m">${o.ms}</select><select class="fye-y">${o.ys}</select></div><div class="fye-date" style="color:var(--red);">not set</div>`; })()}</td>
         <td class="audit-col"><label class="audit-box"><input type="checkbox" class="audit-chk" data-entry="${entry.id}" ${entry.audit_received ? 'checked' : ''}> Received</label>${entry.audit_received ? simpleDateCell('audit_received_date', entry.audit_received_date) : ''}</td>
@@ -3114,7 +3135,7 @@
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_b" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create B</button>
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_e" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create E</button>
           </div>`
-          : PCB_STYLE_FORMS.includes(entry.form_type)
+          : entry.form_type === 'form_cp500'
           ? `<button type="button" class="finish-btn next-btn" data-entry="${entry.id}" ${isDone(status) ? '' : 'disabled'} title="${isDone(status) ? 'Create the next period for this client' : 'Set the status to COMPLETED or SUBMITTED first'}">Next period</button>`
           : CP204_FORMS.includes(entry.form_type)
           ? cp204JumpCell(entry, status)
@@ -3435,6 +3456,15 @@
   const currentListLabel = () => formNameOf(currentDataKey());
   // The report covers the whole list being viewed (current list, or Archive when that is open),
   // regardless of the on-screen search / letter / month filters.
+  function onePerCompany(base){
+    const by = new Map();
+    base.slice().sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).forEach(e => {
+      const k = normName(e.company_name), cur = by.get(k);
+      if (!cur || (isDone(normStatus(cur.status)) && !isDone(normStatus(e.status)))) by.set(k, e);
+      else if (isDone(normStatus(cur.status)) && isDone(normStatus(e.status))) by.set(k, e);
+    });
+    return [...by.values()];
+  }
   const reportScopeEntries = () => {
     const base = (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
     if (currentDataKey() !== 'form_sst') return base;
@@ -3526,6 +3556,7 @@
     const allMonths = monthsChosen.length === document.querySelectorAll('#reportMonthOptions input').length;
     let entries = reportScopeEntries();
     if (!allMonths) entries = entries.filter(e => isTxRep ? monthsChosen.includes(ymOf(e)) : monthsChosen.includes(monthOf(e, key)));
+    else if (isMonthly(key)) entries = onePerCompany(entries);   // all months: each client once (its current month), not 12 times
     let monthText = allMonths ? '' : monthsChosen.map(m => isTxRep ? ymLabel(m, true) : MONTHS[m - 1].slice(0, 3)).join(', ');
     if (key === 'form_c') {
       const fyeChosen = [...document.querySelectorAll('#reportFyeOptions input:checked')].map(i => parseInt(i.value, 10));
@@ -3804,6 +3835,40 @@
     const ord = y * 12 + (m - 1) + 1;
     return `${Math.floor(ord / 12)}-${pad2(ord % 12 + 1)}-01`;
   }
+  // ---- PCB / CP205: all 12 months of a year at once ----
+  const dueOfMonth = (y, m) => `${y}-${pad2(m)}-01`;
+  const monthNoOf = e => e.due_date ? parseInt(e.due_date.slice(5, 7), 10) : 0;
+  const pcbYearRows = e => (formData[e.form_type] || []).filter(o => normName(o.company_name) === normName(e.company_name) && o.due_date && o.due_date.slice(0, 4) === e.due_date.slice(0, 4)).sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const pcbPaidNow = rows => { let n = 0; for (let m = 1; m <= 12; m++) { const r = rows.find(x => monthNoOf(x) === m); if (r && isDone(normStatus(r.status))) n++; else break; } return n; };
+  const monthlyRows = (formType, name, year, paid, createdBy, extra) => { const now = new Date().toISOString(); const out = []; for (let m = 1; m <= 12; m++) out.push({ form_type: formType, company_name: name, due_date: dueOfMonth(year, m), created_by: createdBy, ...(extra || {}), ...(m <= paid ? { status: 'completed', status_changed_at: now } : {}) }); return out; };
+  function defaultPaidNow(){ return Math.min(new Date().getMonth() + 1, 11); }   // joins at the next 1st, as before
+  function fillPaidSelect(sel, selected, min){
+    sel.innerHTML = Array.from({ length: 13 }, (_, k) => `<option value="${k}"${k === selected ? ' selected' : ''}${k < (min || 0) ? ' disabled' : ''}>${k === 0 ? '0 — none yet' : k + ' of 12 paid'}</option>`).join('');
+  }
+  const paidPreviewText = (k, year) => k >= 12 ? `All 12 months are saved as Completed.` : `It goes straight to tab ${k + 1}/12 — due ${formatDateDMY(dueOfMonth(year, k + 1))}.` + (k ? ` Months 1–${k} are saved as Completed.` : '');
+  document.getElementById('triplePaid').addEventListener('change', () => { document.getElementById('triplePaidPrev').textContent = paidPreviewText(parseInt(document.getElementById('triplePaid').value, 10) || 0, new Date().getFullYear()); });
+  document.getElementById('editPcbPaid').addEventListener('change', () => { const e = findEntry(editingEntryId); if (e) document.getElementById('editPcbPrev').textContent = paidPreviewText(parseInt(document.getElementById('editPcbPaid').value, 10) || 0, parseInt(e.due_date.slice(0, 4), 10)); });
+  // When December is done, next year's 12 months are made ready (hidden until that year starts)
+  async function ensureNextYearRows(entry){
+    if (!isMonthly(entry.form_type) || !entry.due_date) return;
+    const ny = parseInt(entry.due_date.slice(0, 4), 10) + 1, k = normName(entry.company_name);
+    if ((formData[entry.form_type] || []).some(o => normName(o.company_name) === k && o.due_date && o.due_date.startsWith(String(ny)))) return;
+    const { error } = await sb.from('form_entries').insert(monthlyRows(entry.form_type, entry.company_name, ny, 0, currentUser.id, { renewed_from: entry.id }));
+    if (error) { showToast('Could not prepare next year\'s 12 months: ' + error.message); return; }
+    await logActivity(`Prepared ${ny} (12 months) for "${entry.company_name}" (${formNameOf(entry.form_type)})`);
+  }
+  // Edit: the company has already made k payments this year -> create any missing months and mark months 1..k as Completed
+  async function applyPcbPaid(entry, k){
+    const year = parseInt(entry.due_date.slice(0, 4), 10), rows = pcbYearRows(entry), have = new Set(rows.map(monthNoOf));
+    const add = monthlyRows(entry.form_type, entry.company_name, year, k, currentUser.id).filter(r => !have.has(parseInt(r.due_date.slice(5, 7), 10)));
+    if (add.length) { const r = await sb.from('form_entries').insert(add); if (r.error) { showToast('Could not create the other months: ' + r.error.message); return false; } }
+    const ids = rows.filter(r => monthNoOf(r) <= k && !isDone(normStatus(r.status))).map(r => r.id);
+    if (ids.length) { const r = await sb.from('form_entries').update({ status: 'completed', status_changed_at: new Date().toISOString() }).in('id', ids); if (r.error) { showToast('Could not update the months: ' + r.error.message); return false; } }
+    await logActivity(`Set "${entry.company_name}" (${formNameOf(entry.form_type)}) to ${k} of 12 payments already made${k < 12 ? ' — now in tab ' + (k + 1) + '/12' : ''}`);
+    if (k >= 12) { await loadFormEntries(); const dec = pcbYearRows(entry).find(r => monthNoOf(r) === 12); if (dec) await ensureNextYearRows(dec); }
+    listSstTab = Math.min(k + 1, 12);
+    return true;
+  }
   const EA_TARGET_LABELS = { form_be: 'Form BE', form_b: 'Form B', form_e: 'Form E' };
 
   // PCB / CP205 / CP500 are paid again and again. When a period is done, the client "jumps" to the
@@ -3846,7 +3911,7 @@
   const sstCycleRows = e => (formData.form_sst || []).filter(o => normName(o.company_name) === normName(e.company_name) && !isArchived(o) && !isUpcoming(o))
     .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).slice(0, 6);
   const sstPaidNow = rows => { let n = 0; while (n < rows.length && normStatus(rows[n].status) === 'submitted') n++; return n; };
-  let editSstOld = 0;
+  let editSstOld = 0, editPcbOld = 0;
   function updateEditSstPreview(){
     const k = parseInt(document.getElementById('editSstPaid').value, 10) || 0;
     document.getElementById('editSstPrev').textContent = k > editSstOld
@@ -3891,6 +3956,12 @@
     document.getElementById('editFyeWrap').style.display = isCp ? '' : 'none';
     document.getElementById('editFye').value = entry.fye_date || '';
     document.getElementById('editLongOverdue').checked = !!entry.long_overdue;
+    document.getElementById('editPcbWrap').style.display = isMonthly(entry.form_type) ? '' : 'none';
+    if (isMonthly(entry.form_type)) {
+      editPcbOld = pcbPaidNow(pcbYearRows(entry));
+      fillPaidSelect(document.getElementById('editPcbPaid'), editPcbOld, editPcbOld);
+      document.getElementById('editPcbPrev').textContent = `Currently ${editPcbOld ? 'in tab ' + Math.min(editPcbOld + 1, 12) + '/12' : 'at the first month'}. Choose a higher number if more payments were already made.`;
+    }
     document.getElementById('editSstWrap').style.display = entry.form_type === 'form_sst' ? '' : 'none';
     if (entry.form_type === 'form_sst') {
       editSstOld = sstPaidNow(sstCycleRows(entry));
@@ -3954,7 +4025,8 @@
     const loNew = document.getElementById('editLongOverdue').checked, loChanged = loNew !== !!entry.long_overdue;
     const isB = entry.form_type === 'form_b', clientNew = isB ? readClients('editClientList') : '', clientChanged = isB && clientNew !== (entry.client_name || '');
     const sstNew = entry.form_type === 'form_sst' ? (parseInt(document.getElementById('editSstPaid').value, 10) || 0) : 0, sstChanged = entry.form_type === 'form_sst' && sstNew > editSstOld;
-    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged && !clientChanged && !sstChanged) { closeEditModal(); return; }
+    const pcbNew = isMonthly(entry.form_type) ? (parseInt(document.getElementById('editPcbPaid').value, 10) || 0) : 0, pcbChanged = isMonthly(entry.form_type) && pcbNew > editPcbOld;
+    if (!nameChanged && !dueChanged && !fyeChanged && !idChanged && !loChanged && !clientChanged && !sstChanged && !pcbChanged) { closeEditModal(); return; }
 
     const others = ((nameChanged || fyeChanged) && document.getElementById('editAll').checked && document.getElementById('editAllWrap').style.display !== 'none')
       ? relatedRows(entry) : [];
@@ -3982,6 +4054,7 @@
     }
     let sstOk = true;
     if (sstChanged) sstOk = await applySstPaid(entry, sstNew);
+    if (pcbChanged) sstOk = await applyPcbPaid(entry, pcbNew);
     btn.disabled = false; btn.textContent = 'Save';
 
     const oldName = entry.company_name, oldDue = entry.due_date;
@@ -3993,7 +4066,7 @@
     if (clientChanged) parts.push(`client name → "${clientNew || 'none'}"`);
     if (loChanged) parts.push(loNew ? 'marked LONG OVERDUE' : 'LONG OVERDUE removed');
     closeEditModal();
-    showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : sstChanged && sstOk ? `${name} updated — now in tab ${sstNew + 1}/6.` : `${name} updated.`);
+    showToast(othersFailed ? 'Saved, but the other rows could not be renamed.' : sstChanged && sstOk ? `${name} updated — now in tab ${sstNew + 1}/6.` : pcbChanged && sstOk ? `${name} updated — now in tab ${Math.min(pcbNew + 1, 12)}/12.` : `${name} updated.`);
     if (parts.length) await logActivity(`Edited ${entityOf(entry.form_type).toLowerCase()} in ${formNameOf(entry.form_type)}: ${parts.join('; ')}`);
     await loadFormEntries();
   });
@@ -4135,8 +4208,8 @@
   const TRIPLE_NOTES = {
     ea: 'Deadline is set to 14 February for early finalization as Form EA must be given to employees by 28 February.',
     both: 'Deadline is set to 14 February (Form EA) and 20 April (Form BE) for early progress.',
-    pcb: () => `Deadline is set to the 1st of every month as an early progress as Form PCB government due is on the 15th of every month. Next deadline: ${formatDateDMY(nextMonthlyDue())}.`,
-    cp205: () => `Deadline is set to the 1st of every month as an early progress as Form CP205 government due is on the 15th of every month. Next deadline: ${formatDateDMY(nextMonthlyDue())}.`
+    pcb: () => `Deadline is set to the 1st of every month as an early progress as Form PCB government due is on the 15th of every month. All 12 months are created at once (tabs 1/12 … 12/12); each month unlocks when the month before is Completed.`,
+    cp205: () => `Deadline is set to the 1st of every month as an early progress as Form CP205 government due is on the 15th of every month. All 12 months are created at once (tabs 1/12 … 12/12); each month unlocks when the month before is Completed.`
   };
   // Notes for the generic "add" form (shown in red italic, like the ones above)
   const ADD_FORM_NOTES = {
@@ -4165,6 +4238,9 @@
       document.getElementById('tripleNote').textContent = typeof TRIPLE_NOTES[mode] === 'function' ? TRIPLE_NOTES[mode]() : TRIPLE_NOTES[mode];
       document.querySelector('label[for="tripleClientName"]').textContent = TRIPLE_LABELS[mode];
       document.getElementById('tripleClientName').placeholder = TRIPLE_PLACEHOLDERS[mode];
+      const wantsPaid = mode === 'pcb' || mode === 'cp205';
+      document.getElementById('triplePaidWrap').style.display = wantsPaid ? '' : 'none';
+      if (wantsPaid) { const dp = defaultPaidNow(); fillPaidSelect(document.getElementById('triplePaid'), dp, 0); document.getElementById('triplePaidPrev').textContent = paidPreviewText(dp, new Date().getFullYear()); }
       const wantsId = mode === 'ea' || mode === 'both';
       document.getElementById('tripleIdWrap').style.display = wantsId ? '' : 'none';
       document.getElementById('tripleIdType').value = ''; document.getElementById('tripleIdNo').value = ''; applyTripleId();
@@ -4194,16 +4270,19 @@
     // Finalize -> Create BE before its Form BE entry is created, same as any other EA client.
     // requires_be flags it so the EA list shows the "BE required" tag and the Create BE button.
     const cfg = TRIPLE_SAVE_CONFIG[tripleMode];
-    const { error } = await sb.from('form_entries').insert({
-      form_type: cfg.formType, company_name, due_date: cfg.due(), created_by: currentUser.id, ...cfg.extra(), ...idFields
-    });
+    const monthlyMode = tripleMode === 'pcb' || tripleMode === 'cp205';
+    const paidK = monthlyMode ? (parseInt(document.getElementById('triplePaid').value, 10) || 0) : 0;
+    const { error } = await sb.from('form_entries').insert(monthlyMode
+      ? monthlyRows(cfg.formType, company_name, new Date().getFullYear(), paidK, currentUser.id)     // all 12 months at once
+      : { form_type: cfg.formType, company_name, due_date: cfg.due(), created_by: currentUser.id, ...cfg.extra(), ...idFields });
 
     btn.disabled = false; btn.textContent = 'Save';
     if (error) { errEl.textContent = 'Could not save: ' + error.message; return; }
 
     closeTripleForm();
-    showToast(`${company_name} added.`);
-    await logActivity(`Added ${entityOf(cfg.formType).toLowerCase()} "${company_name}" to ${formNameOf(cfg.formType)}${tripleMode === 'both' ? ' (BE required)' : ''}`);
+    showToast(monthlyMode ? `${company_name} added — now in tab ${Math.min(paidK + 1, 12)}/12.` : `${company_name} added.`);
+    if (monthlyMode) { listSstTab = Math.min(paidK + 1, 12); listSearchTerm = ''; document.getElementById('listSearchInput').value = ''; }
+    await logActivity(`Added ${entityOf(cfg.formType).toLowerCase()} "${company_name}" to ${formNameOf(cfg.formType)}${monthlyMode ? ' (12 months' + (paidK ? ', ' + paidK + ' already paid' : '') + ')' : ''}${tripleMode === 'both' ? ' (BE required)' : ''}`);
     if (tripleMode === 'ea' || tripleMode === 'both') activeSubForm = 'form_ea';
     if (tripleMode === 'pcb' || tripleMode === 'cp205') activeSubForm2 = cfg.formType;
     await loadFormEntries();
