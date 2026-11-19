@@ -2844,7 +2844,8 @@
       document.getElementById('deleteConfirmBackdrop').classList.add('open');
     }));
     body.querySelectorAll('.status-select:not(.e-field-select)').forEach(sel => sel.addEventListener('change', () => onStatusChange(sel.dataset.entry, sel.value)));
-    body.querySelectorAll('.finish-btn:not(.next-btn):not(.jump-btn)').forEach(btn => btn.addEventListener('click', () => onFinishClick(btn.dataset.entry, btn.dataset.target)));
+    body.querySelectorAll('.finish-btn:not(.next-btn):not(.jump-btn):not(.be-conv-btn)').forEach(btn => btn.addEventListener('click', () => onFinishClick(btn.dataset.entry, btn.dataset.target)));
+    body.querySelectorAll('.be-conv-btn').forEach(btn => btn.addEventListener('click', () => onConvertToEaBe(btn.dataset.entry)));
     body.querySelectorAll('.jump-btn').forEach(btn => btn.addEventListener('click', () => onCp204JumpClick(btn.dataset.entry)));
     body.querySelectorAll('.next-btn').forEach(btn => btn.addEventListener('click', () => onNextPeriodClick(btn.dataset.entry)));
     body.querySelectorAll('.e-field-select').forEach(sel => sel.addEventListener('change', () => onEFieldUpdate(sel.dataset.entry, sel.dataset.field, sel.value)));
@@ -3147,6 +3148,7 @@
         </td>
         <td class="finish-col">${entry.form_type === 'form_ea' ? `
           <div class="ea-action-group">
+            ${!entry.requires_be ? `<button type="button" class="finish-btn be-conv-btn" data-entry="${entry.id}" title="Tukar client ini kepada EA &amp; BE">→ EA &amp; BE</button>` : ''}
             ${entry.requires_be ? `<button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_be" ${entry.status === 'completed' ? '' : 'disabled'}>Create BE</button>` : ''}
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_b" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create B</button>
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_e" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create E</button>
@@ -4181,6 +4183,18 @@
     await logActivity(`Jumped "${entry.company_name}" from ${entry.form_type === 'form_cp204' ? 'CP204' : 'CP204A ' + CP204_REV_LABELS[entry.revision]} to CP204A ${CP204_REV_LABELS[nextRev]}`);
     await loadFormEntries();
     goToForm('form_cp204a', data.id);
+  }
+
+  async function onConvertToEaBe(eaId){
+    if (!canEdit()) { showToast('Only HOD or Executive Administrator can do this.'); return; }
+    const ea = (formData.form_ea || []).find(e => e.id === eaId);
+    if (!ea || ea.requires_be) return;
+    if (!confirm(`Tukar "${ea.company_name}" kepada EA & BE?`)) return;
+    const { error } = await sb.from('form_entries').update({ requires_be: true }).eq('id', eaId);
+    if (error) { showToast('Could not convert: ' + error.message); return; }
+    await logActivity(`Converted "${ea.company_name}" from EA only to EA & BE`);
+    showToast(`${ea.company_name} is now EA & BE.`);
+    await loadFormEntries();
   }
 
   async function onFinishClick(eaId, target){
