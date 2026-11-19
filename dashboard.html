@@ -2419,8 +2419,9 @@
     return (formData[e.form_type] || []).filter(o => o.id !== e.id && sameChain(o, e) && o.due_date && o.due_date.slice(0, 4) === y && o.due_date < e.due_date && !isDone(normStatus(o.status)))
       .sort((a, b) => a.due_date.localeCompare(b.due_date))[0] || null;
   }
-  const lockOf = e => e.form_type === 'form_sst' ? sstBlocker(e) : e.form_type === 'form_cp204a' ? cp204aBlocker(e) : isMonthly(e.form_type) ? pcbBlocker(e) : null;
-  const lockWhy = b => b.form_type === 'form_cp204' ? 'CP204' : b.form_type === 'form_cp204a' ? (CP204_REV_LABELS[b.revision] || 'the previous step') : formatDateDMY(b.due_date);
+  const beBlocker = e => { if (!e.parent_id) return null; const ea = (formData.form_ea || []).find(x => x.id === e.parent_id); return ea && ea.requires_be && ea.status !== 'completed' ? ea : null; };
+  const lockOf = e => e.form_type === 'form_be' ? beBlocker(e) : e.form_type === 'form_sst' ? sstBlocker(e) : e.form_type === 'form_cp204a' ? cp204aBlocker(e) : isMonthly(e.form_type) ? pcbBlocker(e) : null;
+  const lockWhy = b => b.form_type === 'form_ea' ? 'Form EA' : b.form_type === 'form_cp204' ? 'CP204' : b.form_type === 'form_cp204a' ? (CP204_REV_LABELS[b.revision] || 'the previous step') : formatDateDMY(b.due_date);
   const REV_LEAD = { 1: 6, 2: 3, 3: 1 };   // months before FYE: 1st Revised (6th month), 2nd Revised (9th), Final Revised (11th)
   const revDue = (fye, rev) => fye ? monthEnd(addMonthsYM(fye.slice(0, 7), -REV_LEAD[rev])) : null;
   // Creates the CP204A rows startRev..3 for a CP204 / CP204A row, chained by parent_id (each waits for the one before)
@@ -3068,7 +3069,7 @@
     if (entry.form_type === 'form_ea' && entry.requires_be) {
       const linked = (formData.form_be || []).some(b => b.parent_id === entry.id);
       beTag = linked
-        ? `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ BE created</div>`
+        ? `<div class="ea-note" style="color:var(--green); margin-top:4px; white-space:normal;">✓ BE listed</div>`
         : `<div class="ea-note" style="margin-top:4px; white-space:normal;">⚠ BE required for this client</div>`;
     }
 
@@ -3149,7 +3150,7 @@
         <td class="finish-col">${entry.form_type === 'form_ea' ? `
           <div class="ea-action-group">
             ${!entry.requires_be ? `<button type="button" class="finish-btn be-conv-btn" data-entry="${entry.id}" title="Tukar client ini kepada EA &amp; BE">→ EA &amp; BE</button>` : ''}
-            ${entry.requires_be ? `<button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_be" ${entry.status === 'completed' ? '' : 'disabled'}>Create BE</button>` : ''}
+            ${entry.requires_be && !(formData.form_be || []).some(b => b.parent_id === entry.id) ? `<button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_be" ${entry.status === 'completed' ? '' : 'disabled'}>Create BE</button>` : ''}
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_b" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create B</button>
             <button type="button" class="finish-btn" data-entry="${entry.id}" data-target="form_e" ${(entry.requires_be || entry.status !== 'completed') ? 'disabled' : ''}>Create E</button>
           </div>`
@@ -4185,6 +4186,16 @@
     goToForm('form_cp204a', data.id);
   }
 
+  // Puts an EA & BE client straight into the BE list (locked until its EA is COMPLETED).
+  async function ensureBeRow(ea){
+    if ((formData.form_be || []).some(b => b.parent_id === ea.id || normName(b.company_name) === normName(ea.company_name))) return null;
+    const ya = parseInt(ea.due_date.slice(0, 4), 10) - 1;   // ea.due_date year is YA + 1
+    const row = { form_type: 'form_be', company_name: ea.company_name, due_date: beDueDate(ya), parent_id: ea.id, created_by: currentUser.id, status: 'pending', status_changed_at: new Date().toISOString() };
+    if (ea.id_type) { row.id_type = ea.id_type; row.id_number = ea.id_number; }
+    const { error } = await sb.from('form_entries').insert(row);
+    return error ? error.message : null;
+  }
+
   async function onConvertToEaBe(eaId){
     if (!canEdit()) { showToast('Only HOD or Executive Administrator can do this.'); return; }
     const ea = (formData.form_ea || []).find(e => e.id === eaId);
@@ -4192,8 +4203,11 @@
     if (!confirm(`Tukar "${ea.company_name}" kepada EA & BE?`)) return;
     const { error } = await sb.from('form_entries').update({ requires_be: true }).eq('id', eaId);
     if (error) { showToast('Could not convert: ' + error.message); return; }
+    ea.requires_be = true;
+    const beErr = await ensureBeRow(ea);
+    if (beErr) showToast('Converted, but could not add to the BE list: ' + beErr);
     await logActivity(`Converted "${ea.company_name}" from EA only to EA & BE`);
-    showToast(`${ea.company_name} is now EA & BE.`);
+    if (!beErr) showToast(`${ea.company_name} is now EA & BE and listed under BE (locked until EA is Completed).`);
     await loadFormEntries();
   }
 
@@ -4329,6 +4343,7 @@
       const rr = await sb.from('form_remarks').insert({ entry_id: target.id, body: `Reason for adding this name again: ${dupReasonT}`, author_id: currentUser.id });
       if (rr.error) showToast('Saved, but the reason could not be added as a remark: ' + rr.error.message);
     }
+    if (tripleMode === 'both' && tIns && tIns[0]) { const be = await ensureBeRow(tIns[0]); if (be) showToast('EA saved, but could not add to the BE list: ' + be); }
     closeTripleForm();
     showToast(monthlyMode ? `${company_name} added — now in tab ${Math.min(paidK + 1, 12)}/12.` : `${company_name} added.`);
     if (monthlyMode) { listSstTab = Math.min(paidK + 1, 12); listSearchTerm = ''; document.getElementById('listSearchInput').value = ''; }
