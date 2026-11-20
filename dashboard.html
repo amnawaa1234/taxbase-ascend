@@ -2164,6 +2164,26 @@
     return data || [];
   }
 
+  // Existing SST / PCB / CP205 rows: months of THIS year that are already past are set to Completed / Submitted.
+  // The current month and later ones stay as they are. Runs once when HOD / Executive Administrator opens the app.
+  async function sweepPastMonths(){
+    const now = new Date(), y = now.getFullYear(), curYM = `${y}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const plan = [['form_sst', 'submitted'], ['form_pcb', 'completed'], ['form_cp205', 'completed']];
+    let total = 0;
+    for (const [k, st] of plan) {
+      const ids = (formData[k] || []).filter(e => e.due_date && e.due_date.slice(0, 4) === String(y) && e.due_date.slice(0, 7) < curYM && !isDone(normStatus(e.status)) && !isArchived(e)).map(e => e.id);
+      if (!ids.length) continue;
+      const r = await sb.from('form_entries').update({ status: st, status_changed_at: new Date().toISOString() }).in('id', ids);
+      if (r.error) { showToast('Could not update past months: ' + r.error.message); return; }
+      total += ids.length;
+    }
+    if (total) {
+      await logActivity(`Auto-set ${total} past-month ${total === 1 ? 'entry' : 'entries'} of this year to Completed / Submitted (SST, PCB, CP205)`);
+      showToast(`${total} past-month ${total === 1 ? 'entry' : 'entries'} set to Completed / Submitted.`);
+      await loadFormEntries();
+    }
+  }
+
   async function loadFormEntries(){
     for (const f of FORMS) formData[f.key] = await loadOneFormType(f.key);
     formData.form_ea = await loadOneFormType('form_ea');
@@ -2173,6 +2193,7 @@
     const firstLoad = !loadedOnce;
     loadedOnce = true;
     if (firstLoad) setTimeout(() => runRenewal(false), 800);
+    if (firstLoad && canEdit()) setTimeout(() => sweepPastMonths(), 1500);
     renderWidgets();
     if (currentListFormType) renderCurrentPanel();
     if (screenNow === 'profileDetail') renderProfileDetail();
@@ -3493,8 +3514,7 @@
   const currentListLabel = () => formNameOf(currentDataKey());
   // The report covers the whole list being viewed (current list, or Archive when that is open),
   // regardless of the on-screen search / letter / month filters.
-  // One row per client for the report: its CURRENT period — the oldest unfinished row up to this month
-  // (so an overdue one is not hidden), otherwise the latest row up to this month. Future months are not picked.
+  // One row per client for the report: its CURRENT period (the latest row up to this month). Older and future months are not picked.
   function onePerCompany(base){
     const now = new Date(), curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const groups = new Map();
@@ -3506,7 +3526,7 @@
     return [...groups.values()].map(rows => {
       const upto = rows.filter(e => (e.due_date || '').slice(0, 7) <= curYM);
       if (!upto.length) return rows[0];
-      return upto.find(e => !isDone(normStatus(e.status))) || upto[upto.length - 1];
+      return upto[upto.length - 1];   // the latest period up to this month
     });
   }
   const reportScopeEntries = () => {
@@ -3549,6 +3569,11 @@
       applyNamesOnlyState();
     }
     document.getElementById('reportAllMonths').checked = true;
+    if (dk === 'form_sst' || isMonthly(dk)) {   // monthly forms: print only the latest (current) month by default
+      const cur = new Set(onePerCompany(entries).map(e => monthOf(e, dk)));
+      document.querySelectorAll('#reportMonthOptions input').forEach(b => { b.checked = cur.has(parseInt(b.value, 10)); });
+      document.getElementById('reportAllMonths').checked = false;
+    }
     const isC = dk === 'form_c';
     document.getElementById('reportFyeWrap').style.display = isC ? '' : 'none';
     if (isC) {
