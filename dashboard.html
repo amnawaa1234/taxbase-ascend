@@ -3493,26 +3493,26 @@
   const currentListLabel = () => formNameOf(currentDataKey());
   // The report covers the whole list being viewed (current list, or Archive when that is open),
   // regardless of the on-screen search / letter / month filters.
+  // One row per client for the report: its CURRENT period — the oldest unfinished row up to this month
+  // (so an overdue one is not hidden), otherwise the latest row up to this month. Future months are not picked.
   function onePerCompany(base){
-    const by = new Map();
+    const now = new Date(), curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const groups = new Map();
     base.slice().sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).forEach(e => {
-      const k = normName(e.company_name) + '|' + serOf(e), cur = by.get(k);
-      if (!cur || (isDone(normStatus(cur.status)) && !isDone(normStatus(e.status)))) by.set(k, e);
-      else if (isDone(normStatus(cur.status)) && isDone(normStatus(e.status))) by.set(k, e);
+      const k = normName(e.company_name) + '|' + serOf(e);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(e);
     });
-    return [...by.values()];
+    return [...groups.values()].map(rows => {
+      const upto = rows.filter(e => (e.due_date || '').slice(0, 7) <= curYM);
+      if (!upto.length) return rows[0];
+      return upto.find(e => !isDone(normStatus(e.status))) || upto[upto.length - 1];
+    });
   }
   const reportScopeEntries = () => {
     const base = (formData[currentDataKey()] || []).filter(e => isArchived(e) === showArchive && !isUpcoming(e));
-    if (currentDataKey() !== 'form_sst') return base;
     // SST has 6 periods per company: the report lists each company once (its current period), not 6 times
-    const by = new Map();
-    base.slice().sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '')).forEach(e => {
-      const k = normName(e.company_name) + '|' + serOf(e), cur = by.get(k);
-      if (!cur || (isDone(normStatus(cur.status)) && !isDone(normStatus(e.status)))) by.set(k, e);
-      else if (isDone(normStatus(cur.status)) && isDone(normStatus(e.status))) by.set(k, e);
-    });
-    return [...by.values()];
+    return currentDataKey() === 'form_sst' ? onePerCompany(base) : base;
   };
 
   document.getElementById('listReportBtn').addEventListener('click', () => {
